@@ -1,0 +1,19 @@
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+prove: depth 8
+cover: mode cover
+cover: depth 8
+
+[engines]
+smtbmc yices
+
+[script]
+read -formal hydra_rst_sync.sv
+prep -top hydra_rst_sync
+
+[files]
+../rtl/hydra_rst_sync.sv

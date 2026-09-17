@@ -1,0 +1,26 @@
+# Tang Nano 20K (Gowin GW2AR-18): LEDs sink current, hence invert: true.
+core:    hydra_fpga_tt_harness
+module:  hydra_tangnano20k_tt
+board:   tangnano20k
+sources:
+  - tt/tile/src/rtl/mom_pkg.sv
+  - tt/tile/src/rtl/mom_features.sv
+  - tt/tile/src/rtl/mom_param_rom.sv
+  - tt/tile/src/rtl/mom_cost_engine.sv
+  - tt/tile/src/rtl/mom_calibrate.sv
+  - tt/tile/src/rtl/mom_select.sv
+  - tt/tile/src/rtl/mom_scoreboard.sv
+  - tt/tile/src/rtl/mom_top.sv
+  - tt/tile/src/rtl/hydra_tt_spi.sv
+  - tt/tile/src/rtl/hydra_tt_regs.sv
+  - tt/tile/src/tt_um_hydra_mom.sv
+  - fpga/rtl/hydra_fpga_uart.sv
+  - fpga/rtl/hydra_fpga_tt_harness.sv
+sys_hz: 27000000
+baud:   115200
+clock:  clk
+reset:  rst_n
+pins:
+  - {core: uart_rx_i, board: uart_rx}
+  - {core: uart_tx_o, board: uart_tx}
+  - {core: "uo_mirror[5:0]", board: "led[5:0]", invert: true}

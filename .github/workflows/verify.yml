@@ -1,0 +1,55 @@
+# Runs every check in the repository on each push.
+#
+# NOTE: this workflow has not been executed by its author -- it was written in
+# an environment with no GitHub runner. The commands in it are the same ones
+# that pass locally (scripts/bootstrap-ubuntu.sh then make verify), so if the
+# first run fails it will be the runner environment, not the checks.
+name: verify
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Toolchain
+        run: ./scripts/bootstrap-ubuntu.sh --system
+
+      - name: Fetch vendor pin files
+        run: python3 tools/import_boards.py fetch
+
+      - name: Verify
+        run: make verify
+
+      - name: Place and route the ULX3S build
+        run: |
+          python3 tools/hydra_bind.py build --plan plans/ulx3s-85f.yaml
+          make -C fpga/build/ulx3s-85f
+          grep -E "Max frequency|utilisation" -A3 fpga/build/ulx3s-85f/*.log || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ulx3s-bitstream
+          path: fpga/build/ulx3s-85f/*.bit
+          if-no-files-found: warn
+
+  mutate:
+    # Slow (every test is broken on purpose and must fail), so it runs on
+    # demand and on the default branch rather than on every pull request.
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - run: ./scripts/bootstrap-ubuntu.sh --system
+      - run: make mutate

@@ -1,0 +1,13 @@
+HYDRA-130 targets
+Copyright (c) 2026 Aleksander J. Norman
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The TinyTapeout tile under tt/tile is a separate repository, included here as
+a submodule, and carries its own copyright and licence.
+
+fpga/boards/*.yaml contain pin assignments derived from board vendors' own
+constraint files (Digilent, 1BitSquared/icebreaker-fpga, emard/ulx3s, Sipeed,
+Terasic via f32c). Those files are NOT redistributed here: each board file
+records the source URL and its SHA-256, and tools/import_boards.py downloads
+them on demand.
