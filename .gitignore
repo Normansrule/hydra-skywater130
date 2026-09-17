@@ -1,0 +1,28 @@
+# Vendor constraint files are downloaded, not redistributed: import_boards.py
+# records each file's URL and SHA-256, and boards/*.yaml holds the pin data
+# derived from them.
+fpga/vendor_refs/
+
+# Generated build products
+fpga/build/*/*.v
+fpga/build/*/*.json
+fpga/build/*/*.asc
+fpga/build/*/*.config
+fpga/build/*/*.bin
+fpga/build/*/*.bit
+fpga/build/*/*.fs
+
+# Simulation and formal scratch
+common/tb/padmux_vectors.hex
+**/sim_build/
+**/*.vcd
+**/results.xml
+common/formal/*_prove/
+common/formal/*_cover/
+tt/formal/*_prove/
+tt/formal/*_cover/
+
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc

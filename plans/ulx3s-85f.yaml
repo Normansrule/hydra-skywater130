@@ -1,0 +1,30 @@
+# ULX3S (ECP5-85F): the TT-A tile driven from a PC over the FTDI serial port.
+# 25 MHz oscillator used directly; the tile signs off at 18 MHz on sky130, so
+# timing closure here is a separate question answered by nextpnr.
+core:    hydra_fpga_tt_harness
+module:  hydra_ulx3s_tt
+board:   ulx3s-85f
+sources:
+  - tt/tile/src/rtl/mom_pkg.sv
+  - tt/tile/src/rtl/mom_features.sv
+  - tt/tile/src/rtl/mom_param_rom.sv
+  - tt/tile/src/rtl/mom_cost_engine.sv
+  - tt/tile/src/rtl/mom_calibrate.sv
+  - tt/tile/src/rtl/mom_select.sv
+  - tt/tile/src/rtl/mom_scoreboard.sv
+  - tt/tile/src/rtl/mom_top.sv
+  - tt/tile/src/rtl/hydra_tt_spi.sv
+  - tt/tile/src/rtl/hydra_tt_regs.sv
+  - tt/tile/src/tt_um_hydra_mom.sv
+  - fpga/rtl/hydra_fpga_uart.sv
+  - fpga/rtl/hydra_fpga_tt_harness.sv
+sys_hz: 12500000        # measured Fmax on ECP5-85F is 15.41 MHz (session 179); never ask for more than timing closes at
+baud:   115200
+clock:  clk
+reset:  rst_n
+pins:
+  - {core: uart_rx_i, board: uart_rx}
+  - {core: uart_tx_o, board: uart_tx}
+  - {core: "uo_mirror[7:0]", board: "led[7:0]"}
+  - {core: "uio_mirror[7:0]", board: "gp[7:0]"}
+  - {core: reg_mode_o, board: "gp[8]"}
