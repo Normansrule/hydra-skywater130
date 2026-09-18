@@ -84,20 +84,36 @@ instance, and `reg_mode` can only change while reset is asserted, which also
 clears the register block. The gate is isolation, not behaviour. It stays, and
 `mutate_sim.py` records why it is not a mutation target.
 
-### Area and tiles
+### Area and tiles — MEASURED
 
-v1 is `tiles: "3x4"` at `CLOCK_PERIOD` 55 (18 MHz). v2 adds an SPI target, a
-14-register block, a 128-bit captured descriptor and the read multiplexer. The
-tile area has **not** been measured in this session — that needs LibreLane and
-the PDK, which were not available here. Before submitting:
+Mapped to the sky130 high-density standard cells with yosys and abc
+(`tools/sky130_area.sh`, which reproduces this):
+
+| build | cell area | cells | density at 3x4 | at 4x4 or 8x2 |
+|---|---|---|---|---|
+| v1 (`b179c6b`) | 135,203 um2 | 22,753 | 62.5% | 46.9% |
+| v2 | 194,647 um2 | 28,183 | **89.9%** | 67.5% |
+| v2 without the LASTWD readback | 178,262 um2 | — | 82.4% | 61.8% |
+
+A tile is 167 x 108 um, so `3x4` is 216,432 um2 and `4x4` (or `8x2`, the same
+area) is 288,576 um2.
+
+**v2 does not fit `tiles: "3x4"`.** It is 44% larger than v1, which itself sat
+near 62% density there. Dropping the 128-bit captured descriptor saves only
+8%, so it does not rescue 3x4 and is not worth the lost readback.
+
+**Set `tiles: "4x4"` (or `"8x2"`).** v2 then sits at 67.5%, close to the
+density v1 hardened at, with headroom for the clock tree.
+
+These are yosys+abc numbers, not OpenLane numbers: OpenLane synthesises
+differently and then adds buffering, clock tree and fill, so the absolute
+figures read low. The RATIO is the trustworthy part. Confirm with a real
+harden before submitting. Before submitting:
 
 1. harden v2 at `tiles: "3x4"` and read the utilisation;
-2. if it does not fit, raise `tiles` in `info.yaml` and let the flow regenerate
-   the config. Do not hand-edit the floorplan: that is the ASICirific failure
-   the v1 header documents.
-3. `hydra_tt_regs` has a `READ_WD` sized decision in it: the 128-bit `LASTWD`
-   register and its read path are the largest new item and the first thing to
-   drop if area is tight.
+2. if `4x4` is refused by the shuttle, `8x2` has identical area;
+3. do not hand-edit the floorplan to squeeze it in — that is the ASICirific
+   failure the v1 header documents.
 
 Tiny Tapeout's current template allows 1x1 through 8x2 and describes a tile as
 about 167 × 108 µm; ChipFoundry sky130 shuttles have also allowed 4-tile-high
@@ -134,6 +150,24 @@ better, when the die does not grow with it.
 This is a hypothesis because the table may be core area rather than cell area.
 `/tmp/verify_all_soc_0.log` and the `DIE_AREA` line in the SoC config settle it
 in one look.
+
+### What exists now
+
+`sky130/rtl/hydra_openframe_top.sv` is the chip: the real 44-pad OpenFrame
+interface, the proved pad multiplexer on the 24 functional pads, a bring-up
+sequence, and the tile as its first macro. `sky130/tb/tb_openframe.sv` drives
+it through the pads and checks that nothing is driven during reset, that the
+inert personality holds when the connect strap is low, that the tile answers
+over SPI once connected, and that the personality then locks.
+
+That bench earned its place immediately: the first run read an identity of
+zero. The tile samples its own personality strap while ITS reset is low, and
+the pad multiplexer was still inert at that moment, so the tile booted into
+the wrong personality with the pins sitting right there. The fix is ordering —
+hold the tile in reset until the pads are connected and locked. On silicon
+that would have been a bring-up session spent on an oscilloscope.
+
+Each SoC block joins beside the tile as its sources arrive.
 
 ### Frame choice
 
@@ -187,6 +221,40 @@ then the SHE CMAC path, then `trng_source`/`trng_pool`.
 Purpose: a bench platform for the calibration loop with real latencies, and a
 rehearsal of demoboard bring-up before silicon returns.
 
+### Which board to buy
+
+**Lattice ECP5 Evaluation Board, LFE5UM5G-85F-EVN** — DigiKey, in stock,
+around $99-$159 depending on distributor
+(<https://www.digikey.com/en/products/detail/lattice-semiconductor-corporation/LFE5UM5G-85F-EVN/9553907>).
+
+Why this one, measured rather than assumed:
+
+| | |
+|---|---|
+| fits | 14,360 of 83,640 LUTs (17%), 3,742 flops, 10 multipliers |
+| speed | Fmax 31.85 MHz, passing at the board's 12 MHz oscillator, no PLL needed |
+| toolchain | fully open: yosys, nextpnr-ecp5, ecppack. No vendor licence, no registration |
+| headroom | 83k LUTs leaves room for the SoC blocks as they come across |
+
+The alternatives, and why not:
+
+- **Arty A7-35T** was the obvious choice and is **retired** — Digilent no longer
+  produces it. The A7-100T remains, at around $299, and needs Vivado.
+- **Cmod A7-35T** ($99, DigiKey) fits the tile and is the cheapest Xilinx route,
+  but Vivado is a ~50 GB install and the generated `build.tcl` has never been
+  run by anyone yet.
+- **iCEBreaker / iCE40 UP5K** cannot hold the tile: 8,622 LUT4 needed against
+  5,280 available. Measured, not estimated.
+- **Tang Nano 20K** ($30, Amazon) has 20,736 LUT4 — the tile would sit near 70%,
+  and `nextpnr-himbaechel` is not packaged for Ubuntu. Workable, tight, more
+  setup.
+- **ULX3S** is the same ECP5 device and is supported here, but it is a
+  Crowd Supply / Mouser item rather than DigiKey or Amazon.
+
+`plans/ecp5-evn.yaml` builds for it. One board note: the serial pins (P2/P3)
+sit on the FTDI channel-B header — check jumpers against the board user guide,
+or wire a 3.3 V USB-serial adapter to them.
+
 ### Boards
 
 `fpga/boards/*.yaml` are generated from the vendors' own constraint files by
@@ -209,7 +277,7 @@ serial input onto an LED — which it did catch during this session.
 |---|---|
 | iCE40 (yosys `synth_ice40`) | 8,622 LUT4 + 3,051 flops — **does not fit** the iCEBreaker's 5,280 LUTs |
 | ECP5-85F (yosys + nextpnr) | 14,360 LUTs (17%), 3,742 flops (4%), 10 multipliers, 21 I/O |
-| ECP5-85F achieved Fmax | **15.41 MHz** |
+| ECP5-85F achieved Fmax | **15.41 MHz** (yosys 0.33 / nextpnr 0.6); **23.94 MHz** on yosys 0.52 / nextpnr 0.9; **31.85 MHz** on the ECP5 evaluation board build |
 
 So the smallest open-toolchain board that can host the tile is an ECP5. And
 since Fmax is 15.41 MHz, a 25 MHz oscillator cannot clock it directly: the
