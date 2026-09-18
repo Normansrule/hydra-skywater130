@@ -1,0 +1,23 @@
+# mom_xbar: the crossbar between the dispatcher and the engines.
+# NENG=3 keeps the proof cheap while still exercising round-robin across more
+# than two engines; the simulation runs the real NENG=5.
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+prove: depth 10
+cover: mode cover
+cover: depth 20
+
+[engines]
+smtbmc yices
+
+[script]
+read -formal mom_xbar.sv
+chparam -set NENG 3 -set NTAG 4 -set WD_W 8 -set TAGW 2 -set ENGW 2 mom_xbar
+prep -top mom_xbar
+
+[files]
+../rtl/mom_xbar.sv

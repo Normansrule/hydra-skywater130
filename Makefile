@@ -6,13 +6,26 @@
 SHELL := /bin/bash
 TILE  := tt/tile
 
-.PHONY: status verify padmux tile diff harness tools boards bind mutate clean check-tile
+.PHONY: status verify all tt asic fpga padmux tile diff harness sky130 tools boards bind mutate area capacity clean check-tile
 
 status:                       ## what is set up, what is not, what to run next
 	@./scripts/status.sh
 
-verify: check-tile padmux tile diff harness tools boards bind
+verify: check-tile padmux xbar system tile diff harness sky130 tools boards bind
 	@echo "=== all checks passed ==="
+
+# All three targets from the one source, in one command. Each depends on the
+# same tile RTL, so a change that breaks one shows up here rather than three
+# weeks later in whichever target you were not looking at.
+all: tt asic fpga
+	@echo "=== TinyTapeout, sky130 chip and FPGA all built and checked ==="
+
+tt: tile area              ## TinyTapeout: the tile's tests and its cell area
+asic: sky130               ## sky130 chip: the OpenFrame wrapper, through its pads
+fpga:                      ## FPGA: place, route and pack the recommended board
+	python3 tools/hydra_bind.py build --plan plans/ecp5-evn.yaml
+	$(MAKE) -C fpga/build/ecp5-evn
+	@grep -E "Max frequency|Device utilisation" -A1 fpga/build/ecp5-evn/*.log 2>/dev/null | head -4 || true
 
 check-tile:
 	@test -f $(TILE)/src/project.v || { \
@@ -45,6 +58,34 @@ harness:                      ## the PC protocol, end to end
 	  rtl/hydra_fpga_uart.sv rtl/hydra_fpga_tt_harness.sv > /tmp/hydra_harness.v && \
 	  iverilog -g2012 -o /tmp/hydra_harness /tmp/hydra_harness.v tb_fpga_harness.sv && \
 	  vvp -n /tmp/hydra_harness | tail -2
+
+xbar:                         ## the engine crossbar against its model and proofs
+	cd common/tb && python3 xbar_model.py xbar_vectors.hex 20000 179 && \
+	  iverilog -g2012 -o /tmp/hydra_xbar ../rtl/mom_xbar.sv tb_mom_xbar.sv && \
+	  vvp -n /tmp/hydra_xbar | tail -1
+	cd common/formal && sby -f mom_xbar.sby prove | tail -1
+
+system:                       ## the dispatcher, the crossbar and five engines
+	sv2v tt/tile/src/rtl/mom_pkg.sv tt/tile/src/rtl/mom_features.sv \
+	  tt/tile/src/rtl/mom_param_rom.sv tt/tile/src/rtl/mom_cost_engine.sv \
+	  tt/tile/src/rtl/mom_calibrate.sv tt/tile/src/rtl/mom_select.sv \
+	  tt/tile/src/rtl/mom_scoreboard.sv tt/tile/src/rtl/mom_top.sv \
+	  common/rtl/mom_xbar.sv tt/tb/tb_mom_system.sv > /tmp/hydra_sys.v
+	iverilog -g2012 -o /tmp/hydra_sys /tmp/hydra_sys.v
+	vvp -n /tmp/hydra_sys | tail -4
+
+sky130:                       ## the chip through its pads: pad mux, bring-up, SPI
+	sv2v tt/tile/src/rtl/*.sv tt/tile/src/tt_um_hydra_mom.sv \
+	  common/rtl/hydra_padmux.sv common/rtl/hydra_rst_sync.sv \
+	  sky130/rtl/hydra_openframe_top.sv > /tmp/hydra_of.v
+	iverilog -g2012 -o /tmp/hydra_of /tmp/hydra_of.v sky130/tb/tb_openframe.sv
+	vvp -n /tmp/hydra_of | tail -2
+
+area:                         ## sky130 cell area of the tile, v1 against v2
+	./tools/sky130_area.sh HEAD b179c6b
+
+capacity:                     ## which board holds what
+	python3 tools/capacity.py
 
 tools:                        ## PLL solver vs the vendor calculators, host encodings
 	python3 -m pytest tools/test_pllcalc.py tools/test_hydra_host.py -q

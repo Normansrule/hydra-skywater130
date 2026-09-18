@@ -1,11 +1,28 @@
 # Hardening and submitting the tile
 
-Not done in session 179: v2 has never been through LibreLane, so its area and
-Fmax on sky130 are unknown. Everything below is the procedure, not a result.
+## 0. Change `tiles` to 4x4 first
 
-## 1. Harden at the current size
+Measured with `tools/sky130_area.sh` (yosys + abc against the sky130 high-
+density cells): v1 is 135,203 um2 of cells, v2 is 194,647 um2 — 44% more. A
+`3x4` tile is 216,432 um2, so v2 would need ~90% density there, against the
+~62% v1 hardened at. `4x4` (288,576 um2) puts v2 at 67.5%.
 
-The tile is `tiles: "3x4"` at `CLOCK_PERIOD` 55 (18 MHz signoff). Push the
+```yaml
+# info.yaml
+  tiles: "4x4"        # was 3x4; v2 is 44% larger than v1
+```
+
+Dropping the 128-bit LASTWD readback saves 8% (178,262 um2), which does not
+rescue 3x4, so keep the readback.
+
+These are not OpenLane numbers — that flow synthesises differently and adds
+buffering, clock tree and fill, so treat the ratio as the result and the
+absolute value as low. v2 has never been through LibreLane; everything below
+is the procedure.
+
+## 1. Harden
+
+The tile is `CLOCK_PERIOD` 55 (18 MHz signoff). Push the
 session-179 commit to the tile repository and let the TinyTapeout GitHub
 action build the GDS, or harden locally following
 <https://tinytapeout.com/guides/local-hardening/>.

@@ -1,0 +1,41 @@
+From 120b27356b6081a1df59804d5221eb83cdf3f24e Mon Sep 17 00:00:00 2001
+From: HYDRA session <hydra@example.invalid>
+Date: Fri, 18 Sep 2026 00:32:36 +0000
+Subject: [PATCH] Session 179b: tiles 3x4 -> 4x4; v2 does not fit the v1 tile
+ size
+
+Measured with yosys+abc against sky130_fd_sc_hd (tools/sky130_area.sh in the
+hydra-skywater130 repository): v1 at b179c6b is 135,203 um2 of standard cells,
+v2 is 194,647 um2 -- 44% more, from the SPI target, the register block, the
+128-bit descriptor staging and the read multiplexer.
+
+A 3x4 tile is 216,432 um2 (167 x 108 um each), so v2 would need ~90% density
+where v1 hardened at ~62%. 4x4 (288,576 um2) puts v2 at 67.5%.
+
+Dropping the LASTWD readback saves only 8% (178,262 um2) and does not rescue
+3x4, so the readback stays.
+
+These are not OpenLane numbers -- that flow synthesises differently and adds
+buffering, clock tree and fill. The ratio is the result; confirm with a real
+harden.
+---
+ info.yaml | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/info.yaml b/info.yaml
+index 07dfe71..9c15799 100644
+--- a/info.yaml
++++ b/info.yaml
+@@ -80,7 +80,8 @@ project:
+   # three cycles per descriptor either way; nothing about the design cares.
+   clock_hz:     18000000
+ 
+-  tiles: "3x4"
++  tiles: "4x4"          # v2 is 44% larger than v1 (135,203 -> 194,647 um2 of
++                        # cells, tools/sky130_area.sh): 3x4 would need ~90% density
+ 
+   top_module:  "tt_um_hydra_mom"
+ 
+-- 
+2.43.0
+

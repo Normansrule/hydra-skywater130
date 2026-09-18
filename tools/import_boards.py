@@ -50,6 +50,8 @@ SOURCES = {
                                "TangNano-20K-example/main/nestang/src/nestang.cst",
     "tangnano20k_flow_led.cst": "https://raw.githubusercontent.com/sipeed/"
                                 "TangNano-20K-example/main/led/flow_led/src/flow_led.cst",
+    "lattice_ecp5_evn.py": "https://raw.githubusercontent.com/litex-hub/litex-boards/"
+                           "master/litex_boards/platforms/lattice_ecp5_evn.py",
     "de10-lite.qsf": "https://raw.githubusercontent.com/f32c/f32c/master/"
                      "rtl/proj/altera/de10-lite/xram_sdram_vector/de10-lite.board",
 }
@@ -106,7 +108,36 @@ def parse_qsf(text):
     return pins
 
 
-PARSERS = {".xdc": parse_xdc, ".pcf": parse_pcf, ".lpf": parse_lpf,
+def parse_litex(text):
+    """LiteX platform files are the usual source of truth for boards whose
+    vendor ships no constraint file. Entries look like
+        ("user_led", 3, Pins("A18"), IOStandard("LVCMOS25")),
+    and Subsignals carry their own Pins/IOStandard."""
+    pins, io = {}, {}
+    name = None
+    index = None
+    for line in text.splitlines():
+        m = re.match(r'\s*\("([A-Za-z_0-9]+)",\s*(\d+),', line)
+        if m:
+            name, index = m.group(1), int(m.group(2))
+        sub = re.search(r'Subsignal\("([A-Za-z_0-9]+)",\s*Pins\("([^"]+)"\)', line)
+        std = re.search(r'IOStandard\("([^"]+)"\)', line)
+        direct = re.match(r'\s*\("([A-Za-z_0-9]+)",\s*(\d+),\s*Pins\("([^"]+)"\)', line)
+        if direct:
+            key = f"{direct.group(1)}{direct.group(2)}"
+            pins[key] = {"pin": direct.group(3)}
+            if std:
+                pins[key]["iostandard"] = std.group(1)
+        elif sub and name is not None:
+            key = f"{name}{index}_{sub.group(1)}"
+            pins[key] = {"pin": sub.group(2)}
+            if std:
+                pins[key]["iostandard"] = std.group(1)
+    # A Subsignal without its own IOStandard inherits the group's trailing one.
+    return pins
+
+
+PARSERS = {".py": parse_litex, ".xdc": parse_xdc, ".pcf": parse_pcf, ".lpf": parse_lpf,
            ".cst": parse_cst, ".qsf": parse_qsf}
 
 # --------------------------------------------------------------------------- profiles
@@ -208,6 +239,21 @@ PROFILES = {
         extra_pins={"uart_tx": {"pin": "69"}, "uart_rx": {"pin": "70"}},
         uart=dict(tx="uart_tx", rx="uart_rx"),
         note="Sipeed examples; UART 69/70 from the Sipeed UART examples; LEDs sink current (active low) VERIFY"),
+    "ecp5-evn": dict(
+        refs=["lattice_ecp5_evn.py"], vendor="ecp5", family="ecp5",
+        device="LFE5UM5G-85F", package="CABGA381", speed="8", luts=83640, lut_kind="LUT4",
+        nextpnr_device="--um5g-85k",
+        clock=dict(port="clk120", hz=12_000_000),
+        reset=dict(port="button_10", active="low",
+                   note="button_1 on the board; rst_n (G2) is the FPGA's own reset pin, not a user input"),
+        led_active="high",
+        groups=dict(led=[f"user_led{i}" for i in range(8)],
+                    dip=[f"user_dip_btn{i}" for i in range(1, 9)]),
+        uart=dict(tx="serial0_tx", rx="serial0_rx"),
+        note="Lattice ECP5 Evaluation Board (LFE5UM5G-85F-EVN). Pins from the LiteX "
+             "platform file. The serial pins P2/P3 are on the FTDI channel B header: "
+             "check jumpers J38/J39 (see the board user guide) or wire a 3.3 V USB-UART "
+             "adapter to them"),
     "de10-lite": dict(
         refs=["de10-lite.qsf"], vendor="intel", family="max10",
         device="10M50DAF484C7G", luts=49760, lut_kind="LE",
