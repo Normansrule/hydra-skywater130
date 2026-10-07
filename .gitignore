@@ -21,14 +21,12 @@ common/tb/padmux_vectors.hex
 **/sim_build/
 **/*.vcd
 **/results.xml
-# sby writes one directory per task (<file>_<task>/) beside every .sby, and
-# several targets write a converted <name>_sv2v.v there first. Ignore them in
-# every formal/ folder: release.sh runs `git add -A`, and before 2026-10-06
-# only common/ and tt/ were covered.
-**/formal/*_prove/
-**/formal/*_cover/
-**/formal/*_ni/
-**/formal/*_priv/
+# Everything sby writes goes in a SUBFOLDER of the formal/ folder holding the
+# .sby file: one per task (<file>_<task>/), and in newer sby a <file>/ folder
+# holding status.sqlite -- which slipped past the per-task patterns and was
+# committed on 2026-10-07. No formal/ folder has a real subfolder, so ignore
+# them all. Several targets also write a converted <name>_sv2v.v beside it.
+**/formal/*/
 **/formal/*_sv2v.v
 
 .venv/
