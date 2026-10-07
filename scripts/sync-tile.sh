@@ -94,5 +94,5 @@ fi
 
 echo
 echo "sync-tile: $DST now holds the verified tile. Previous files: $BACKUP"
-echo "Harden it:"
+echo "Harden it only if src/project.v changed since your last harden:"
 echo "  cd $DST && source ~/ttsetup/venv/bin/activate && ./tt/tt_tool.py --harden"
