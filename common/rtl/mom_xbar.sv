@@ -147,18 +147,24 @@ module mom_xbar #(
   // ---- one completion per cycle, round-robin --------------------------------
   wire [NENG-1:0] ready_set = pend_q | done_ok;
 
+  // Round-robin pick. The wrap is a compare-and-subtract, NOT a modulo:
+  // `(scan_i + rr_ptr) % NENG` made yosys build five 32-bit modulo-5
+  // dividers -- 40,258 cells for a block with 35 flip-flops, found when the
+  // ECP5 system build jumped to 57% of the device and per-module area
+  // measurement pointed here. The loop itself is fine: it unrolls, so
+  // scan_i is constant in each copy and the add is a few gates.
   logic            take_any;
-  integer          take_i;
+  integer          take_i, scan_i, scan_e;
   wire [ENGW-1:0]  take_e = take_i[ENGW-1:0];
-  integer          scan_i, scan_e;         // plain integers: yosys does not
-                                           // parse SystemVerilog int casts
+
   always_comb begin
     take_any = 1'b0;
     take_i   = 0;
-    // Scanning downwards leaves the LOWEST offset from rr_ptr selected, which
-    // is the oldest turn in round-robin order.
+    // Scanning downwards leaves the LOWEST offset from rr_ptr selected,
+    // which is the oldest turn in round-robin order.
     for (scan_i = NENG - 1; scan_i >= 0; scan_i = scan_i - 1) begin
-      scan_e = (scan_i + rr_ptr) % NENG;
+      scan_e = scan_i + rr_ptr;
+      if (scan_e >= NENG) scan_e = scan_e - NENG;
       if (ready_set[scan_e]) begin
         take_any = 1'b1;
         take_i   = scan_e;

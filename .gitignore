@@ -11,16 +11,25 @@ fpga/build/*/*.config
 fpga/build/*/*.bin
 fpga/build/*/*.bit
 fpga/build/*/*.fs
+# Content hashes: .srchash is the current sources, <image>.srchash what a
+# bitstream was built from. Local to each build tree, like the bitstream.
+fpga/build/*/.srchash
+fpga/build/*/*.srchash
 
 # Simulation and formal scratch
 common/tb/padmux_vectors.hex
 **/sim_build/
 **/*.vcd
 **/results.xml
-common/formal/*_prove/
-common/formal/*_cover/
-tt/formal/*_prove/
-tt/formal/*_cover/
+# sby writes one directory per task (<file>_<task>/) beside every .sby, and
+# several targets write a converted <name>_sv2v.v there first. Ignore them in
+# every formal/ folder: release.sh runs `git add -A`, and before 2026-10-06
+# only common/ and tt/ were covered.
+**/formal/*_prove/
+**/formal/*_cover/
+**/formal/*_ni/
+**/formal/*_priv/
+**/formal/*_sv2v.v
 
 .venv/
 __pycache__/

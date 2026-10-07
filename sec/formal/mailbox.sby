@@ -1,0 +1,24 @@
+# The mailbox's lock discipline.
+#
+# The property that matters is mutual exclusion: two requesters must never
+# both believe they hold the lock. Everything else about a mailbox is
+# convenience; this is the part that makes it a boundary.
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+prove: depth 14
+cover: mode cover
+cover: depth 20
+
+[engines]
+smtbmc yices
+
+[script]
+read -formal mailbox_sv2v.v
+prep -top hydra_mailbox
+
+[files]
+mailbox_sv2v.v

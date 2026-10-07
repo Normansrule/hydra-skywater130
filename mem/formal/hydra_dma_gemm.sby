@@ -1,0 +1,17 @@
+# The streamer's own contract, independent of which engine it feeds.
+# sv2v with -E Assert, or the properties vanish and the proof is vacuous.
+[tasks]
+prove
+cover
+[options]
+prove: mode prove
+prove: depth 12
+cover: mode cover
+cover: depth 30
+[engines]
+smtbmc yices
+[script]
+read -formal hydra_dma_sv2v.v
+prep -top hydra_dma_gemm
+[files]
+hydra_dma_sv2v.v

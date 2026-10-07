@@ -15,6 +15,8 @@ unzip -q "$ZIP" -d /tmp/hydra-rel
 rsync -a --delete \
   --exclude '.git/' --exclude '.venv/' --exclude 'fpga/vendor_refs/' \
   --exclude 'tt/tile/' --exclude 'fpga/build/*/*.bit' \
+  --exclude 'docs/img/layout.png' \
+  --exclude 'fpga/build/*/*.srchash' --exclude 'fpga/build/*/.srchash' \
   /tmp/hydra-rel/hydra-skywater130/ ~/src/hydra-skywater130/
 
 # 3. see exactly what changed before you trust it
@@ -23,7 +25,10 @@ git status --short
 git diff --stat
 ```
 
-`--delete` is what removes files a release drops. If you have local edits you
+`--delete` is what removes files a release drops. The excludes keep what
+only your machine makes: the rendered layout image (`make render-layout`),
+bitstreams, and the content hashes that let `make provenance` say whether a
+bitstream was built from the current sources. If you have local edits you
 want to keep, commit them first: rsync will overwrite them without asking.
 
 Then verify, then push:

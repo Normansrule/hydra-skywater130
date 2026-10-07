@@ -115,3 +115,47 @@ plus the silicon itself answer the same questions.
   `p256_modmul` instances down to one (the same arbitration pattern
   `ecdsa_top` already uses) is worth roughly 22,000 cells, and it is the
   single change that most improves both the die and the FPGA story.
+
+
+## Engines, measured in sky130 cells
+
+`synth -flatten`, `dfflibmap` and `abc` against
+`sky130_fd_sc_hd__tt_025C_1v80.lib` -- the same method as the tile's numbers,
+so the comparison is like for like. Synthesis estimates, not place-and-route.
+
+| block | cells | area | vs the v2 tile (194,647 µm²) |
+|---|---|---|---|
+| TPU, 4×4 INT8 array | 15,115 | 119,562 µm² | 0.61 |
+| SIMD, 4 × 32-bit lanes | 12,861 | 96,967 µm² | 0.50 |
+| NTT, 4 Barrett butterflies, q=12289 (Falcon) | 8,551 | 70,524 µm² | 0.36 |
+| NTT, q=3329 (ML-KEM) | 7,079 | 57,763 µm² | 0.30 |
+| NTT, q=8380417 (ML-DSA) | — | not yet measured: `make area-ntt` | |
+| operand streamer | 423 | 4,348 µm² | 0.02 |
+
+The NTT is measured per modulus because `HYDRA_NTT_Q` sets the width of
+every multiplier; measured on 2026-10-06 with `make area-ntt`.
+
+The three engines together are about 0.29 mm² of cells (at q=12289) against OpenFrame's
+roughly 15 mm² of user area. Cell area is not die area: the earlier
+system-on-chip run failed global routing because a 10.3 mm² die could not
+hold about 14 mm² of cells at 35% utilisation. Plan die area from the
+utilisation LibreLane reports, not from these totals.
+
+
+## The tile after sharing the cost engine (session 181)
+
+| build | cells | area | note |
+|---|---|---|---|
+| five parallel cost engines | 18,247 | 194,824 um^2 | what failed to place at 4x4 |
+| one shared cost engine | 15,061 | **144,505 um^2** | ships |
+
+Both measured with `synth -flatten` and `abc -liberty` against
+`sky130_fd_sc_hd__tt_025C_1v80.lib`, so they compare like with like.
+
+DO NOT compare 144,505 against the 245,525 um^2 in a LibreLane harden log:
+different tools, different numbers. Scaling the LibreLane figure by the same
+ratio predicted about 53% utilisation. **LibreLane measured 66.7%** on the
+first complete harden (2026-10-01) -- the estimate was 14 points low, because
+scaling a synthesis number by a ratio ignores the buffers, fill and timing
+repair that place-and-route adds. Trust the harden run's number, not this
+kind of projection.

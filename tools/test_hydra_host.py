@@ -33,3 +33,33 @@ def test_uart_frame_limit():
     except ValueError:
         return
     raise AssertionError("a 33-byte frame should be refused: the harness buffer is 32")
+
+
+# ---------------------------------------------------------------------------
+# Scratchpad helpers. These encode a wire format and a bank layout, so they
+# are exactly the kind of thing that drifts from the hardware silently.
+# ---------------------------------------------------------------------------
+def test_pack_lanes_puts_lane_zero_in_the_low_byte():
+    assert h.pack_lanes([1, 2, 3, 4]) == 0x04030201
+
+
+def test_pack_lanes_keeps_negative_operands_two_s_complement():
+    assert h.pack_lanes([-1, -128, 127, 0]) == 0x007F80FF
+
+
+def test_gemm_descriptor_carries_all_three_bank_addresses():
+    d = h.gemm_descriptor(4, 4, 8, base_a=5, base_b=9, base_c=64)
+    v = int.from_bytes(d, "big") if isinstance(d, (bytes, bytearray)) else d
+    assert (v >> 3) & 0x3FF == 5
+    assert (v >> 13) & 0x3FF == 9
+    assert (v >> 23) & 0x3FF == 64
+    assert (v >> 124) & 0xF == 3          # still a GEMM
+    assert (v >> 84) & 0xFFFF == 8        # still dim_k
+
+
+def test_gemm_descriptor_leaves_the_vector_opcode_field_alone():
+    # The vector unit owns bits [2:0]; a base address must not reach them.
+    d = h.gemm_descriptor(4, 4, 4, base_a=0x3FF, base_b=0x3FF,
+                                   base_c=0x3FF)
+    v = int.from_bytes(d, "big") if isinstance(d, (bytes, bytearray)) else d
+    assert v & 0x7 == 0

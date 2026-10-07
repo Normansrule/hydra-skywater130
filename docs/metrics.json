@@ -1,0 +1,241 @@
+{
+  "_comment": [
+    "Every number the site shows lives here, and nowhere else. A figure",
+    "typed into the HTML by hand is a figure that goes stale silently, and",
+    "this project has already been bitten by comparing a yosys number with",
+    "a LibreLane one. Each entry says how it was measured, so a reader can",
+    "tell a synthesis estimate from a place-and-route result.",
+    "",
+    "Regenerate the site after editing:  make site",
+    "Check it has not drifted:            make site-check"
+  ],
+  "tile": {
+    "parallel_um2": 194824,
+    "shared_um2": 144505,
+    "parallel_cells": 18247,
+    "shared_cells": 15061,
+    "method": "yosys synth -flatten + abc -liberty, sky130_fd_sc_hd__tt_025C_1v80",
+    "caveat": "Synthesis estimate. NOT comparable with a LibreLane harden number."
+  },
+  "engines": [
+    {
+      "name": "TPU",
+      "what": "4x4 INT8 systolic array",
+      "cells": 15115,
+      "um2": 119562,
+      "results": "640 results exact vs model",
+      "mutations": "8 killed, 1 equivalent"
+    },
+    {
+      "name": "SIMD",
+      "what": "4 lanes x 32 bits, 8 operations",
+      "cells": 12861,
+      "um2": 96967,
+      "results": "572 results exact vs model",
+      "mutations": "10 killed, 0 survivors"
+    },
+    {
+      "name": "NTT",
+      "what": "4 Barrett butterflies; q selectable (ML-KEM, ML-DSA, Falcon). Area at q=12289",
+      "cells": 8551,
+      "um2": 70524,
+      "results": "396 / 348 / 440 butterflies exact, one per modulus",
+      "mutations": "8 killed, 1 equivalent",
+      "by_q": {
+        "12289": {
+          "cells": 8551,
+          "um2": 70524
+        },
+        "3329": {
+          "cells": 7079,
+          "um2": 57763
+        },
+        "8380417": null
+      }
+    },
+    {
+      "name": "Streamer",
+      "what": "scratchpad to engine and back",
+      "cells": 423,
+      "um2": 4348,
+      "results": "96 / 50 / 108 results read back from memory",
+      "mutations": "13 killed, 0 survivors"
+    },
+    {
+      "name": "JTAG",
+      "what": "IEEE 1149.1 test access port (no boundary scan)",
+      "cells": 491,
+      "um2": 4512,
+      "results": "132 TCK edges bit-exact vs a model of the standard",
+      "mutations": "reset guarantee proved from any state"
+    },
+    {
+      "name": "SHA-256",
+      "what": "block compression, 64 rounds, one per cycle",
+      "cells": 7419,
+      "um2": 65727,
+      "results": "7 messages identical to hashlib",
+      "mutations": "not yet"
+    }
+  ],
+  "boards": [
+    {
+      "plan": "ecp5-evn-selftest",
+      "what": "bring-up: LEDs, switches, button, serial",
+      "luts": 945,
+      "ffs": 252,
+      "mult": 0,
+      "fmax": 232.99
+    },
+    {
+      "plan": "ecp5-evn",
+      "what": "tile plus the host bridge",
+      "luts": 12940,
+      "ffs": 3368,
+      "mult": 10,
+      "fmax": 32.66
+    },
+    {
+      "plan": "ecp5-evn-sys",
+      "what": "dispatcher, crossbar, engine models",
+      "luts": 15043,
+      "ffs": 3713,
+      "mult": 10,
+      "fmax": 37.33
+    },
+    {
+      "plan": "ecp5-evn-tpu",
+      "what": "engine 2 is the real array",
+      "luts": 17493,
+      "ffs": 4589,
+      "mult": 28,
+      "fmax": 33.69
+    },
+    {
+      "plan": "ecp5-evn-two",
+      "what": "array and vector unit both real",
+      "luts": 17918,
+      "ffs": 4565,
+      "mult": 36,
+      "fmax": 35.67
+    },
+    {
+      "plan": "ecp5-evn-mem",
+      "what": "array fed from a host-loaded bank",
+      "luts": 16567,
+      "ffs": 4476,
+      "mult": 22,
+      "fmax": 35.1
+    }
+  ],
+  "verification": [
+    {
+      "what": "tile suite (both personalities)",
+      "result": "17 / 17",
+      "kind": "simulation"
+    },
+    {
+      "what": "tile suite on the hardened netlist",
+      "result": "17 / 17",
+      "kind": "gate level"
+    },
+    {
+      "what": "v2 legacy is v1, pin for pin",
+      "result": "400k cycles",
+      "kind": "differential"
+    },
+    {
+      "what": "shared cost engine decides as parallel",
+      "result": "121 decisions",
+      "kind": "equivalence"
+    },
+    {
+      "what": "engines against independent models",
+      "result": "1608 results",
+      "kind": "simulation"
+    },
+    {
+      "what": "whole path over the serial port",
+      "result": "16 results",
+      "kind": "end to end"
+    },
+    {
+      "what": "mutation suites",
+      "result": "44 killed",
+      "kind": "fault injection"
+    },
+    {
+      "what": "key vault: no key bit on the host port",
+      "result": "16 cycles",
+      "kind": "non-interference"
+    },
+    {
+      "what": "formal proofs",
+      "result": "10 modules",
+      "kind": "k-induction"
+    },
+    {
+      "what": "five TMS-high clocks reach reset from any state",
+      "result": "all 16 states",
+      "kind": "exhaustive"
+    },
+    {
+      "what": "test port clock crossing, unrelated clocks",
+      "result": "47 transfers",
+      "kind": "simulation"
+    },
+    {
+      "what": "mailbox: two requesters never both hold the lock",
+      "result": "unbounded",
+      "kind": "induction"
+    },
+    {
+      "what": "measurement register changes only by extending",
+      "result": "unbounded",
+      "kind": "induction"
+    },
+    {
+      "what": "extend chain step by step vs hashlib",
+      "result": "6 extends",
+      "kind": "outside reference"
+    },
+    {
+      "what": "bring-up image: sweep, mirror, pattern, serial",
+      "result": "28 checks",
+      "kind": "simulation"
+    },
+    {
+      "what": "security instructions: Zknh and Xhydrasec",
+      "result": "231 vectors",
+      "kind": "simulation"
+    },
+    {
+      "what": "key writes need machine mode and trap elsewhere",
+      "result": "all operands",
+      "kind": "induction"
+    },
+    {
+      "what": "no instruction moves key bits into a register",
+      "result": "12 instructions",
+      "kind": "non-interference"
+    },
+    {
+      "what": "Basys 3 bring-up: display, 16 LEDs, 5 buttons, reset",
+      "result": "9 checks",
+      "kind": "simulation"
+    }
+  ],
+  "pending": [
+    "5,039 slew and 20 capacitance warnings on the signed-off tile. Not sign-off failures; tools/slew_report.py names the overloaded drivers before anything is changed.",
+    "The butterfly engine's area at q=8380417 (ML-DSA) is not yet measured: its 46-bit products make it the slowest of the three to synthesise. q=12289 and q=3329 are measured.",
+    "Never run on hardware. The bring-up image is built and simulated; docs/FPGA_BRINGUP.md is the procedure, and LED polarity is still an assumption until a board confirms it.",
+    "Full SkyWater chip never hardened: no LibreLane run of the OpenFrame chip has completed, so it has no gate-level netlist, timing sign-off, DRC or LVS result. (The Tiny Tapeout tile HAS: sign-off clean on 2026-10-05.)",
+    "Two board images (ecp5-evn-sys, ecp5-evn-tpu) predate the content-hash rebuild rule, so their provenance is unknown until each is rebuilt once; `make -C fpga/build/<board> provenance` then says whether a bitstream matches the current sources.",
+    "The key vault's non-interference result is bounded to 16 cycles at two 64-bit slots; the shipped configuration is larger and unbounded induction needs an invariant that is not yet written.",
+    "No boundary scan: there are no scan cells at the pads, so SAMPLE, PRELOAD and EXTEST are absent and the chip is not boundary-scan testable.",
+    "The test port cannot reach registers if the system clock is dead: the bridge waits and reports busy. Reading with the system clock stopped would mean running the register file on the probe's clock.",
+    "SHA-256 does no padding: software frames the message. For measured boot the hash must cover something software cannot be trusted to frame, so hardware padding is needed before it guards a boot chain.",
+    "The security instructions are a verified functional unit, not yet wired into a RV64 pipeline; until they are, no core on this chip has them.",
+    "The Basys 3 bring-up image is simulated and its constraints generated, but no bitstream has been built: that needs Vivado or the openXC7 flow on your machine. The larger HYDRA images have not been ported to the Artix-7."
+  ]
+}

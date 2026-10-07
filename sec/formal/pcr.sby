@@ -1,0 +1,24 @@
+# The measurement register's one property: it changes only by extending.
+#
+# There is no write port, so this is a check that no future edit quietly
+# adds one -- the assertion names the only state in which the register may
+# move.
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+prove: depth 10
+cover: mode cover
+cover: depth 300
+
+[engines]
+smtbmc yices
+
+[script]
+read -formal pcr_sv2v.v
+prep -top hydra_pcr
+
+[files]
+pcr_sv2v.v

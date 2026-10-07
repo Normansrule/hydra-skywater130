@@ -1,0 +1,50 @@
+# Lattice ECP5 Evaluation Board: the dispatcher scheduling the REAL
+# systolic array AND the real vector unit. Both are dispatched to by
+# the same cost model, over the same register map.
+# 12 MHz oscillator from the FTDI device; measured Fmax for this design on
+# ECP5-85F is 16-24 MHz depending on toolchain version, so 12 MHz needs no PLL.
+core:    hydra_fpga_two_harness
+module:  hydra_ecp5_evn_two
+board:   ecp5-evn
+sources:
+  - tt/tile/src/rtl/mom_pkg.sv
+  - tt/tile/src/rtl/mom_features.sv
+  - tt/tile/src/rtl/mom_param_rom.sv
+  - tt/tile/src/rtl/mom_cost_engine.sv
+  - tt/tile/src/rtl/mom_calibrate.sv
+  - tt/tile/src/rtl/mom_select.sv
+  - tt/tile/src/rtl/mom_scoreboard.sv
+  - tt/tile/src/rtl/mom_top.sv
+  - tt/tile/src/rtl/hydra_tt_spi.sv
+  - tt/tile/src/rtl/hydra_tt_regs.sv
+  - tt/tile/src/tt_um_hydra_mom.sv
+  - fpga/rtl/hydra_fpga_uart.sv
+  - common/rtl/mom_xbar.sv
+  - engines/tpu/rtl/tpu_pkg.sv
+  - engines/tpu/rtl/tpu_pe.sv
+  - engines/tpu/rtl/tpu_feeder.sv
+  - engines/tpu/rtl/tpu_array.sv
+  - engines/tpu/rtl/tpu_drain.sv
+  - engines/tpu/rtl/tpu_ctrl.sv
+  - engines/tpu/rtl/tpu_top.sv
+  - engines/simd/rtl/simd_pkg.sv
+  - engines/simd/rtl/simd_alu.sv
+  - engines/simd/rtl/simd_lanes.sv
+  - engines/simd/rtl/simd_reduce.sv
+  - engines/simd/rtl/simd_serial.sv
+  - engines/simd/rtl/simd_ctrl.sv
+  - engines/simd/rtl/simd_top.sv
+  - sys/rtl/hydra_engine_tpu.sv
+  - sys/rtl/hydra_engine_simd.sv
+  - sys/rtl/hydra_sys_tile.sv
+  - fpga/rtl/hydra_fpga_bridge.sv
+  - fpga/rtl/hydra_fpga_two_harness.sv
+sys_hz: 12000000        # the board oscillator; well inside the measured Fmax
+baud:   115200
+clock:  clk
+reset:  rst_n
+pins:
+  - {core: uart_rx_i, board: uart_rx}
+  - {core: uart_tx_o, board: uart_tx}
+  - {core: "uo_mirror[7:0]", board: "led[7:0]"}
+  - {core: "profile[1:0]", board: "dip[1:0]"}

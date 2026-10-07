@@ -1,0 +1,28 @@
+# Engine-port contract for the vector unit: one completion per job, no
+# silent exit from busy, never feed the lanes without an operand, and never
+# produce a lane result the serialiser cannot take.
+#
+# Sources go through sv2v first (yosys cannot parse a package import in a
+# module header), with -E Assert so the properties survive the conversion.
+# Without that flag the proof passes vacuously, which happened once on the
+# TPU and is the reason this comment exists.
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+prove: depth 14
+cover: mode cover
+cover: depth 40
+
+[engines]
+smtbmc yices
+
+[script]
+read -formal simd_ctrl_sv2v.v
+chparam -set N 4 simd_ctrl
+prep -top simd_ctrl
+
+[files]
+simd_ctrl_sv2v.v

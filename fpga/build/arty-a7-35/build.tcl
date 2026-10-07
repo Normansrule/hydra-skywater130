@@ -12,6 +12,7 @@ read_verilog -sv ../../../tt/tile/src/rtl/hydra_tt_spi.sv
 read_verilog -sv ../../../tt/tile/src/rtl/hydra_tt_regs.sv
 read_verilog -sv ../../../tt/tile/src/tt_um_hydra_mom.sv
 read_verilog -sv ../../../fpga/rtl/hydra_fpga_uart.sv
+read_verilog -sv ../../../fpga/rtl/hydra_fpga_bridge.sv
 read_verilog -sv ../../../fpga/rtl/hydra_fpga_tt_harness.sv
 read_verilog -sv ../../../common/rtl/hydra_rst_sync.sv
 read_verilog -sv hydra_arty_a7_35_tt.sv
