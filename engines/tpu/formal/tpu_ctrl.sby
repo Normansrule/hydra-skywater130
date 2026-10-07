@@ -1,0 +1,26 @@
+# The engine-port contract the dispatcher relies on: one completion per job,
+# never ready while busy, never accumulate without an operand, never drain
+# into a serialiser that is still emitting.
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+prove: depth 12
+cover: mode cover
+cover: depth 40
+
+[engines]
+smtbmc yices
+
+# yosys cannot parse a package import in a module header, so the sources go
+# through sv2v first -- the same converter the simulations use. Regenerate
+# with: make -C ../../.. tpu-formal (it is a build product, not a source).
+[script]
+read -formal tpu_ctrl_sv2v.v
+chparam -set N 4 tpu_ctrl
+prep -top tpu_ctrl
+
+[files]
+tpu_ctrl_sv2v.v

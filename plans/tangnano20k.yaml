@@ -15,6 +15,7 @@ sources:
   - tt/tile/src/rtl/hydra_tt_regs.sv
   - tt/tile/src/tt_um_hydra_mom.sv
   - fpga/rtl/hydra_fpga_uart.sv
+  - fpga/rtl/hydra_fpga_bridge.sv
   - fpga/rtl/hydra_fpga_tt_harness.sv
 sys_hz: 27000000
 baud:   115200

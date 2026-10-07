@@ -1,0 +1,18 @@
+# Engine-port contract for the butterfly engine. Sources via sv2v with
+# -E Assert: without that flag the properties vanish and the proof passes
+# vacuously (see the TPU's history).
+[tasks]
+prove
+cover
+[options]
+prove: mode prove
+prove: depth 12
+cover: mode cover
+cover: depth 30
+[engines]
+smtbmc yices
+[script]
+read -formal ntt_ctrl_sv2v.v
+prep -top ntt_ctrl
+[files]
+ntt_ctrl_sv2v.v

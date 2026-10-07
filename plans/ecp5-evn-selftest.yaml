@@ -1,0 +1,22 @@
+# Board bring-up image for the Lattice ECP5-5G Evaluation Board
+# (LFE5UM5G-85F-EVN). Flash THIS first, before any HYDRA image: it has
+# almost no design in it, so if it misbehaves the fault is in the setup
+# -- cable, driver, jumper, polarity -- and not in the chip design.
+#
+# What to look for is written in docs/FPGA_BRINGUP.md and at the top of
+# fpga/rtl/hydra_fpga_selftest.sv.
+core:    hydra_fpga_selftest
+module:  hydra_ecp5_evn_selftest
+board:   ecp5-evn
+sources:
+  - fpga/rtl/hydra_fpga_uart.sv
+  - fpga/rtl/hydra_fpga_selftest.sv
+sys_hz: 12000000
+baud:   115200
+clock:  clk
+reset:  rst_n
+pins:
+  - {core: uart_rx_i,        board: uart_rx}
+  - {core: uart_tx_o,        board: uart_tx}
+  - {core: "led[7:0]",       board: "led[7:0]"}
+  - {core: "dip[7:0]",       board: "dip[7:0]"}

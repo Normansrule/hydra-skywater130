@@ -1,0 +1,75 @@
+<svg viewBox="0 0 1556 554" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="HYDRA-130 block diagram"><style>.node rect{fill:#f3f6fa;stroke:#d6dce5;stroke-width:1.5}.n-label{font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px;font-weight:600;fill:#111827;text-anchor:middle}.n-sub{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;fill:#5b6576;text-anchor:middle}.edge{fill:none;stroke:#9aa6b6;stroke-width:1.5}.edge-label{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10px;fill:#5b6576;text-anchor:middle}.bar rect{fill:#0f766e}.b-name{font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:13px;font-weight:600;fill:#111827;text-anchor:end}.b-val{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;fill:#5b6576}</style><rect width="100%" height="100%" fill="#ffffff"/>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa6b6"/></marker></defs>
+<path class="edge" data-a="host" data-b="bridge" d="M 106.0 173.0 C 190.0 173.0, 190.0 173.0, 274.0 173.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="190.0" y="167.0">bytes</text>
+<path class="edge" data-a="bridge" data-b="spi" d="M 274.0 173.0 C 358.0 173.0, 358.0 69.0, 442.0 69.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="358.0" y="115.0">pins</text>
+<path class="edge" data-a="bridge" data-b="bank" d="M 274.0 173.0 C 862.0 173.0, 862.0 173.0, 1450.0 173.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="862.0" y="167.0">load</text>
+<path class="edge" data-a="spi" data-b="regs" d="M 442.0 69.0 C 442.0 69.0, 442.0 173.0, 442.0 173.0" marker-end="url(#ah)"/>
+<path class="edge" data-a="regs" data-b="feat" d="M 442.0 173.0 C 526.0 173.0, 526.0 69.0, 610.0 69.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="526.0" y="115.0">descriptor</text>
+<path class="edge" data-a="feat" data-b="cost" d="M 610.0 69.0 C 610.0 69.0, 610.0 173.0, 610.0 173.0" marker-end="url(#ah)"/>
+<path class="edge" data-a="cost" data-b="sel" d="M 610.0 173.0 C 610.0 173.0, 610.0 277.0, 610.0 277.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="610.0" y="219.0">5 costs</text>
+<path class="edge" data-a="sb" data-b="cost" d="M 778.0 69.0 C 694.0 69.0, 694.0 173.0, 610.0 173.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="694.0" y="115.0">queue</text>
+<path class="edge" data-a="sel" data-b="xbar" d="M 610.0 277.0 C 778.0 277.0, 778.0 173.0, 946.0 173.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="778.0" y="219.0">engine</text>
+<path class="edge" data-a="sb" data-b="xbar" d="M 778.0 69.0 C 862.0 69.0, 862.0 173.0, 946.0 173.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="862.0" y="115.0">tag</text>
+<path class="edge" data-a="xbar" data-b="tpu" d="M 946.0 173.0 C 1030.0 173.0, 1030.0 69.0, 1114.0 69.0" marker-end="url(#ah)"/>
+<path class="edge" data-a="xbar" data-b="simd" d="M 946.0 173.0 C 1030.0 173.0, 1030.0 173.0, 1114.0 173.0" marker-end="url(#ah)"/>
+<path class="edge" data-a="xbar" data-b="ntt" d="M 946.0 173.0 C 1030.0 173.0, 1030.0 277.0, 1114.0 277.0" marker-end="url(#ah)"/>
+<path class="edge" data-a="tpu" data-b="cal" d="M 1114.0 69.0 C 946.0 69.0, 946.0 277.0, 778.0 277.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="946.0" y="167.0">done</text>
+<path class="edge" data-a="cal" data-b="cost" d="M 778.0 277.0 C 694.0 277.0, 694.0 173.0, 610.0 173.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="694.0" y="219.0">k</text>
+<path class="edge" data-a="dma" data-b="tpu" d="M 1282.0 173.0 C 1198.0 173.0, 1198.0 69.0, 1114.0 69.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="1198.0" y="115.0">operands</text>
+<path class="edge" data-a="dma" data-b="simd" d="M 1282.0 173.0 C 1198.0 173.0, 1198.0 173.0, 1114.0 173.0" marker-end="url(#ah)"/>
+<path class="edge" data-a="dma" data-b="ntt" d="M 1282.0 173.0 C 1198.0 173.0, 1198.0 277.0, 1114.0 277.0" marker-end="url(#ah)"/>
+<path class="edge" data-a="bank" data-b="dma" d="M 1450.0 173.0 C 1366.0 173.0, 1366.0 173.0, 1282.0 173.0" marker-end="url(#ah)"/>
+<path class="edge" data-a="jtag" data-b="jbr" d="M 274.0 381.0 C 358.0 381.0, 358.0 381.0, 442.0 381.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="358.0" y="375.0">TCK</text>
+<path class="edge" data-a="jbr" data-b="regs" d="M 442.0 381.0 C 442.0 381.0, 442.0 173.0, 442.0 173.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="442.0" y="271.0">second way in</text>
+<path class="edge" data-a="regs" data-b="mbox" d="M 442.0 173.0 C 610.0 173.0, 610.0 381.0, 778.0 381.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="610.0" y="271.0">commands</text>
+<path class="edge" data-a="mbox" data-b="kv" d="M 778.0 381.0 C 862.0 381.0, 862.0 381.0, 946.0 381.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="862.0" y="375.0">by slot</text>
+<path class="edge" data-a="mbox" data-b="sha" d="M 778.0 381.0 C 946.0 381.0, 946.0 381.0, 1114.0 381.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="946.0" y="375.0">measure</text>
+<path class="edge" data-a="sha" data-b="pcr" d="M 1114.0 381.0 C 1198.0 381.0, 1198.0 381.0, 1282.0 381.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="1198.0" y="375.0">extend</text>
+<path class="edge" data-a="xsec" data-b="kv" d="M 610.0 485.0 C 778.0 485.0, 778.0 381.0, 946.0 381.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="778.0" y="427.0">by slot</text>
+<path class="edge" data-a="xsec" data-b="pcr" d="M 610.0 485.0 C 946.0 485.0, 946.0 381.0, 1282.0 381.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="946.0" y="427.0">extend, read</text>
+<path class="edge" data-a="regs" data-b="kv" d="M 442.0 173.0 C 694.0 173.0, 694.0 381.0, 946.0 381.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="694.0" y="271.0">slots</text>
+<path class="edge" data-a="kv" data-b="xbar" d="M 946.0 381.0 C 946.0 381.0, 946.0 173.0, 946.0 173.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="946.0" y="271.0">key by slot</text>
+<g class="node" data-id="host" tabindex="0"><title>tools/hydra_host.py</title><rect x="40" y="144" width="132" height="58" rx="9"/><text class="n-label" x="106.0" y="168">Host</text><text class="n-sub" x="106.0" y="186">serial port</text></g>
+<g class="node" data-id="bridge" tabindex="0"><title>fpga/rtl/hydra_fpga_bridge.sv</title><rect x="208" y="144" width="132" height="58" rx="9"/><text class="n-label" x="274.0" y="168">Bridge</text><text class="n-sub" x="274.0" y="186">UART to pins, memory</text></g>
+<g class="node" data-id="spi" tabindex="0"><title>tt/tile/src/rtl/hydra_tt_spi.sv</title><rect x="376" y="40" width="132" height="58" rx="9"/><text class="n-label" x="442.0" y="64">SPI slave</text><text class="n-sub" x="442.0" y="82">register map</text></g>
+<g class="node" data-id="regs" tabindex="0"><title>tt/tile/src/rtl/hydra_tt_regs.sv</title><rect x="376" y="144" width="132" height="58" rx="9"/><text class="n-label" x="442.0" y="168">Registers</text><text class="n-sub" x="442.0" y="186">14 registers</text></g>
+<g class="node" data-id="feat" tabindex="0"><title>tt/tile/src/rtl/mom_features.sv</title><rect x="544" y="40" width="132" height="58" rx="9"/><text class="n-label" x="610.0" y="64">Features</text><text class="n-sub" x="610.0" y="82">log2 work, intensity</text></g>
+<g class="node" data-id="cost" tabindex="0"><title>tt/tile/src/rtl/mom_cost_engine.sv</title><rect x="544" y="144" width="132" height="58" rx="9"/><text class="n-label" x="610.0" y="168">Cost engine</text><text class="n-sub" x="610.0" y="186">one, walked over five</text></g>
+<g class="node" data-id="sel" tabindex="0"><title>tt/tile/src/rtl/mom_select.sv</title><rect x="544" y="248" width="132" height="58" rx="9"/><text class="n-label" x="610.0" y="272">Select</text><text class="n-sub" x="610.0" y="290">argmin with margin</text></g>
+<g class="node" data-id="sb" tabindex="0"><title>tt/tile/src/rtl/mom_scoreboard.sv</title><rect x="712" y="40" width="132" height="58" rx="9"/><text class="n-label" x="778.0" y="64">Scoreboard</text><text class="n-sub" x="778.0" y="82">8 tags, queue depth</text></g>
+<g class="node" data-id="cal" tabindex="0"><title>tt/tile/src/rtl/mom_calibrate.sv</title><rect x="712" y="248" width="132" height="58" rx="9"/><text class="n-label" x="778.0" y="272">Calibrate</text><text class="n-sub" x="778.0" y="290">measured vs predicted</text></g>
+<g class="node" data-id="xbar" tabindex="0"><title>common/rtl/mom_xbar.sv</title><rect x="880" y="144" width="132" height="58" rx="9"/><text class="n-label" x="946.0" y="168">Crossbar</text><text class="n-sub" x="946.0" y="186">descriptor to engine</text></g>
+<g class="node" data-id="tpu" tabindex="0"><title>engines/tpu/rtl/tpu_top.sv</title><rect x="1048" y="40" width="132" height="58" rx="9"/><text class="n-label" x="1114.0" y="64">TPU</text><text class="n-sub" x="1114.0" y="82">4x4 INT8 array</text></g>
+<g class="node" data-id="simd" tabindex="0"><title>engines/simd/rtl/simd_top.sv</title><rect x="1048" y="144" width="132" height="58" rx="9"/><text class="n-label" x="1114.0" y="168">SIMD</text><text class="n-sub" x="1114.0" y="186">4 x 32-bit lanes</text></g>
+<g class="node" data-id="ntt" tabindex="0"><title>engines/ntt/rtl/ntt_top.sv</title><rect x="1048" y="248" width="132" height="58" rx="9"/><text class="n-label" x="1114.0" y="272">NTT</text><text class="n-sub" x="1114.0" y="290">4 Barrett butterflies</text></g>
+<g class="node" data-id="dma" tabindex="0"><title>mem/rtl/hydra_dma_gemm.sv</title><rect x="1216" y="144" width="132" height="58" rx="9"/><text class="n-label" x="1282.0" y="168">Streamer</text><text class="n-sub" x="1282.0" y="186">banks to engines</text></g>
+<g class="node" data-id="bank" tabindex="0"><title>mem/rtl/hydra_spram.sv</title><rect x="1384" y="144" width="132" height="58" rx="9"/><text class="n-label" x="1450.0" y="168">Scratchpad</text><text class="n-sub" x="1450.0" y="186">A, B, W, results</text></g>
+<g class="node" data-id="jtag" tabindex="0"><title>dbg/rtl/hydra_jtag_tap.sv</title><rect x="208" y="352" width="132" height="58" rx="9"/><text class="n-label" x="274.0" y="376">Test port</text><text class="n-sub" x="274.0" y="394">IEEE 1149.1, own clock</text></g>
+<g class="node" data-id="jbr" tabindex="0"><title>dbg/rtl/hydra_jtag_bridge.sv</title><rect x="376" y="352" width="132" height="58" rx="9"/><text class="n-label" x="442.0" y="376">Crossing</text><text class="n-sub" x="442.0" y="394">toggle handshake</text></g>
+<g class="node" data-id="xsec" tabindex="0"><title>isa/rtl/hydra_xsec_unit.sv</title><rect x="544" y="456" width="132" height="58" rx="9"/><text class="n-label" x="610.0" y="480">Security ISA</text><text class="n-sub" x="610.0" y="498">Zknh + Xhydrasec</text></g>
+<g class="node" data-id="pcr" tabindex="0"><title>sec/rtl/hydra_pcr.sv</title><rect x="1216" y="352" width="132" height="58" rx="9"/><text class="n-label" x="1282.0" y="376">Measurement</text><text class="n-sub" x="1282.0" y="394">extend only, no write</text></g>
+<g class="node" data-id="sha" tabindex="0"><title>sec/rtl/hydra_sha256.sv</title><rect x="1048" y="352" width="132" height="58" rx="9"/><text class="n-label" x="1114.0" y="376">SHA-256</text><text class="n-sub" x="1114.0" y="394">measured boot</text></g>
+<g class="node" data-id="mbox" tabindex="0"><title>sec/rtl/hydra_mailbox.sv</title><rect x="712" y="352" width="132" height="58" rx="9"/><text class="n-label" x="778.0" y="376">Mailbox</text><text class="n-sub" x="778.0" y="394">lock, command, execute</text></g>
+<g class="node" data-id="kv" tabindex="0"><title>sec/rtl/hydra_key_vault.sv</title><rect x="880" y="352" width="132" height="58" rx="9"/><text class="n-label" x="946.0" y="376">Key vault</text><text class="n-sub" x="946.0" y="394">write and use, never read</text></g>
+</svg>

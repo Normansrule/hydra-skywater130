@@ -1,0 +1,25 @@
+# The security unit's two guarantees.
+#   priv -- key writes and seals need machine mode, and trap elsewhere
+#   ni   -- no instruction sequence moves key bits into a register.
+#           BOUNDED to 12 instructions at two 64-bit slots, from power-up.
+[tasks]
+priv
+ni
+
+[options]
+priv: mode prove
+priv: depth 2
+ni: mode bmc
+ni: depth 12
+
+[engines]
+smtbmc yices
+
+[script]
+priv: read -formal xsec_sv2v.v
+priv: prep -top hydra_xsec_unit
+ni: read -formal xsec_sv2v.v
+ni: prep -top xsec_ni
+
+[files]
+xsec_sv2v.v

@@ -45,6 +45,32 @@ That last one is the argument for step 3 of the contract above.
 
 ---
 
+## 1b. FINDING: the calibration loop is one-way (session 179d)
+
+`mom_calibrate` updates k only on a completion for that engine and opclass,
+and nothing decays it. Once the dispatcher stops choosing an engine, that
+engine is never measured again, so a penalty learned from a TRANSIENT
+slowdown is permanent until reset or a CSR write.
+
+Demonstrated in `sys/tb/tb_sys_tile.sv` with hardware engines: with the TPU
+slowed, the 8x8x8 multiply leaves it after 20 dispatches; with every engine
+fast again, 80 dispatches do not bring it back. On silicon that means one hot
+spell, one bus-contention burst or one slow DMA steers work off an engine for
+the rest of the power cycle.
+
+Two cheap fixes, either of which restores recovery:
+
+- **Decay.** Move k one step towards nominal every N completions for engines
+  that were not the ones measured. A counter and a compare.
+- **Exploration.** Every M dispatches, send the work to the runner-up instead
+  of the winner and measure it. The margin is already computed, so the
+  runner-up is already known; this costs a counter and a mux on the select.
+
+Exploration is the better fit: it also gives the calibration something to do
+when the workload never changes, and the margin makes the cost of exploring
+visible. Whichever lands, `tb_sys_tile` step 4 asserts the CURRENT behaviour
+on purpose, so the change cannot go in without someone inverting that check.
+
 ## 2. Next, in dependency order
 
 ### TRNG source + pool (~6,000 cells)

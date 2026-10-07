@@ -17,6 +17,7 @@ sources:
   - tt/tile/src/rtl/hydra_tt_regs.sv
   - tt/tile/src/tt_um_hydra_mom.sv
   - fpga/rtl/hydra_fpga_uart.sv
+  - fpga/rtl/hydra_fpga_bridge.sv
   - fpga/rtl/hydra_fpga_tt_harness.sv
 sys_hz: 12500000        # measured Fmax on ECP5-85F is 15.41 MHz (session 179); never ask for more than timing closes at
 baud:   115200

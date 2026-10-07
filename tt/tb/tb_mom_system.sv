@@ -155,7 +155,12 @@ module tb_mom_system;
 
     // ---- 1. a dispatch reaches the engine the MOM chose --------------------
     submit(mk(4, 4, 4, 48));
-    repeat (10) @(posedge clk);
+    // Ten cycles was enough when five cost engines ran in parallel. The tile
+    // now evaluates them on ONE shared engine, two cycles each, so a dispatch
+    // lands later. This waits long enough to SEE the dispatch; it does not
+    // hide anything, because the in-flight test below still counts every
+    // dispatch against every completion.
+    repeat (24) @(posedge clk);
     if (!eng_busy[ENG_SIMD]) begin
       errors++; $display("FAIL: 4x4x4 did not reach the SIMD engine (busy=%b)", eng_busy);
     end
@@ -168,7 +173,12 @@ module tb_mom_system;
     end
 
     submit(mk(8, 8, 8, 192));
-    repeat (10) @(posedge clk);
+    // Ten cycles was enough when five cost engines ran in parallel. The tile
+    // now evaluates them on ONE shared engine, two cycles each, so a dispatch
+    // lands later. This waits long enough to SEE the dispatch; it does not
+    // hide anything, because the in-flight test below still counts every
+    // dispatch against every completion.
+    repeat (24) @(posedge clk);
     if (!eng_busy[ENG_TPU]) begin
       errors++; $display("FAIL: 8x8x8 did not reach the TPU engine (busy=%b)", eng_busy);
     end

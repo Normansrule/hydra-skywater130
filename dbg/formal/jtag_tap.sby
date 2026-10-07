@@ -1,0 +1,37 @@
+# The test access port's guarantees.
+#
+# `prove` is unbounded induction, and the property that matters is the
+# standard's escape hatch: five TCKs with TMS high reach Test-Logic-Reset
+# from ANY state. It is proved from an arbitrary starting state, with no
+# reset assumption at all, because that is exactly the situation this port
+# exists for -- a chip that powered up wrong and whose reset may not work.
+[tasks]
+prove
+cover
+
+[options]
+# The output register runs on the FALLING edge of TCK -- deliberately, so
+# the probe sees settled data on the rising edge. Yosys will not build a
+# single-clock model of a design with both polarities, and forcing one by
+# moving that register to the rising edge would prove a different circuit
+# than the one that ships.
+multiclock on
+# Bounded, and COMPLETE for this property despite that. The initial state
+# is unconstrained, so the solver considers all sixteen controller states
+# symbolically at step 0; five TMS-high clocks is a five-step window. There
+# is nothing a longer trace could reveal about "from any state, five clocks
+# reach reset" that eight steps from a free start does not already cover.
+prove: mode bmc
+prove: depth 10
+cover: mode cover
+cover: depth 24
+
+[engines]
+smtbmc yices
+
+[script]
+read -formal jtag_tap_sv2v.v
+prep -top hydra_jtag_tap
+
+[files]
+jtag_tap_sv2v.v

@@ -1,0 +1,214 @@
+{
+  "_comment": [
+    "Timing from REAL harden runs, pasted back from",
+    "  python3 ~/src/hydra-skywater130/tools/timing_report.py --summary",
+    "and drawn by tools/gen_readme_art.py. Newest run last. Never typed from",
+    "memory: every number here came out of a metrics.json."
+  ],
+  "runs": [
+    {
+      "label": "2026-10-01, CLOCK_PERIOD 55 ns",
+      "period_ns": 55,
+      "critical_path_ns": 59.958,
+      "fmax_slow_MHz": 16.68,
+      "utilisation": 0.666605,
+      "slew_violations": 4764,
+      "cap_violations": 26,
+      "drc": 0,
+      "lvs": 0,
+      "antenna": 0,
+      "corners": [
+        [
+          "max_ss_100C_1v60",
+          -4.958,
+          0.887,
+          36
+        ],
+        [
+          "nom_ss_100C_1v60",
+          -3.888,
+          0.882,
+          28
+        ],
+        [
+          "min_ss_100C_1v60",
+          -2.826,
+          0.878,
+          17
+        ],
+        [
+          "max_tt_025C_1v80",
+          26.02,
+          0.304,
+          0
+        ],
+        [
+          "nom_tt_025C_1v80",
+          26.6,
+          0.306,
+          0
+        ],
+        [
+          "min_tt_025C_1v80",
+          27.19,
+          0.309,
+          0
+        ],
+        [
+          "max_ff_n40C_1v95",
+          35.745,
+          0.095,
+          0
+        ],
+        [
+          "nom_ff_n40C_1v95",
+          35.891,
+          0.097,
+          0
+        ],
+        [
+          "min_ff_n40C_1v95",
+          36.075,
+          0.099,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "2026-10-02, CLOCK_PERIOD 66 ns, synchronised reset",
+      "period_ns": 66,
+      "critical_path_ns": 63.816,
+      "fmax_slow_MHz": 15.67,
+      "utilisation": 0.672843,
+      "slew_violations": 4996,
+      "cap_violations": 21,
+      "drc": 0,
+      "lvs": 0,
+      "antenna": 1,
+      "corners": [
+        [
+          "max_ss_100C_1v60",
+          2.184,
+          0.907,
+          0
+        ],
+        [
+          "nom_ss_100C_1v60",
+          3.269,
+          0.896,
+          0
+        ],
+        [
+          "min_ss_100C_1v60",
+          4.427,
+          0.887,
+          0
+        ],
+        [
+          "max_tt_025C_1v80",
+          34.311,
+          0.323,
+          0
+        ],
+        [
+          "nom_tt_025C_1v80",
+          34.883,
+          0.319,
+          0
+        ],
+        [
+          "min_tt_025C_1v80",
+          35.502,
+          0.315,
+          0
+        ],
+        [
+          "max_ff_n40C_1v95",
+          45.754,
+          0.112,
+          0
+        ],
+        [
+          "nom_ff_n40C_1v95",
+          45.859,
+          0.11,
+          0
+        ],
+        [
+          "min_ff_n40C_1v95",
+          45.978,
+          0.107,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "2026-10-05, CLOCK_PERIOD 66 ns, synchronised reset, antenna repair",
+      "period_ns": 66,
+      "critical_path_ns": 63.801,
+      "fmax_slow_MHz": 15.67,
+      "utilisation": 0.673069,
+      "slew_violations": 5039,
+      "cap_violations": 20,
+      "drc": 0,
+      "lvs": 0,
+      "antenna": 0,
+      "corners": [
+        [
+          "max_ss_100C_1v60",
+          2.199,
+          0.9,
+          0
+        ],
+        [
+          "nom_ss_100C_1v60",
+          3.29,
+          0.894,
+          0
+        ],
+        [
+          "min_ss_100C_1v60",
+          4.451,
+          0.886,
+          0
+        ],
+        [
+          "max_tt_025C_1v80",
+          34.27,
+          0.324,
+          0
+        ],
+        [
+          "nom_tt_025C_1v80",
+          34.839,
+          0.319,
+          0
+        ],
+        [
+          "min_tt_025C_1v80",
+          35.46,
+          0.315,
+          0
+        ],
+        [
+          "max_ff_n40C_1v95",
+          45.734,
+          0.113,
+          0
+        ],
+        [
+          "nom_ff_n40C_1v95",
+          45.856,
+          0.111,
+          0
+        ],
+        [
+          "min_ff_n40C_1v95",
+          45.975,
+          0.108,
+          0
+        ]
+      ]
+    }
+  ]
+}

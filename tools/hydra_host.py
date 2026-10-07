@@ -251,3 +251,65 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# ---------------------------------------------------------------------------
+# Scratchpad access (bridge commands 'M' and 'R')
+# ---------------------------------------------------------------------------
+def mem_write(port, bank, addr, data):
+    """Write one 32-bit word into an operand bank. Returns True on ack."""
+    frame = bytes([0x4D, bank & 3, (addr >> 8) & 0xFF, addr & 0xFF,
+                   (data >> 24) & 0xFF, (data >> 16) & 0xFF,
+                   (data >> 8) & 0xFF, data & 0xFF])
+    port.write(frame)
+    r = port.read(2)
+    return len(r) == 2 and r[0] == 0xB2
+
+
+def mem_read(port, addr):
+    """Read one word back. Returns the value, or None if the board did not answer."""
+    port.write(bytes([0x52, (addr >> 8) & 0xFF, addr & 0xFF]))
+    r = port.read(5)
+    if len(r) != 5 or r[0] != 0xA6:
+        return None
+    return (r[1] << 24) | (r[2] << 16) | (r[3] << 8) | r[4]
+
+
+def pack_lanes(values):
+    """Four signed bytes into one word, lane 0 in the low byte -- the layout
+    mem/rtl/hydra_dma_agen.sv documents."""
+    w = 0
+    for i, v in enumerate(values[:4]):
+        w |= (int(v) & 0xFF) << (8 * i)
+    return w
+
+
+def load_gemm(port, a, b, base=0):
+    """Write A and B in the bank layout the streamer expects.
+
+    a is M x K, b is K x N, both lists of lists of small integers. Lanes
+    past the tile are zeroed here, because the engine has no idea which
+    lanes are inside a tile and should not need to.
+    """
+    m, k = len(a), len(a[0])
+    n = len(b[0])
+    for t in range(k):
+        acol = [a[i][t] if i < m else 0 for i in range(4)]
+        brow = [b[t][j] if j < n else 0 for j in range(4)]
+        if not mem_write(port, 0, base + t, pack_lanes(acol)):
+            raise RuntimeError(f"A bank write at {base + t} was not acknowledged")
+        if not mem_write(port, 1, base + t, pack_lanes(brow)):
+            raise RuntimeError(f"B bank write at {base + t} was not acknowledged")
+    return m, n, k
+
+
+def gemm_descriptor(m, n, k, base_a=0, base_b=0, base_c=0):
+    """A GEMM descriptor carrying the three bank addresses in reserved bits."""
+    # descriptor() already returns an integer here, not bytes; converting
+    # it again raised a TypeError the moment the function was first called.
+    v = descriptor(m=m, n=n, k=k, nbytes=0)
+    if isinstance(v, (bytes, bytearray)):
+        v = int.from_bytes(v, "big")
+    v |= (base_a & 0x3FF) << 3
+    v |= (base_b & 0x3FF) << 13
+    v |= (base_c & 0x3FF) << 23
+    return v.to_bytes(16, "big")
