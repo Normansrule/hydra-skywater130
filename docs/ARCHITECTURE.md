@@ -25,7 +25,7 @@ flowchart LR
   jbr["Crossing<br/><small>toggle handshake</small>"]
   xsec["Security ISA<br/><small>Zknh + Xhydrasec</small>"]
   pcr["Measurement<br/><small>extend only, no write</small>"]
-  sha["SHA-256<br/><small>measured boot</small>"]
+  sha["SHA-256<br/><small>padded in hardware</small>"]
   mbox["Mailbox<br/><small>lock, command, execute</small>"]
   kv["Key vault<br/><small>write and use, never read</small>"]
   host -- bytes --> bridge
@@ -80,6 +80,6 @@ flowchart LR
 | Crossing | `dbg/rtl/hydra_jtag_bridge.sv` |
 | Security ISA | `isa/rtl/hydra_xsec_unit.sv` |
 | Measurement | `sec/rtl/hydra_pcr.sv` |
-| SHA-256 | `sec/rtl/hydra_sha256.sv` |
+| SHA-256 | `sec/rtl/hydra_sha256_stream.sv` |
 | Mailbox | `sec/rtl/hydra_mailbox.sv` |
 | Key vault | `sec/rtl/hydra_key_vault.sv` |

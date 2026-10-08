@@ -88,19 +88,23 @@ teach an attacker nothing was there to hit.
 | Privilege: user, supervisor, machine | vectors for each, plus the reserved encoding | exact |
 | Key writes and seals **cannot** happen outside machine mode, and trap | **proved**, all operands | holds |
 | An illegal instruction changes **nothing** | **proved** | holds |
-| **No instruction sequence moves key bits into a register** | **non-interference**: two copies with identical instruction streams and different keys produce identical results | holds, bounded to 12 instructions |
+| **No instruction sequence moves key bits into a register** | **non-interference**: two copies with identical instruction streams and different keys produce identical results | holds — **unbounded**, at the shipped size (4 × 256-bit slots) |
 
 The last proof was checked for teeth: re-injecting a one-bit key leak into
 the vault's status word is caught at step 3, with the exact instruction
-sequence — write a key, then read its status — that exposes it.
+sequence — write a key, then read its status — that exposes it. A second
+planted leak, which holds a key bit for 40 cycles before exposing it, passed
+the earlier 12-instruction bounded check and fails the unbounded one.
 
 ### Stated limits
 
 - **Timing** is data-independent because everything is single-cycle
   combinational, which is the strongest form of the Zkt guarantee. It is not
   separately measured, and power side channels are not addressed at all.
-- The non-interference result is **bounded** (12 instructions, two 64-bit
-  slots). The shipped vault is larger.
+- The non-interference result is **unbounded** (k-induction) at the shipped
+  vault size since 2026-10-07. It covers the unit and the vault's status
+  port; the measurement register is tied off in the proof and covered by
+  its own.
 - **The unit is not yet wired into a core.** It is a verified functional
   unit with a documented decode; connecting it to the RV64 pipeline — and
   getting the illegal-instruction trap into the core's exception logic — is

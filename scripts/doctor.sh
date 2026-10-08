@@ -63,6 +63,12 @@ need yosys     "area measurement and FPGA synthesis" \
 # 2026-10-06 (pipefail) a missing prover fails verify instead of passing it.
 need sby       "formal proofs (make padmux, tpu, dma...); make verify fails without it" \
                "sudo apt install yosys-sby  # or: git clone https://github.com/YosysHQ/sby && sudo make -C sby install"
+if command -v sby >/dev/null 2>&1 && ! sby --help >/dev/null 2>&1; then
+  red "sby" "installed but does not start -- usually a missing Python module:"
+  sby --help 2>&1 | tail -1 | sed 's/^/                 /'
+  printf '  %-14s install: %s\n' "" "pip install click   # what current sby needs"
+  bad=$((bad + 1))
+fi
 need yices-smt2 "the solver every .sby file names (smtbmc yices)" \
                "sudo apt install yices2  # or build https://github.com/SRI-CSL/yices2"
 want nextpnr-ecp5 "FPGA place and route (make fpga)" \

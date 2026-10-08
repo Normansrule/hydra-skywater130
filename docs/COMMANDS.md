@@ -37,6 +37,9 @@ make all                         # TinyTapeout, sky130 and FPGA targets together
 | `make systile-tpu` | dispatcher + real array, checksums vs the model | 70 s |
 | `make tpu-mutate` | nine deliberate TPU breaks, each must be caught | ~3 min |
 | `make mutate` | break each behaviour, require its test to fail | ~10 min |
+| `make keyvault` | key vault: invariants, and no key bit on the host port (unbounded, shipped size) | 1 min |
+| `make sha256-stream` | SHA-256 padded in hardware: 140 lengths vs hashlib, padding proved | 2 min |
+| `make measure` | image bytes → hardware-padded SHA-256 → measurement register, vs hashlib | 10 s |
 
 One test on its own:
 

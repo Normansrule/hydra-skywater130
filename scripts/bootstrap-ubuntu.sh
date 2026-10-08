@@ -13,7 +13,8 @@
 #             nextpnr-ice40 + fpga-icestorm, nextpnr-ecp5 + fpga-trellis
 #   release   sv2v (zachjs), yices (SRI) -- both from GitHub release assets
 #   source    SymbiYosys (sby), which is not packaged for Ubuntu
-#   pip       cocotb, pytest, pyyaml, pyserial, apycula (Gowin flow + gowin_pll)
+#   pip       cocotb, pytest, pyyaml, pyserial, apycula (Gowin flow + gowin_pll),
+#             click (SymbiYosys needs it)
 #
 # Python packages go in a virtual environment at .venv unless --system is
 # given, because Ubuntu 24.04 refuses pip installs into the system Python.
@@ -99,7 +100,10 @@ fi
 
 # -------------------------------------------------------------------- python
 say "python packages"
-PKGS="cocotb>=1.8 pytest pyyaml pyserial apycula"
+# click: current SymbiYosys imports it. Without it every proof dies at
+# startup -- which is how the GitHub runs failed from 2026-10-06, once
+# make verify stopped ignoring failed proofs (pipefail).
+PKGS="cocotb>=1.8 pytest pyyaml pyserial apycula click"
 if [ "$SYSTEM_PY" -eq 1 ]; then
   # shellcheck disable=SC2086
   $SUDO pip install --break-system-packages -q $PKGS
@@ -125,7 +129,7 @@ report git          "git --version"
 report iverilog     "iverilog -V"
 report yosys        "yosys -V"
 report sv2v         "sv2v --version"
-report sby          "sby --version"
+report sby          "sby --help"
 report yices-smt2   "yices-smt2 --version"
 report nextpnr-ecp5 "nextpnr-ecp5 --version"
 report nextpnr-ice40 "nextpnr-ice40 --version"
@@ -137,10 +141,19 @@ PY="$ROOT/.venv/bin/python3"
 if [ -x "$PY" ] || [ "$SYSTEM_PY" -eq 1 ]; then
   $PY - <<'PYEOF' || MISSING=1
 import importlib.util, sys
-missing = [m for m in ("cocotb", "pytest", "yaml", "serial", "apycula") if not importlib.util.find_spec(m)]
+missing = [m for m in ("cocotb", "pytest", "yaml", "serial", "apycula", "click") if not importlib.util.find_spec(m)]
 print("  python           " + ("all present" if not missing else "MISSING " + ", ".join(missing)))
 sys.exit(1 if missing else 0)
 PYEOF
+fi
+
+# A present sby that cannot start is worse than a missing one: every proof
+# fails, and only in the log does it say why.
+if ! sby --help >/dev/null 2>&1; then
+  echo
+  echo "  sby is installed but does not start:"
+  sby --help 2>&1 | tail -2 | sed 's/^/    /'
+  MISSING=1
 fi
 
 if ! yices-smt2 --version >/dev/null 2>&1; then

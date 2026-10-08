@@ -1,20 +1,24 @@
-# Two proofs for the vault:
-#   prove   -- its own invariants (sealing is one-way, a wipe clears all)
-#   ni      -- non-interference: the host port carries no key bits.
-#              BOUNDED to 24 cycles from power-up -- see key_vault_ni.sv
-#              for why this is bounded and what that does and does not mean.
-#   cover   -- the keys in the two copies really can differ, so `ni` is not
-#              vacuous
+# Proofs for the vault:
+#   prove    -- its own invariants (sealing is one-way, a wipe clears all)
+#   ni       -- non-interference: the host port carries no key bits.
+#               UNBOUNDED (k-induction), two 64-bit slots
+#   ni_full  -- the same proof at the SHIPPED size: four 256-bit slots
+#   cover    -- the keys in the two copies really can differ, so `ni` is
+#               not vacuous
+# See key_vault_ni.sv for what the result does and does not cover.
 [tasks]
 prove
 ni
+ni_full
 cover
 
 [options]
 prove: mode prove
 prove: depth 12
-ni: mode bmc
-ni: depth 16
+ni: mode prove
+ni: depth 4
+ni_full: mode prove
+ni_full: depth 4
 cover: mode cover
 cover: depth 12
 
@@ -26,6 +30,9 @@ prove: read -formal key_vault_sv2v.v
 prove: prep -top hydra_key_vault
 ni: read -formal key_vault_sv2v.v
 ni: prep -top key_vault_ni
+ni_full: read -formal key_vault_sv2v.v
+ni_full: chparam -set NSLOT 4 -set KW 256 -set WW 32 key_vault_ni
+ni_full: prep -top key_vault_ni
 cover: read -formal key_vault_sv2v.v
 cover: prep -top key_vault_ni
 

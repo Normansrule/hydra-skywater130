@@ -98,6 +98,22 @@ push_target() {   # push_target <repo> -> sets BR (remote branch) or exits
   fi
 }
 
+# Files over 5 MB are refused. Published history keeps every version of a
+# file for good: on 2026-10-07 the tile's history turned out to hold a 42 MB
+# and a 6.8 MB render of the layout, committed by runs of this script before
+# render-layout.sh learned to make a web-sized copy.
+MAX_BYTES=$((5 * 1024 * 1024))
+too_big() {   # too_big <repo> <name>: list files `git add -A` would take that exceed the limit
+  local repo="$1" name="$2" f bad=0
+  while IFS= read -r -d '' f; do
+    [[ -f "$repo/$f" ]] || continue
+    if (( $(stat -c %s "$repo/$f") > MAX_BYTES )); then
+      echo "release.sh: $name/$f is $(( $(stat -c %s "$repo/$f") / 1024 / 1024 )) MB (limit 5 MB)"; bad=1
+    fi
+  done < <(git -C "$repo" ls-files -z -m -o --exclude-standard)
+  return $bad
+}
+
 say "0/5  Push targets"
 TILE_IS_REPO=0
 if [[ -d "$TILE/.git" ]] || [[ -f "$TILE/.git" ]]; then
@@ -105,6 +121,13 @@ if [[ -d "$TILE/.git" ]] || [[ -f "$TILE/.git" ]]; then
   push_target "$TILE" "tile (tt/tile)"; TILE_BR="$BR"
 fi
 push_target "$ROOT" "parent"; ROOT_BR="$BR"
+big=0
+[[ $TILE_IS_REPO -eq 1 ]] && { too_big "$TILE" "tt/tile" || big=1; }
+too_big "$ROOT" "." || big=1
+if (( big )); then
+  echo "  Shrink it (a layout image: ./scripts/render-layout.sh), or add it to .gitignore."
+  echo "  Nothing has been changed."; exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # 1. Green before anything else

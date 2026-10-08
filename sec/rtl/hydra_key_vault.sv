@@ -67,6 +67,16 @@ module hydra_key_vault #(
   input  wire [$clog2(NSLOT)-1:0]      eng_slot,
   output logic [KW-1:0]                eng_key,
   output logic                         eng_valid
+`ifdef FORMAL
+  // Proof-only view of the vault's bookkeeping, as PORTS. The unbounded
+  // non-interference proof has to state that two copies' bookkeeping stays
+  // identical; hierarchical references into the copies did not survive
+  // conversion to Verilog, ports do. Absent from every non-formal build.
+  ,
+  output logic [NSLOT-1:0]             f_locked,
+  output logic [NSLOT-1:0]             f_filled,
+  output logic [NSLOT*(KW/WW)-1:0]     f_seen
+`endif
 );
   localparam int unsigned NWORD = KW / WW;
   localparam int unsigned SB    = $clog2(NSLOT);
@@ -132,6 +142,12 @@ module hydra_key_vault #(
   assign eng_valid = eng_req && filled[eng_slot];
 
 `ifdef FORMAL
+  assign f_locked = locked;
+  assign f_filled = filled;
+  for (genvar g = 0; g < NSLOT; g++) begin : g_fseen
+    assign f_seen[g*NWORD +: NWORD] = seen[g];
+  end
+
   logic past_valid = 1'b0;
   always_ff @(posedge clk) past_valid <= 1'b1;
   initial assume (!rst_n);

@@ -76,6 +76,14 @@
       "um2": 65727,
       "results": "7 messages identical to hashlib",
       "mutations": "not yet"
+    },
+    {
+      "name": "Measurement",
+      "what": "image bytes to PCR on one SHA-256 core, padded in hardware",
+      "cells": 10518,
+      "um2": 92480,
+      "results": "7 images, digest and chain identical to hashlib",
+      "mutations": "3 planted faults rejected by the proof"
     }
   ],
   "boards": [
@@ -166,12 +174,12 @@
     },
     {
       "what": "key vault: no key bit on the host port",
-      "result": "16 cycles",
+      "result": "unbounded",
       "kind": "non-interference"
     },
     {
       "what": "formal proofs",
-      "result": "10 modules",
+      "result": "15 modules",
       "kind": "k-induction"
     },
     {
@@ -200,6 +208,26 @@
       "kind": "outside reference"
     },
     {
+      "what": "SHA-256 padded in hardware vs hashlib",
+      "result": "140 lengths",
+      "kind": "outside reference"
+    },
+    {
+      "what": "padding: marker, zeros, length of exactly the bytes sent",
+      "result": "unbounded",
+      "kind": "k-induction"
+    },
+    {
+      "what": "image bytes to PCR, digest and chain vs hashlib",
+      "result": "7 images",
+      "kind": "outside reference"
+    },
+    {
+      "what": "measurement: PCR moves only as an extend finishes; no software path during it",
+      "result": "unbounded",
+      "kind": "k-induction"
+    },
+    {
       "what": "bring-up image: sweep, mirror, pattern, serial",
       "result": "28 checks",
       "kind": "simulation"
@@ -216,7 +244,7 @@
     },
     {
       "what": "no instruction moves key bits into a register",
-      "result": "12 instructions",
+      "result": "unbounded",
       "kind": "non-interference"
     },
     {
@@ -231,10 +259,9 @@
     "Never run on hardware. The bring-up image is built and simulated; docs/FPGA_BRINGUP.md is the procedure, and LED polarity is still an assumption until a board confirms it.",
     "Full SkyWater chip never hardened: no LibreLane run of the OpenFrame chip has completed, so it has no gate-level netlist, timing sign-off, DRC or LVS result. (The Tiny Tapeout tile HAS: sign-off clean on 2026-10-05.)",
     "Two board images (ecp5-evn-sys, ecp5-evn-tpu) predate the content-hash rebuild rule, so their provenance is unknown until each is rebuilt once; `make -C fpga/build/<board> provenance` then says whether a bitstream matches the current sources.",
-    "The key vault's non-interference result is bounded to 16 cycles at two 64-bit slots; the shipped configuration is larger and unbounded induction needs an invariant that is not yet written.",
     "No boundary scan: there are no scan cells at the pads, so SAMPLE, PRELOAD and EXTEST are absent and the chip is not boundary-scan testable.",
     "The test port cannot reach registers if the system clock is dead: the bridge waits and reports busy. Reading with the system clock stopped would mean running the register file on the probe's clock.",
-    "SHA-256 does no padding: software frames the message. For measured boot the hash must cover something software cannot be trusted to frame, so hardware padding is needed before it guards a boot chain.",
+    "Measured boot has its hardware half -- image bytes in, SHA-256 padded in hardware, PCR extended, on one core (hydra_measure) -- but nothing drives it yet: no boot ROM or core issues the measurements.",
     "The security instructions are a verified functional unit, not yet wired into a RV64 pipeline; until they are, no core on this chip has them.",
     "The Basys 3 bring-up image is simulated and its constraints generated, but no bitstream has been built: that needs Vivado or the openXC7 flow on your machine. The larger HYDRA images have not been ported to the Artix-7."
   ]
