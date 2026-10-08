@@ -127,5 +127,5 @@ pins:
     role: in
 provenance:
 - file: lattice_ecp5_evn.py
-  url: https://raw.githubusercontent.com/litex-hub/litex-boards/master/litex_boards/platforms/lattice_ecp5_evn.py
+  url: https://raw.githubusercontent.com/litex-hub/litex-boards/7a211c89b9a94ec1044056d28cf6e22e74a15e8b/litex_boards/platforms/lattice_ecp5_evn.py
   sha256: ffbbb63c9eddc608ca73fc4cee6faac2bdb2b46240c7115fddba3c8108a0267d

@@ -242,5 +242,5 @@ pins:
     role: in
 provenance:
 - file: Nexys-Video-Master.xdc
-  url: https://raw.githubusercontent.com/Digilent/digilent-xdc/master/Nexys-Video-Master.xdc
+  url: https://raw.githubusercontent.com/Digilent/digilent-xdc/16e3b34a3d43c1d203e935038014a208f86c7fde/Nexys-Video-Master.xdc
   sha256: 2debf0afb537c0a9f8f2c1569aa99e0366629a354f2fbdf369bd5142670086cc

@@ -263,5 +263,5 @@ pins:
     role: in
 provenance:
 - file: Arty-A7-35-Master.xdc
-  url: https://raw.githubusercontent.com/Digilent/digilent-xdc/master/Arty-A7-35-Master.xdc
+  url: https://raw.githubusercontent.com/Digilent/digilent-xdc/0256a131e11142f9abd3ccaaf0e9a479a616cf2f/Arty-A7-35-Master.xdc
   sha256: 3884f49d657924e2903e7cc275ee6d4acc6e5b17a55b818ed742fc59a0818492

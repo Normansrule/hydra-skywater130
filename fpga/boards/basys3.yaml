@@ -323,5 +323,5 @@ pins:
     role: in
 provenance:
 - file: Basys-3-Master.xdc
-  url: https://raw.githubusercontent.com/Digilent/digilent-xdc/master/Basys-3-Master.xdc
+  url: https://raw.githubusercontent.com/Digilent/digilent-xdc/69d35015d4c3a0cb384a964459593cea5260697a/Basys-3-Master.xdc
   sha256: f6f289e967f1dab96349a8c7aaee9c7e9db1c0a5346848635ec2f056b922d89c
