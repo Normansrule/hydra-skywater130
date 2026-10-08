@@ -30,8 +30,10 @@
  * 64-bit length -- before its blocks arrive. Software does it today
  * (sha256_model.py shows exactly how). Hardware padding matters when the
  * hash is over something software must not be trusted to frame correctly,
- * which is precisely the measured-boot case, so this will need revisiting
- * before it guards a boot chain.
+ * which is precisely the measured-boot case. hydra_sha256_stream.sv does
+ * exactly that in front of this core (since 2026-10-07): software sends
+ * bytes, hardware pads; and hydra_measure.sv takes the result straight into
+ * the measurement register.
  *
  * The message schedule keeps sixteen words and rotates, rather than
  * expanding all 64 up front: 64 words of storage would be four times the

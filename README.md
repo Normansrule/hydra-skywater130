@@ -1,4 +1,14 @@
-# HYDRA-130 · a secure dispatcher chip that measures its own engines
+<p align="center">
+  <img src="docs/img/hero.svg" width="100%" alt="HYDRA-130, a dispatcher chip that measures its own engines, open source for SkyWater's 130 nm process. A floorplan of the chip with each block drawn to its measured area; timing closes at every corner, sign-off is clean, and all 17 tile tests pass on the hardened netlist.">
+</p>
+
+<p align="center">
+  <a href="https://github.com/Normansrule/hydra-skywater130/actions/workflows/verify.yml"><img src="https://github.com/Normansrule/hydra-skywater130/actions/workflows/verify.yml/badge.svg" alt="make verify"></a>
+  &nbsp;<a href="https://github.com/Normansrule/tinytapeout-hydra">Tiny Tapeout tile</a>
+  &nbsp;·&nbsp;<a href="docs/site/index.html">project page</a>
+  &nbsp;·&nbsp;<a href="docs/FIRST_TRY.md">first run</a>
+  &nbsp;·&nbsp;<a href="docs/SECURITY_PLAN.md">security plan</a>
+</p>
 
 **A robotics and security chip for SkyWater's open 130 nm process.** A hardware
 scheduler predicts how long each of five compute engines would take a piece of
@@ -13,7 +23,7 @@ page is generated from, or checked against, the repository itself.
 
 | | |
 |---|---|
-| **Tiny Tapeout tile** | 4×4 tiles, **hardened: layout versus schematic match, design rules and antenna clean**, 66.7% utilisation |
+| **Tiny Tapeout tile** | 4×4 tiles, **hardened: layout versus schematic match, design rules and antenna clean**, 67.3% utilisation |
 | **Clock** | 15.15 MHz (66 ns) — **every corner meets setup**; slow-corner slack +2.20 ns; sign-off clean |
 | **Dispatcher** | roofline cost model over five engines, self-calibrating, ~13-cycle decision |
 | **Compute engines** | 4×4 INT8 systolic array · 4-lane 32-bit vector unit · Barrett butterflies at the ML-KEM, ML-DSA and Falcon moduli |
@@ -36,7 +46,8 @@ page is generated from, or checked against, the repository itself.
 | **Scratchpad and operand streamer** | banks the host loads; feeds all three engines | full chip and FPGA |
 | **Key vault** | keys written and used by slot, never read back — proved | full chip |
 | **Mailbox** | Caliptra's read-to-acquire lock protocol; mutual exclusion proved | full chip |
-| **SHA-256** | block compression, identical to `hashlib` | full chip |
+| **SHA-256** | block compression, identical to `hashlib`; **padded in hardware** — padding proved unbounded | full chip |
+| **Image measurement** | image bytes in, SHA-256 padded in hardware, PCR extended — software never handles the digest; one shared hash core | full chip |
 | **Measurement register** | extend-only, fixed padding, no write port — proved | full chip |
 | **Security instructions** | ratified Zknh + custom `Xhydrasec`; no key-read instruction exists | full chip (unit verified, not yet in a core) |
 | **IEEE 1149.1 test port** | its own clock; reset from any state proved; crosses into the register map by handshake | full chip |
@@ -136,12 +147,14 @@ Digilent's own master file with the right lines uncommented, never retyped.
 
 | guarantee | how it is established |
 |---|---|
-| No instruction can move key bits into a register | non-interference proof over the instruction unit and key vault, **checked for teeth** by re-injecting a one-bit leak |
+| No instruction can move key bits into a register | non-interference over the instruction unit and key vault, **proved unbounded at the shipped size**; checked for teeth by re-injecting a one-bit leak |
 | Key writes need machine mode and trap elsewhere | proved for all operands |
-| The key vault's host port carries no key bits | non-interference, two copies with different keys |
+| The key vault's host port carries no key bits | non-interference, **proved unbounded at the shipped size** (4 × 256-bit slots); checked for teeth |
 | Two requesters never both hold the mailbox lock | proved, unbounded |
 | The measurement register moves only by extending | proved, unbounded; chain checked against `hashlib` |
 | SHA-256 | seven messages straddling the 55/56-byte padding boundary, identical to `hashlib` |
+| SHA-256 is of exactly the bytes sent | padding done in hardware: every length 0–130 bytes and boundaries to 1,000 identical to `hashlib`; marker, zeros and length field **proved unbounded** for every input sequence and core latency |
+| An image is measured without software touching the digest | seven images measured into the PCR, digest and chain identical to `hashlib`; **proved unbounded** that the PCR moves only as an extend finishes and software has no path into the hash while it does |
 
 **Not claimed:** resistance to power or timing analysis, fault injection, or
 a physical attacker. Fully homomorphic encryption is **not** on this chip —
@@ -149,9 +162,26 @@ the transform engine is the primitive beneath lattice cryptography, and
 ML-KEM and ML-DSA are the reachable targets. See
 [the security plan](docs/SECURITY_PLAN.md) and [the instruction set](docs/ISA_SECURITY.md).
 
+### A boot image, measured with no software in the way
+
+Software hands over the image's bytes and nothing else. The hardware counts
+them, writes the padding itself, hashes the block and extends the measurement
+register, so the record says what was actually loaded.
+
+<p align="center"><img src="docs/img/measure_anim.svg" width="100%" alt="An animation of a 50-byte image filling a 64-byte SHA-256 block: the image bytes from software, then the 0x80 marker, zeros and the 400-bit length written by hardware, then the hash and the measurement register being extended."></p>
+
+### Why the key vault cannot leak, as a proof
+
+Two copies of the vault get the same commands and different keys. The proof
+shows their host-visible outputs agree on every cycle, for every key, with
+no bound on how long it runs. A planted leak breaks the agreement, and the
+proof names the cycle.
+
+<p align="center"><img src="docs/img/noninterference_anim.svg" width="100%" alt="An animation of two key vault copies with different keys producing the same status word on the host port, then a planted leak making the two status words differ."></p>
+
 ## Verification
 
-`make verify` runs every check below in about six minutes and prints
+`make verify` runs every check below in about five minutes and prints
 `=== all checks passed ===`.
 
 | area | what is checked | evidence |
@@ -159,7 +189,7 @@ ML-KEM and ML-DSA are the reachable targets. See
 | Dispatcher | 17 tile tests, both personalities; v2 equals v1 pin for pin; shared engine decides as parallel | simulation · differential · equivalence |
 | Engines | array, vector unit, transform engine against models written from the contract | 1,600+ results exact |
 | Memory path | all three engines fed from banks the host loads | 254 results read back |
-| Formal | port contracts, key secrecy, mailbox exclusion, test-port reset from any state | 20+ proofs |
+| Formal | port contracts, key secrecy, hardware padding, image measurement, mailbox exclusion, test-port reset from any state | 25 proof runs over 15 modules |
 | Tests of the tests | deliberate faults injected into each design | 50+ killed, survivors explained |
 | Tile submission | metadata, pinout, docs, regeneration, stale claims | `make tt-ready` |
 
@@ -175,13 +205,13 @@ mkdir -p ~/src && cd ~/src
 git clone --recurse-submodules https://github.com/Normansrule/hydra-skywater130.git
 cd ~/src/hydra-skywater130
 make bootstrap        # fetch vendor board files, check the toolchain
-make verify           # everything, about six minutes
+make verify           # everything, about five minutes
 ```
 
 | command | what it does |
 |---|---|
 | `make doctor` | which tools are present, and how to install the rest |
-| `make site` · `make readme-art` | regenerate the project page and every figure here |
+| `make site` · `make readme-art` | regenerate the project page and every figure here, from the repository's data |
 | `make selftest-bit` · `make flash-selftest` | build and load the ECP5 bring-up image |
 | `make basys3-bit` · `make flash-basys3` | build (Vivado) and load the Basys 3 bring-up image |
 | `make tt-ready` · `./scripts/sync-tile.sh` | check the tile, then copy it to the hardening checkout by hash |
@@ -194,7 +224,10 @@ make verify           # everything, about six minutes
 The rest of this file is the engineering record: what was built, what went
 wrong, and how each problem was found.
 
-## 1. What the chip does
+Each chapter opens on its own.
+
+<details>
+<summary><b>1. What the chip does</b></summary>
 
 Software hands the chip a **work descriptor**: "multiply these 8×8×8 INT8
 matrices, I care about latency, I do not care about power." The MOM evaluates a
@@ -240,9 +273,10 @@ work, wait the modelled number of cycles, and report done — exactly the part o
 an engine the cost model claims to predict. The real datapaths live in the
 HYDRA-130 tree and attach to the crossbar's engine ports (section 5).
 
----
+</details>
 
-## 2. Pins
+<details>
+<summary><b>2. Pins</b></summary>
 
 ### 2.1 TinyTapeout tile — 24 signal pins, plus 3 fixed
 
@@ -349,9 +383,10 @@ In the system image two DIP switches select the engine latency profile live:
 watch the dispatcher move the work — that is the calibration loop running in
 hardware.
 
----
+</details>
 
-## 3. The instruction set
+<details>
+<summary><b>3. The instruction set</b></summary>
 
 There is no instruction stream. **One 128-bit work descriptor is one
 instruction**; everything else is configuration through the register map.
@@ -407,9 +442,10 @@ cost from 64 to 4000 moves an 8×8×8 multiply to the SIMD unit; restoring the
 row restores the decision. That is the claim silicon is meant to demonstrate,
 and the reason the register personality exists.
 
----
+</details>
 
-## 4. Host register map
+<details>
+<summary><b>4. Host register map</b></summary>
 
 Command byte `{rw, addr[6:0]}`, `rw = 1` reads; data follows, most significant
 byte first. **Writes commit at chip-select rise and only if exactly the right
@@ -436,9 +472,10 @@ than a dropped command.
 
 Unmapped addresses read zero; writing one sets `FRAME_ERR`.
 
----
+</details>
 
-## 5. Engine port contract
+<details>
+<summary><b>5. Engine port contract</b></summary>
 
 A datapath becomes dispatchable by meeting six signals on `mom_xbar`:
 
@@ -462,9 +499,10 @@ Rules the crossbar enforces, all proved:
 - an out-of-range engine index is accepted and reported rather than dropped, so
   a corrupt decision cannot deadlock the machine.
 
----
+</details>
 
-## 6. Engine instruction sets
+<details>
+<summary><b>6. Engine instruction sets</b></summary>
 
 | engine | document | how it is produced |
 |---|---|---|
@@ -540,7 +578,7 @@ plus a small custom extension in `custom-0` for what only this chip has —
 key vault by slot, measurement register, constant-time compare. There is no
 key-read instruction. Proved: key writes need machine mode and trap
 elsewhere, and **no instruction sequence can move key bits into a register**
-(non-interference, bounded to 12 instructions, checked for teeth).
+(non-interference, **unbounded, at the shipped vault size**, checked for teeth).
 
 `make tt-ready` checks the tile's submission for everything visible before
 hardening, and lists what only hardening can establish.
@@ -550,8 +588,16 @@ compression engine, checked against Python's hashlib — the strongest model
 in the repository, because hashlib was written by people with no connection
 to this project, so a disagreement means the hardware is wrong with no room
 to argue. Seven messages, chosen to straddle the 55/56-byte boundary where
-hash engines break. 7,419 cells. It does **no padding**: software frames the
-message, and measured boot will eventually need that in hardware.
+hash engines break. 7,419 cells. On its own it does no padding — but
+`hydra_sha256_stream` in front of it does, in hardware: software sends
+message bytes only, and the hardware counts them and appends the marker, the
+zeros and the length. Code that frames its own hash chooses what is hashed,
+so for measured boot this is the difference between a measurement and a
+claim. The padding is proved unbounded and checked against `hashlib` at
+every length from 0 to 130 bytes. `hydra_measure` then feeds the digest
+straight into the measurement register: image bytes in, PCR extended, and
+no software in between. The extend is itself a 64-byte message, so the same
+hash core does both jobs: 10,518 cells, 42% smaller than with a second core.
 
 A **mailbox** following Caliptra's documented protocol — the lock is taken by
 READING it, which makes the grant atomic with no window for two requesters
@@ -564,8 +610,11 @@ processor writes and engines use, but nothing can read back. That claim is
 not asserted, it is checked by **non-interference** — two copies of the
 vault driven with identical commands and different key material, proved to
 look identical to the host. A single key bit XORed into a status flag is
-caught at step 3. Bounded to 16 cycles at two 64-bit slots; the scope and
-the reason are written in `sec/formal/key_vault_ni.sv`.
+caught at step 3. The proof is **unbounded** (k-induction) and runs at the
+shipped size, four 256-bit slots, in about 30 seconds. Until 2026-10-07 it
+was bounded to 16 cycles; a planted leak that waits 40 cycles before
+reaching the host port passed that check and fails this one. The scope is
+written in `sec/formal/key_vault_ni.sv`.
 
 `docs/SECURITY_PLAN.md` is the security roadmap, grounded in what Caliptra
 actually is (a root of trust for measurement) and explicit that **fully
@@ -595,9 +644,10 @@ See `engines/tpu/README.md` for the interface and the measured numbers.
 Still undocumented, and honestly so: the **SIMD**, **NTT** and **crypto**
 datapaths. No sources for them have reached this repository.
 
----
+</details>
 
-## 7. Verification
+<details>
+<summary><b>7. Verification</b></summary>
 
 Four rules, inherited from the parent project. Nothing counts as done without
 all four, and no test is ever weakened to make it pass.
@@ -652,9 +702,10 @@ until reset. `sys/tb/tb_sys_tile.sv` step 4 asserts this current behaviour on
 purpose, so that adding exploration or decay (`docs/BUILDOUT.md`) cannot land
 without someone inverting that check.
 
----
+</details>
 
-## 8. Layout
+<details>
+<summary><b>8. Layout</b></summary>
 
 ```
 common/     RTL shared by targets: pad mux, reset sync, engine crossbar
@@ -667,5 +718,9 @@ tools/      generators, the PC host script, and their tests
 docs/       ISA, CAPACITY, BUILDOUT, TT_ROBOTICS, TAPEOUT, RUNBOOK, UPDATING
 scripts/    bootstrap, tile setup, status, repository creation
 ```
+
+</details>
+
+---
 
 Licensed under Apache 2.0. See `NOTICE` for board-file provenance.

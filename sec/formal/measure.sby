@@ -1,0 +1,23 @@
+# Image measurement on one SHA-256 core: the PCR moves only as an extend
+# finishes; software cannot reach the stream outside the image phase; an
+# abandoned image never reaches the PCR. The core is abstracted (any
+# latency); values are checked against hashlib in tb_measure.
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+prove: depth 24
+cover: mode cover
+cover: depth 70
+
+[engines]
+smtbmc yices
+
+[script]
+read -formal measure_sv2v.v
+prep -top hydra_measure
+
+[files]
+measure_sv2v.v

@@ -1,9 +1,9 @@
 # Runs every check in the repository on each push.
 #
-# NOTE: this workflow has not been executed by its author -- it was written in
-# an environment with no GitHub runner. The commands in it are the same ones
-# that pass locally (scripts/bootstrap-ubuntu.sh then make verify), so if the
-# first run fails it will be the runner environment, not the checks.
+# The runner differs from a desktop in what is ALREADY installed. Runs #3 and
+# #4 (2026-10-06/07) failed because current SymbiYosys imports the Python
+# module `click`, which a desktop happened to have and the runner did not;
+# bootstrap-ubuntu.sh now installs it and checks that sby actually starts.
 name: verify
 
 on:
@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -35,7 +35,7 @@ jobs:
           make -C fpga/build/ulx3s-85f
           grep -E "Max frequency|utilisation" -A3 fpga/build/ulx3s-85f/*.log || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: ulx3s-bitstream
           path: fpga/build/ulx3s-85f/*.bit
@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
       - run: ./scripts/bootstrap-ubuntu.sh --system

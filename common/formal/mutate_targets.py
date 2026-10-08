@@ -123,7 +123,7 @@ SIM_TARGETS = {
             ("completion errors never reported",
              "err_done_unknown <= |done_bad;", "err_done_unknown <= 1'b0;"),
             ("round-robin replaced by fixed priority",
-             "scan_e = (scan_i + rr_ptr) % NENG;", "scan_e = scan_i;"),
+             "scan_e = scan_i + rr_ptr;", "scan_e = scan_i;"),
         ],
     },
 }
@@ -136,11 +136,21 @@ def run_sby(sby_text, src_text, src_name):
         td = pathlib.Path(td)
         (td / src_name).write_text(src_text)
         # Point [files] at the (possibly mutated) copy; prove task only.
-        lines = []
+        # Match the source by NAME anywhere in [files]: the tile's SPI proof
+        # lists ../tile/src/rtl/..., and matching only a "../rtl/" prefix
+        # left it reading a path that does not exist from the temporary
+        # directory -- a baseline with no verdict, so none of its mutations
+        # was ever tested (found 2026-10-08).
+        lines, in_files, swapped = [], False, False
         for line in sby_text.splitlines():
-            if line.strip().startswith("../rtl/"):
-                line = str(td / src_name)
+            st = line.strip()
+            if st.startswith("[") and st.endswith("]"):
+                in_files = (st == "[files]")
+            elif in_files and st and pathlib.Path(st.split()[-1]).name == src_name:
+                line = str(td / src_name); swapped = True
             lines.append(line)
+        if not swapped:
+            return f"NO VERDICT ({src_name} not found in the .sby [files] section)"
         job = td / "job.sby"
         job.write_text("\n".join(lines) + "\n")
         try:

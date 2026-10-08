@@ -13,27 +13,30 @@
 // no assumption about HOW a leak might happen.
 //
 // SCOPE OF THE RESULT, stated precisely because a security claim deserves
-// it: this is BOUNDED model checking to the depth in key_vault.sby, from
-// the power-up state. Every behaviour up to that many cycles is covered
-// exhaustively -- all key values, all command orders. It is not an
-// unbounded proof.
+// it: this is an UNBOUNDED proof (k-induction, sby `mode prove`). It holds
+// for every reachable state, at every cycle, for all key values and all
+// command orders -- not just the first N cycles.
 //
-// Unbounded induction needs an invariant saying the two copies' metadata
-// track each other. Expressing that requires reaching into both instances,
-// and hierarchical references into them did not survive conversion: the
-// comparison silently referred to something else and failed for reasons
-// unrelated to leaking. A bounded result that means what it says is worth
-// more than an unbounded one resting on a reference nobody checked.
+// Induction needs one extra fact: the two copies' BOOKKEEPING (which words
+// are written, which slots are filled, which are sealed) is identical. That
+// is true -- bookkeeping depends only on control, and control is shared --
+// and it is asserted below, so the solver proves it too rather than being
+// told it. Until 2026-10-07 this proof was bounded to 16 cycles, because
+// stating that fact needed hierarchical references into the two copies,
+// and those did not survive conversion. The vault now exposes its
+// bookkeeping as proof-only output ports (f_locked, f_filled, f_seen),
+// which do.
+//
+// It is run at two sizes: two 64-bit slots (task ni) and the SHIPPED
+// configuration, four 256-bit slots written 32 bits at a time (task
+// ni_full). Key material is never constrained in either, so the proof
+// covers every possible key.
 // =============================================================================
 `default_nettype none
 
 module key_vault_ni #(
-  // Proved at a SMALL configuration: two slots of 64 bits. Two copies of
-  // four 128-bit slots is over a thousand state bits and the solver does
-  // not finish. The leak paths this checks -- the read mux, the status
-  // fields, the error flag -- do not depend on how many slots or words
-  // there are, so a small configuration exercises the same structure. The
-  // shipped vault is larger, and that gap is stated rather than hidden.
+  // Defaults are the small configuration; key_vault.sby's ni_full task
+  // sets the shipped one (NSLOT 4, KW 256) with chparam.
   parameter int unsigned NSLOT = 2,
   parameter int unsigned KW    = 64,
   parameter int unsigned WW    = 32
@@ -57,20 +60,25 @@ module key_vault_ni #(
   wire          err_a,   err_b;
   wire          valid_a, valid_b;
   wire [KW-1:0] key_a,   key_b;
+  localparam int unsigned NWORD = KW / WW;
+  wire [NSLOT-1:0]       lk_a, lk_b, fl_a, fl_b;
+  wire [NSLOT*NWORD-1:0] sn_a, sn_b;
 
   hydra_key_vault #(.NSLOT(NSLOT), .KW(KW), .WW(WW)) u_a (
     .clk(clk), .rst_n(rst_n),
     .host_we(host_we), .host_slot(host_slot), .host_word(host_word),
     .host_wdata(wdata_a), .host_lock(host_lock), .host_wipe(host_wipe),
     .host_rd_slot(host_rd_slot), .host_rdata(rdata_a), .err_locked(err_a),
-    .eng_req(eng_req), .eng_slot(eng_slot), .eng_key(key_a), .eng_valid(valid_a));
+    .eng_req(eng_req), .eng_slot(eng_slot), .eng_key(key_a), .eng_valid(valid_a),
+    .f_locked(lk_a), .f_filled(fl_a), .f_seen(sn_a));
 
   hydra_key_vault #(.NSLOT(NSLOT), .KW(KW), .WW(WW)) u_b (
     .clk(clk), .rst_n(rst_n),
     .host_we(host_we), .host_slot(host_slot), .host_word(host_word),
     .host_wdata(wdata_b), .host_lock(host_lock), .host_wipe(host_wipe),
     .host_rd_slot(host_rd_slot), .host_rdata(rdata_b), .err_locked(err_b),
-    .eng_req(eng_req), .eng_slot(eng_slot), .eng_key(key_b), .eng_valid(valid_b));
+    .eng_req(eng_req), .eng_slot(eng_slot), .eng_key(key_b), .eng_valid(valid_b),
+    .f_locked(lk_b), .f_filled(fl_b), .f_seen(sn_b));
 
 `ifdef FORMAL
   // Reset is asserted at power-up, and the comparison starts one cycle
@@ -93,6 +101,12 @@ module key_vault_ni #(
     assert (rdata_a == rdata_b);
     assert (err_a   == err_b);
     assert (valid_a == valid_b);
+
+    // The induction invariant: bookkeeping is identical in both copies.
+    // Proved, not assumed.
+    assert (lk_a == lk_b);
+    assert (fl_a == fl_b);
+    assert (sn_a == sn_b);
 
     // Sanity: the keys really are allowed to differ, so the proof above is
     // not passing because both copies hold the same thing. Without this the

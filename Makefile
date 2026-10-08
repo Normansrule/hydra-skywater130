@@ -11,7 +11,7 @@ SHELL := /bin/bash
 .SHELLFLAGS := -o pipefail -c
 TILE  := tt/tile
 
-.PHONY: status provenance verify all tt asic fpga padmux tile diff harness sky130 tools boards bind mutate area capacity clean check-tile
+.PHONY: status provenance readme-check sha256-stream measure verify all tt asic fpga padmux tile diff harness sky130 tools boards bind mutate area capacity clean check-tile
 
 status:                       ## what is set up, what is not, what to run next
 	@./scripts/status.sh
@@ -20,7 +20,7 @@ provenance:                   ## which board bitstreams were built from the curr
 	@for d in fpga/build/*/; do grep -q '^provenance:' $$d/Makefile 2>/dev/null || continue; \
 	  $(MAKE) -s --no-print-directory -C $$d provenance 2>/dev/null || true; done
 
-verify: site-check tt-ready rst-sync-copy basys3-selftest check-tile cost-mux keyvault mailbox sha256 pcr selftest xsec jtag jtag-bridge padmux xbar tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-two tile diff harness sky130 tools boards bind isa-check
+verify: site-check readme-check tt-ready rst-sync-copy basys3-selftest check-tile cost-mux keyvault mailbox sha256 sha256-stream measure pcr selftest xsec jtag jtag-bridge padmux xbar tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-two tile diff harness sky130 tools boards bind isa-check
 	@echo "=== all checks passed ==="
 
 # All three targets from the one source, in one command. Each depends on the
@@ -74,6 +74,7 @@ xsec:                         ## security instructions: Zknh + Xhydrasec, vector
 	  ../sec/rtl/hydra_key_vault.sv formal/xsec_ni.sv > formal/xsec_sv2v.v
 	cd isa/formal && sby -f xsec.sby priv | tail -1
 	cd isa/formal && sby -f xsec.sby ni | tail -1
+	cd isa/formal && sby -f xsec.sby ni_full | tail -1
 
 sync-tile:                    ## copy the VERIFIED tile into ~/src/tinytapeout-hydra and prove it by hash
 	./scripts/sync-tile.sh
@@ -147,6 +148,26 @@ sha256:                       ## hash engine against hashlib, an outside referen
 	iverilog -g2012 -o /tmp/hydra_sha /tmp/hydra_sha.v
 	@vvp -n /tmp/hydra_sha 2>/dev/null | grep -E 'PASS|FAIL'
 
+sha256-stream:                ## SHA-256 padded in hardware: 140 lengths vs hashlib, padding proved
+	python3 sec/tb/sha256_stream_model.py > /dev/null
+	sv2v sec/rtl/hydra_sha256.sv sec/rtl/hydra_sha256_stream.sv sec/tb/tb_sha256_stream.sv > /tmp/hydra_sha_stream.v
+	iverilog -g2012 -o /tmp/hydra_sha_stream /tmp/hydra_sha_stream.v
+	@vvp -n /tmp/hydra_sha_stream 2>/dev/null | grep -E 'PASS|FAIL'
+	cd sec && sv2v --define=FORMAL -E Assert rtl/hydra_sha256_stream.sv > formal/sha256_stream_sv2v.v
+	cd sec/formal && sby -f sha256_stream.sby prove | tail -1
+	cd sec/formal && sby -f sha256_stream.sby blocks | tail -1
+	cd sec/formal && sby -f sha256_stream.sby cover | tail -1
+
+measure:                      ## image bytes -> SHA-256 -> PCR on one core: vs hashlib, plus proof
+	python3 sec/tb/measure_model.py > /dev/null
+	sv2v sec/rtl/hydra_sha256.sv sec/rtl/hydra_sha256_stream.sv \
+	  sec/rtl/hydra_measure.sv sec/tb/tb_measure.sv > /tmp/hydra_measure.v
+	iverilog -g2012 -o /tmp/hydra_measure /tmp/hydra_measure.v
+	@vvp -n /tmp/hydra_measure 2>/dev/null | grep -E 'PASS|FAIL'
+	cd sec && sv2v --define=FORMAL -E Assert rtl/hydra_sha256_stream.sv rtl/hydra_measure.sv > formal/measure_sv2v.v
+	cd sec/formal && sby -f measure.sby prove | tail -1
+	cd sec/formal && sby -f measure.sby cover | tail -1
+
 mailbox:                      ## Caliptra-style mailbox: lock discipline and protocol enforcement
 	sv2v sec/rtl/hydra_mailbox.sv sec/tb/tb_mailbox.sv > /tmp/hydra_mbox.v
 	iverilog -g2012 -o /tmp/hydra_mbox /tmp/hydra_mbox.v
@@ -160,6 +181,7 @@ keyvault:                     ## key vault: invariants, and no key bit reaches t
 	  formal/key_vault_ni.sv > formal/key_vault_sv2v.v
 	cd sec/formal && sby -f key_vault.sby prove | tail -1
 	cd sec/formal && sby -f key_vault.sby ni | tail -1
+	cd sec/formal && sby -f key_vault.sby ni_full | tail -1
 	cd sec/formal && sby -f key_vault.sby cover | tail -1
 
 padmux:                       ## model comparison + formal proofs
@@ -203,6 +225,10 @@ release-dry:                  ## show exactly what release would do
 
 readme-art:                   ## regenerate every README figure from the repository's data
 	python3 tools/gen_readme_art.py
+	python3 tools/gen_readme_hero.py
+
+readme-check:                 ## lead figures current; README numbers match the latest harden
+	@python3 tools/gen_readme_hero.py --check
 
 site:                         ## regenerate the project page and the architecture diagram
 	python3 tools/gen_site.py

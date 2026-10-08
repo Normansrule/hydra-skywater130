@@ -1,0 +1,30 @@
+# Hardware padding for SHA-256: the controller, for every input sequence and
+# every core latency (the core is abstracted; its arithmetic is checked
+# against hashlib in tb_sha256_stream). See the FORMAL section of
+# sec/rtl/hydra_sha256_stream.sv.
+#   prove   -- properties 1, 3, 4, 5: UNBOUNDED (k-induction)
+#   blocks  -- property 2, the block count: BOUNDED, two blocks and more
+#   cover   -- a message really does complete
+[tasks]
+prove
+blocks
+cover
+
+[options]
+prove: mode prove
+prove: depth 24
+blocks: mode bmc
+blocks: depth 48
+cover: mode cover
+cover: depth 56
+
+[engines]
+smtbmc yices
+
+[script]
+read -formal sha256_stream_sv2v.v
+blocks: chparam -set F_BLOCKS 1 hydra_sha256_stream
+prep -top hydra_sha256_stream
+
+[files]
+sha256_stream_sv2v.v

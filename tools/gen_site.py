@@ -55,7 +55,7 @@ BLOCKS = [
     ("jbr",   "Crossing",        "toggle handshake",        "dbg/rtl/hydra_jtag_bridge.sv",            2, 3),
     ("xsec",  "Security ISA",    "Zknh + Xhydrasec",        "isa/rtl/hydra_xsec_unit.sv",              3, 4),
     ("pcr",   "Measurement",     "extend only, no write",   "sec/rtl/hydra_pcr.sv",                    7, 3),
-    ("sha",   "SHA-256",         "measured boot",           "sec/rtl/hydra_sha256.sv",                 6, 3),
+    ("sha",   "SHA-256",         "padded in hardware",      "sec/rtl/hydra_sha256_stream.sv",          6, 3),
     ("mbox",  "Mailbox",         "lock, command, execute",  "sec/rtl/hydra_mailbox.sv",                4, 3),
     ("kv",    "Key vault",       "write and use, never read","sec/rtl/hydra_key_vault.sv",             5, 3),
 ]
@@ -107,6 +107,7 @@ ENGINE_EVIDENCE = {
     "Streamer": ("mem/rtl",          "dma:"),
     "JTAG":     ("dbg/rtl",          "jtag:"),
     "SHA-256":  ("sec/rtl",          "sha256:"),
+    "Measurement": ("sec/rtl",       "measure:"),
 }
 
 # Each board the page lists must have a plan the build can read.
@@ -523,9 +524,23 @@ exhaustive proof, so the checks are grouped by what they actually establish.</p>
 """
 
 
+def check_proof_count(m):
+    """The page states how many modules carry formal proofs. That number
+    said 10 while the repository held 14 .sby files (found 2026-10-07): a
+    hand-kept count drifts the moment a proof is added. Count the files and
+    refuse to write a page that disagrees."""
+    n = sum(1 for f in ROOT.rglob("*.sby")
+            if f.parent.name == "formal" and ".git" not in f.parts)
+    for v in m["verification"]:
+        if v["what"] == "formal proofs" and v["result"] != f"{n} modules":
+            raise SystemExit(f"gen_site: metrics.json says formal proofs '{v['result']}', "
+                             f"but the repository has {n} .sby files -- update docs/metrics.json")
+
+
 def main():
     check_files()
     m = json.loads((ROOT / "docs/metrics.json").read_text())
+    check_proof_count(m)
     SITE.parent.mkdir(parents=True, exist_ok=True)
     SITE.write_text(html(m))
     ARCH.write_text(
