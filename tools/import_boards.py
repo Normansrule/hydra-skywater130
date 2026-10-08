@@ -33,27 +33,37 @@ FPGA = HERE.parent / "fpga"
 REFS = FPGA / "vendor_refs"
 BOARDS = FPGA / "boards"
 
-DIGILENT = "https://raw.githubusercontent.com/Digilent/digilent-xdc/master/"
-
+# Every source is pinned to the upstream COMMIT whose content matches the
+# recorded SHA-256, never to a branch. On 2026-10-08 litex-boards added a
+# connector to lattice_ecp5_evn.py on master; the hash check caught it
+# (as designed) and turned every CI run red over a comment upstream. A
+# commit URL cannot change, so the build cannot break that way again; to
+# take an upstream change, move the commit here on purpose and rebuild.
 SOURCES = {
-    "Arty-A7-35-Master.xdc": DIGILENT + "Arty-A7-35-Master.xdc",
-    "Arty-A7-100-Master.xdc": DIGILENT + "Arty-A7-100-Master.xdc",
-    "Basys-3-Master.xdc": DIGILENT + "Basys-3-Master.xdc",
-    "Nexys-A7-100T-Master.xdc": DIGILENT + "Nexys-A7-100T-Master.xdc",
-    "Nexys-Video-Master.xdc": DIGILENT + "Nexys-Video-Master.xdc",
-    "Genesys-2-Master.xdc": DIGILENT + "Genesys-2-Master.xdc",
-    "icebreaker.pcf": "https://raw.githubusercontent.com/icebreaker-fpga/"
-                      "icebreaker-verilog-examples/main/icebreaker/icebreaker.pcf",
-    "ulx3s_v20.lpf": "https://raw.githubusercontent.com/emard/ulx3s/master/"
-                     "doc/constraints/ulx3s_v20.lpf",
-    "tangnano20k_nestang.cst": "https://raw.githubusercontent.com/sipeed/"
-                               "TangNano-20K-example/main/nestang/src/nestang.cst",
-    "tangnano20k_flow_led.cst": "https://raw.githubusercontent.com/sipeed/"
-                                "TangNano-20K-example/main/led/flow_led/src/flow_led.cst",
-    "lattice_ecp5_evn.py": "https://raw.githubusercontent.com/litex-hub/litex-boards/"
-                           "master/litex_boards/platforms/lattice_ecp5_evn.py",
-    "de10-lite.qsf": "https://raw.githubusercontent.com/f32c/f32c/master/"
-                     "rtl/proj/altera/de10-lite/xram_sdram_vector/de10-lite.board",
+    "Arty-A7-35-Master.xdc":
+        "https://raw.githubusercontent.com/Digilent/digilent-xdc/0256a131e11142f9abd3ccaaf0e9a479a616cf2f/Arty-A7-35-Master.xdc",
+    "Arty-A7-100-Master.xdc":
+        "https://raw.githubusercontent.com/Digilent/digilent-xdc/bb01f62e09a8d8d5e85971aa12cf1d15e0f48207/Arty-A7-100-Master.xdc",
+    "Basys-3-Master.xdc":
+        "https://raw.githubusercontent.com/Digilent/digilent-xdc/69d35015d4c3a0cb384a964459593cea5260697a/Basys-3-Master.xdc",
+    "Nexys-A7-100T-Master.xdc":
+        "https://raw.githubusercontent.com/Digilent/digilent-xdc/7583b4e7a6b8178afdb7f9e07f18162c48a89b0d/Nexys-A7-100T-Master.xdc",
+    "Nexys-Video-Master.xdc":
+        "https://raw.githubusercontent.com/Digilent/digilent-xdc/16e3b34a3d43c1d203e935038014a208f86c7fde/Nexys-Video-Master.xdc",
+    "Genesys-2-Master.xdc":
+        "https://raw.githubusercontent.com/Digilent/digilent-xdc/19d1a3be934bce54e80a5de2fae4fa6e396a3691/Genesys-2-Master.xdc",
+    "icebreaker.pcf":
+        "https://raw.githubusercontent.com/icebreaker-fpga/icebreaker-verilog-examples/92f9dae53460b6c98c28e0537ba1584f0051b6a8/icebreaker/icebreaker.pcf",
+    "ulx3s_v20.lpf":
+        "https://raw.githubusercontent.com/emard/ulx3s/ca5fa288bc64c4fd83302ade4adae811e53bd451/doc/constraints/ulx3s_v20.lpf",
+    "tangnano20k_nestang.cst":
+        "https://raw.githubusercontent.com/sipeed/TangNano-20K-example/e23949a0a77381b94960cbc4e97a7c5e5ba8d222/nestang/src/nestang.cst",
+    "tangnano20k_flow_led.cst":
+        "https://raw.githubusercontent.com/sipeed/TangNano-20K-example/2589f80ac3f5e11a96a4481bce711963757b126d/led/flow_led/src/flow_led.cst",
+    "lattice_ecp5_evn.py":
+        "https://raw.githubusercontent.com/litex-hub/litex-boards/7a211c89b9a94ec1044056d28cf6e22e74a15e8b/litex_boards/platforms/lattice_ecp5_evn.py",
+    "de10-lite.qsf":
+        "https://raw.githubusercontent.com/f32c/f32c/f7a90a0c4343ca72a79c490562d4542929abcc86/rtl/proj/altera/de10-lite/xram_sdram_vector/de10-lite.board",
 }
 
 # --------------------------------------------------------------------------- parsers

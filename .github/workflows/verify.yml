@@ -1,9 +1,14 @@
 # Runs every check in the repository on each push.
 #
-# The runner differs from a desktop in what is ALREADY installed. Runs #3 and
-# #4 (2026-10-06/07) failed because current SymbiYosys imports the Python
-# module `click`, which a desktop happened to have and the runner did not;
-# bootstrap-ubuntu.sh now installs it and checks that sby actually starts.
+# Two lessons from the red runs of 2026-10-06..08:
+#  * The runner differs from a desktop in what is ALREADY installed. Current
+#    SymbiYosys imports the Python module `click`, which a desktop happened to
+#    have and the runner did not; bootstrap-ubuntu.sh now installs it and
+#    checks that sby actually starts.
+#  * Vendor pin files were fetched from upstream BRANCHES; an upstream edit
+#    changed a hash and failed every run. tools/import_boards.py now pins
+#    each file to a commit.
+# The first green run: ci-diagnose branch, 2026-10-08, run 37718967165.
 name: verify
 
 on:
@@ -27,7 +32,26 @@ jobs:
         run: python3 tools/import_boards.py fetch
 
       - name: Verify
-        run: make verify
+        # -k: run every check even after one fails, so a red run lists ALL
+        # the failures, not just the first. The log goes to a file for the
+        # next step.
+        run: |
+          set -o pipefail
+          make -k verify 2>&1 | tee verify.log
+
+      - name: Report what failed
+        # Annotations show on the run's summary page and through the API,
+        # without opening the log: one per failing make target, plus the
+        # lines around each FAIL. (Added 2026-10-08, when two red runs could
+        # only be diagnosed by reproducing the runner by hand.)
+        if: failure()
+        run: |
+          grep -n "make: \*\*\*" verify.log | head -10 | while IFS= read -r l; do
+            echo "::error title=make target failed::${l}"
+          done
+          grep -nE -B3 "FAIL|Traceback|Error:|error:|No such file|not found|DONE \((FAIL|ERROR|UNKNOWN)" verify.log \
+            | grep -v "^--$" | tail -40 | awk '{printf "%s%%0A", $0}' > excerpt.txt || true
+          [ -s excerpt.txt ] && echo "::error title=failing lines::$(cat excerpt.txt)"
 
       - name: Place and route the ULX3S build
         run: |

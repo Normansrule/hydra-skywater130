@@ -141,5 +141,5 @@ pins:
     role: in
 provenance:
 - file: icebreaker.pcf
-  url: https://raw.githubusercontent.com/icebreaker-fpga/icebreaker-verilog-examples/main/icebreaker/icebreaker.pcf
+  url: https://raw.githubusercontent.com/icebreaker-fpga/icebreaker-verilog-examples/92f9dae53460b6c98c28e0537ba1584f0051b6a8/icebreaker/icebreaker.pcf
   sha256: 251189feb277a8eff54659f96bfc657d6e47da2f5c14f8489c4b7c75b4e1817c

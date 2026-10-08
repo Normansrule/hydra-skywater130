@@ -396,5 +396,5 @@ pins:
     role: in
 provenance:
 - file: ulx3s_v20.lpf
-  url: https://raw.githubusercontent.com/emard/ulx3s/master/doc/constraints/ulx3s_v20.lpf
+  url: https://raw.githubusercontent.com/emard/ulx3s/ca5fa288bc64c4fd83302ade4adae811e53bd451/doc/constraints/ulx3s_v20.lpf
   sha256: 625b462ca41465881dbe0c0f9914ec664a2ac6fea8d3e781e9e6e1bbbdacb6fd

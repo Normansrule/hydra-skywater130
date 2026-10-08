@@ -247,5 +247,5 @@ pins:
     role: io
 provenance:
 - file: de10-lite.qsf
-  url: https://raw.githubusercontent.com/f32c/f32c/master/rtl/proj/altera/de10-lite/xram_sdram_vector/de10-lite.board
+  url: https://raw.githubusercontent.com/f32c/f32c/f7a90a0c4343ca72a79c490562d4542929abcc86/rtl/proj/altera/de10-lite/xram_sdram_vector/de10-lite.board
   sha256: 3b2dc488c36a12a01fe29d1717bae3f2d9854cc42fb7df7bb578bd97fe2a770b

@@ -362,5 +362,5 @@ pins:
     role: in
 provenance:
 - file: Nexys-A7-100T-Master.xdc
-  url: https://raw.githubusercontent.com/Digilent/digilent-xdc/master/Nexys-A7-100T-Master.xdc
+  url: https://raw.githubusercontent.com/Digilent/digilent-xdc/7583b4e7a6b8178afdb7f9e07f18162c48a89b0d/Nexys-A7-100T-Master.xdc
   sha256: 40b8d2b557673d90fbb20018210e4e3460c52e071696edaebd4b6ad5b00599e2
