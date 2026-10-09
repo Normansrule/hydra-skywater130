@@ -20,7 +20,7 @@ provenance:                   ## which board bitstreams were built from the curr
 	@for d in fpga/build/*/; do grep -q '^provenance:' $$d/Makefile 2>/dev/null || continue; \
 	  $(MAKE) -s --no-print-directory -C $$d provenance 2>/dev/null || true; done
 
-verify: site-check readme-check tt-ready rst-sync-copy basys3-selftest check-tile cost-mux keyvault mailbox sha256 sha256-stream measure pcr selftest xsec jtag jtag-bridge padmux xbar tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-two tile diff harness sky130 tools boards bind isa-check
+verify: site-check readme-check tt-ready rst-sync-copy tile-shared basys3-selftest check-tile cost-mux keyvault mailbox sha256 sha256-stream measure pcr selftest xsec jtag jtag-bridge padmux xbar tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-two tile diff harness sky130 tools boards bind isa-check
 	@echo "=== all checks passed ==="
 
 # All three targets from the one source, in one command. Each depends on the
@@ -89,7 +89,20 @@ rst-sync-copy:                ## the tile's reset synchroniser is the verified o
 	  && echo "PASS rst-sync-copy: tile copy identical to the verified common/rtl original" \
 	  || { echo "FAIL rst-sync-copy: tt/tile/src/rtl/hydra_rst_sync.sv differs from common/rtl"; exit 1; }
 
-tile-gl:                      ## the 17 tile tests on the HARDENED netlist (needs a harden and the PDK)
+# The chip's dispatcher (mom/) and the research tile (tt/tile) are separate
+# designs since 2026-10-09: the tile dropped the serial pins, half the tags and
+# the descriptor readback. The cost model, scoreboard and calibration are still
+# the SAME modules, and every chip-side check (system, systile, cost-mux, the
+# SPI proof) verifies them only for the tile if the copies have not drifted.
+# hydra_tt_regs.sv is the one module that differs, on purpose.
+TILE_SHARED := hydra_tt_spi mom_pkg mom_features mom_param_rom mom_cost_engine \
+               mom_calibrate mom_select mom_scoreboard mom_top
+tile-shared:                  ## the tile's dispatcher modules are the chip's, byte for byte
+	@bad=0; for m in $(TILE_SHARED); do \
+	  cmp -s mom/rtl/$$m.sv tt/tile/src/rtl/$$m.sv || { echo "FAIL tile-shared: $$m.sv differs between mom/rtl and tt/tile/src/rtl"; bad=1; }; \
+	done; [ $$bad = 0 ] && echo "PASS tile-shared: $(words $(TILE_SHARED)) dispatcher modules identical in chip and tile"
+
+tile-gl:                      ## the tile tests on the HARDENED netlist (needs a harden and the PDK)
 	./scripts/tile-gl.sh $(or $(RUN),$(HOME)/src/tinytapeout-hydra)
 
 render-layout:                ## render the hardened tile into both READMEs' docs/img/layout.png
@@ -192,7 +205,7 @@ padmux:                       ## model comparison + formal proofs
 	  sby -f hydra_rst_sync.sby prove | tail -1
 	cd tt/formal && sby -f hydra_tt_spi.sby prove | tail -1
 
-tile:                         ## the tile's cocotb suite, both personalities
+tile:                         ## the research tile's cocotb suite (18 tests, register map)
 	# Regenerate to a TEMPORARY file and compare, rather than overwriting
 	# project.v and asking git whether it changed. The git form failed for
 	# any uncommitted work -- including work that was perfectly consistent --
@@ -243,10 +256,10 @@ site-check:                   ## the page and diagram still match the repository
 	  || (echo "site: OUT OF DATE -- regenerated, commit the result"; false)
 
 cost-mux:                     ## the shared cost engine decides what the parallel one decides
-	cd tt && sv2v --define=HYDRA_COST_SHARED="1'b1" tile/src/rtl/*.sv tb/tb_cost_trace.sv \
+	cd tt && sv2v --define=HYDRA_COST_SHARED="1'b1" ../mom/rtl/*.sv tb/tb_cost_trace.sv \
 	  > /tmp/ct_s.v && iverilog -g2012 -o /tmp/ct_s /tmp/ct_s.v && \
 	  vvp -n /tmp/ct_s | grep -E '^(D|U|END)' > /tmp/ct_s.txt
-	cd tt && sv2v --define=HYDRA_COST_SHARED="1'b0" tile/src/rtl/*.sv tb/tb_cost_trace.sv \
+	cd tt && sv2v --define=HYDRA_COST_SHARED="1'b0" ../mom/rtl/*.sv tb/tb_cost_trace.sv \
 	  > /tmp/ct_p.v && iverilog -g2012 -o /tmp/ct_p /tmp/ct_p.v && \
 	  vvp -n /tmp/ct_p | grep -E '^(D|U|END)' > /tmp/ct_p.txt
 	@diff -q /tmp/ct_s.txt /tmp/ct_p.txt > /dev/null \
@@ -258,13 +271,13 @@ cost-mux-mutate:              ## break the sequencer five ways
 
 diff:                         ## v2 legacy is v1, pin for pin
 	cd tt && sv2v --define=HYDRA_COST_SHARED="1'b0" \
-	  tile/src/rtl/*.sv tile/src/tt_um_hydra_mom.sv rtl/tt_um_hydra_mom_v1.sv \
+	  ../mom/rtl/*.sv ../mom/hydra_mom_pins.sv ../common/rtl/hydra_rst_sync.sv rtl/tt_um_hydra_mom_v1.sv \
 	  > /tmp/hydra_diff.v && \
 	  iverilog -g2012 -o /tmp/hydra_diff /tmp/hydra_diff.v tb/tb_v1_v2_diff.sv && \
 	  vvp -n /tmp/hydra_diff | tail -2
 
 harness:                      ## the PC protocol, end to end
-	cd fpga && sv2v ../tt/tile/src/rtl/*.sv ../tt/tile/src/tt_um_hydra_mom.sv \
+	cd fpga && sv2v ../mom/rtl/*.sv ../mom/hydra_mom_pins.sv ../common/rtl/hydra_rst_sync.sv \
 	  rtl/hydra_fpga_uart.sv rtl/hydra_fpga_bridge.sv \
 	  rtl/hydra_fpga_tt_harness.sv > /tmp/hydra_harness.v && \
 	  iverilog -g2012 -o /tmp/hydra_harness /tmp/hydra_harness.v tb_fpga_harness.sv && \
@@ -277,10 +290,10 @@ xbar:                         ## the engine crossbar against its model and proof
 	cd common/formal && sby -f mom_xbar.sby prove | tail -1
 
 system:                       ## the dispatcher, the crossbar and five engines
-	sv2v tt/tile/src/rtl/mom_pkg.sv tt/tile/src/rtl/mom_features.sv \
-	  tt/tile/src/rtl/mom_param_rom.sv tt/tile/src/rtl/mom_cost_engine.sv \
-	  tt/tile/src/rtl/mom_calibrate.sv tt/tile/src/rtl/mom_select.sv \
-	  tt/tile/src/rtl/mom_scoreboard.sv tt/tile/src/rtl/mom_top.sv \
+	sv2v mom/rtl/mom_pkg.sv mom/rtl/mom_features.sv \
+	  mom/rtl/mom_param_rom.sv mom/rtl/mom_cost_engine.sv \
+	  mom/rtl/mom_calibrate.sv mom/rtl/mom_select.sv \
+	  mom/rtl/mom_scoreboard.sv mom/rtl/mom_top.sv \
 	  common/rtl/mom_xbar.sv tt/tb/tb_mom_system.sv > /tmp/hydra_sys.v
 	iverilog -g2012 -o /tmp/hydra_sys /tmp/hydra_sys.v
 	vvp -n /tmp/hydra_sys | tail -4
@@ -297,7 +310,7 @@ tpu-mutate:                   ## break the TPU nine ways; each must be caught
 	python3 engines/tpu/formal/mutate_tpu.py
 
 systile:                      ## dispatcher + crossbar + engines over SPI
-	sv2v tt/tile/src/rtl/*.sv common/rtl/mom_xbar.sv \
+	sv2v mom/rtl/*.sv common/rtl/mom_xbar.sv \
 	  sys/rtl/hydra_sys_tile.sv sys/tb/tb_sys_tile.sv > /tmp/hydra_systile.v
 	iverilog -g2012 -o /tmp/hydra_systile /tmp/hydra_systile.v
 	vvp -n /tmp/hydra_systile | tail -5
@@ -343,7 +356,7 @@ dma-ntt:                      ## the butterfly engine fed from three banks
 
 memboard:                     ## the whole path over the serial port
 	python3 mem/tb/dma_model.py 6 > /dev/null
-	sv2v tt/tile/src/rtl/*.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv \
+	sv2v mom/rtl/*.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv \
 	  engines/simd/rtl/*.sv mem/rtl/*.sv sys/rtl/hydra_engine_tpu.sv \
 	  sys/rtl/hydra_engine_simd.sv sys/rtl/hydra_engine_tpu_dma.sv \
 	  sys/rtl/hydra_sys_tile.sv fpga/rtl/hydra_fpga_uart.sv \
@@ -374,7 +387,7 @@ simd-mutate:                  ## break the vector unit ten ways
 systile-two:                  ## the dispatcher routing between TWO real engines
 	python3 sys/tb/simd_pattern_model.py > /dev/null
 	python3 sys/tb/tpu_pattern_model.py 4 > /dev/null
-	sv2v tt/tile/src/rtl/*.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv \
+	sv2v mom/rtl/*.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv \
 	  engines/simd/rtl/*.sv sys/rtl/hydra_engine_tpu.sv sys/rtl/hydra_engine_simd.sv \
 	  sys/rtl/hydra_sys_tile.sv sys/tb/tb_sys_tile_two.sv > /tmp/hydra_two.v
 	iverilog -g2012 -o /tmp/hydra_two /tmp/hydra_two.v
@@ -382,14 +395,14 @@ systile-two:                  ## the dispatcher routing between TWO real engines
 
 systile-tpu:                  ## the dispatcher scheduling the REAL array
 	python3 sys/tb/tpu_pattern_model.py 4 > /dev/null
-	sv2v tt/tile/src/rtl/*.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv \
+	sv2v mom/rtl/*.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv \
 	  sys/rtl/hydra_engine_tpu.sv sys/rtl/hydra_sys_tile.sv \
 	  sys/tb/tb_sys_tile_tpu.sv > /tmp/hydra_systile_tpu.v
 	iverilog -g2012 -o /tmp/hydra_systile_tpu /tmp/hydra_systile_tpu.v
 	vvp -n /tmp/hydra_systile_tpu 2>/dev/null | tail -4
 
 sky130:                       ## the chip through its pads: pad mux, bring-up, SPI
-	sv2v tt/tile/src/rtl/*.sv tt/tile/src/tt_um_hydra_mom.sv \
+	sv2v mom/rtl/*.sv mom/hydra_mom_pins.sv common/rtl/hydra_rst_sync.sv \
 	  common/rtl/hydra_padmux.sv \
 	  sky130/rtl/hydra_openframe_top.sv > /tmp/hydra_of.v
 	iverilog -g2012 -o /tmp/hydra_of /tmp/hydra_of.v sky130/tb/tb_openframe.sv

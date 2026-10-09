@@ -15,7 +15,11 @@
     "parallel_cells": 18247,
     "shared_cells": 15061,
     "method": "yosys synth -flatten + abc -liberty, sky130_fd_sc_hd__tt_025C_1v80",
-    "caveat": "Synthesis estimate. NOT comparable with a LibreLane harden number."
+    "caveat": "Synthesis estimate. NOT comparable with a LibreLane harden number.",
+    "research_um2": 113939,
+    "research_cells": 11964,
+    "harden_pending": "v2 (4×4)",
+    "research_note": "v3 research tile: register map only, 4 tags, no descriptor readback. Same yosys + abc method as shared_um2."
   },
   "engines": [
     {
@@ -138,13 +142,13 @@
   ],
   "verification": [
     {
-      "what": "tile suite (both personalities)",
-      "result": "17 / 17",
+      "what": "tile suite (research tile, register map)",
+      "result": "18 / 18",
       "kind": "simulation"
     },
     {
       "what": "tile suite on the hardened netlist",
-      "result": "17 / 17",
+      "result": "v3 pending; v2 17 / 17",
       "kind": "gate level"
     },
     {
@@ -254,7 +258,8 @@
     }
   ],
   "pending": [
-    "5,039 slew and 20 capacitance warnings on the signed-off tile. Not sign-off failures; tools/slew_report.py names the overloaded drivers before anything is changed.",
+    "The v3 research tile (3x4, 113,939 um^2 by synthesis) has not been hardened. Its utilisation is an estimate (about 70%) from v2's LibreLane-to-yosys ratio; if placement or routing fails, tiles goes back to 4x4.",
+    "5,039 slew and 20 capacitance warnings on the signed-off v2 tile. Not sign-off failures; tools/slew_report.py names the overloaded drivers. Re-read them on the v3 harden.",
     "The butterfly engine's area at q=8380417 (ML-DSA) is not yet measured: its 46-bit products make it the slowest of the three to synthesise. q=12289 and q=3329 are measured.",
     "Never run on hardware. The bring-up image is built and simulated; docs/FPGA_BRINGUP.md is the procedure, and LED polarity is still an assumption until a board confirms it.",
     "Full SkyWater chip never hardened: no LibreLane run of the OpenFrame chip has completed, so it has no gate-level netlist, timing sign-off, DRC or LVS result. (The Tiny Tapeout tile HAS: sign-off clean on 2026-10-05.)",

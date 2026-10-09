@@ -3,12 +3,14 @@
 Session 179. Everything with a number beside it was measured in this session
 with the tools named; everything else is marked as a plan or a hypothesis.
 
-The three targets are the same design at three scales:
+The three targets share one dispatcher at three scales, and since 2026-10-09
+they are deliberately different designs: the tile is a lean research
+experiment, the sky130 chip goes all out.
 
 | | what it is | status |
 |---|---|---|
-| **TT-A v2** | the Mathematical Operation MUX (MOM) on a Tiny Tapeout tile, now with its whole interface reachable | built, 17 tests, 14/15 sabotages caught |
-| **sky130 full chip** | CPU, SIMD, TPU, NTT and crypto behind the MOM, on a padframe of its own | planned here; needs the `~/hydra` sources |
+| **TT-A v3, research tile** | the Mathematical Operation MUX (MOM) alone, cut to the cost model, calibration and an SPI register map; 3x4 tiles | built, 18 tests; harden pending (v2, 4x4, signed off) |
+| **sky130 full chip** | CPU (Sixfold), GPU (Pixelstorm), TPU, SIMD, NTT and the root of trust behind the full MOM (`mom/`), on a padframe of its own | TPU, SIMD, NTT, root of trust built; CPU and GPU next |
 | **FPGA** | the same RTL on any board, driven from a PC | built for three boards, placed and routed on ECP5 |
 
 ---

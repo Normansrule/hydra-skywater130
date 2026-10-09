@@ -3,7 +3,7 @@
 hydra_host.py -- drive the TT-A tile from a PC, over an FPGA board or a
                  demoboard bridge.
 
-The register map is the one in targets/tt/tile/src/rtl/hydra_tt_regs.sv, and
+The register map is the one in mom/rtl/hydra_tt_regs.sv, and
 the encoding functions below are the ones tb_fpga_harness.sv exercises. The
 transport is deliberately separable: SerialTransport talks to the FPGA
 harness; anything with an xfer(bytes) -> bytes method can take its place.

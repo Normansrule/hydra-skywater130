@@ -9,11 +9,11 @@ flowchart LR
   host["Host<br/><small>serial port</small>"]
   bridge["Bridge<br/><small>UART to pins, memory</small>"]
   spi["SPI slave<br/><small>register map</small>"]
-  regs["Registers<br/><small>14 registers</small>"]
+  regs["Registers<br/><small>the host map</small>"]
   feat["Features<br/><small>log2 work, intensity</small>"]
   cost["Cost engine<br/><small>one, walked over five</small>"]
   sel["Select<br/><small>argmin with margin</small>"]
-  sb["Scoreboard<br/><small>8 tags, queue depth</small>"]
+  sb["Scoreboard<br/><small>tags, queue depth</small>"]
   cal["Calibrate<br/><small>measured vs predicted</small>"]
   xbar["Crossbar<br/><small>descriptor to engine</small>"]
   tpu["TPU<br/><small>4x4 INT8 array</small>"]
@@ -63,13 +63,13 @@ flowchart LR
 |---|---|
 | Host | `tools/hydra_host.py` |
 | Bridge | `fpga/rtl/hydra_fpga_bridge.sv` |
-| SPI slave | `tt/tile/src/rtl/hydra_tt_spi.sv` |
-| Registers | `tt/tile/src/rtl/hydra_tt_regs.sv` |
-| Features | `tt/tile/src/rtl/mom_features.sv` |
-| Cost engine | `tt/tile/src/rtl/mom_cost_engine.sv` |
-| Select | `tt/tile/src/rtl/mom_select.sv` |
-| Scoreboard | `tt/tile/src/rtl/mom_scoreboard.sv` |
-| Calibrate | `tt/tile/src/rtl/mom_calibrate.sv` |
+| SPI slave | `mom/rtl/hydra_tt_spi.sv` |
+| Registers | `mom/rtl/hydra_tt_regs.sv` |
+| Features | `mom/rtl/mom_features.sv` |
+| Cost engine | `mom/rtl/mom_cost_engine.sv` |
+| Select | `mom/rtl/mom_select.sv` |
+| Scoreboard | `mom/rtl/mom_scoreboard.sv` |
+| Calibrate | `mom/rtl/mom_calibrate.sv` |
 | Crossbar | `common/rtl/mom_xbar.sv` |
 | TPU | `engines/tpu/rtl/tpu_top.sv` |
 | SIMD | `engines/simd/rtl/simd_top.sv` |

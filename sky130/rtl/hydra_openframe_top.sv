@@ -145,7 +145,7 @@ module openframe_project_wrapper (
 
   wire tile_rst_n = rst_n & (tile_rel == 2'd3);
 
-  tt_um_hydra_mom u_tile (
+  hydra_mom_pins u_tile (
     .ui_in(ui_in), .uo_out(uo_out), .uio_in(uio_in), .uio_out(uio_out),
     .uio_oe(uio_oe), .ena(1'b1), .clk(clk), .rst_n(tile_rst_n));
 

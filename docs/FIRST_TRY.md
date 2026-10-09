@@ -54,7 +54,7 @@ make tpu-mutate simd-mutate ntt-mutate dma-mutate   # ~10 minutes
 
 | check | result at the time of writing |
 |---|---|
-| tile cocotb suite, both personalities | 17 / 17 |
+| research tile cocotb suite (v3, register map) | 18 / 18 |
 | v2 against v1, pin for pin | 400,000 cycles, 3,118 random resets |
 | formal proofs | pad mux, reset sync, SPI slave, crossbar, TPU, SIMD, NTT, streamer |
 | engines against independent models | TPU 640, SIMD 572, NTT 396 results exact |
@@ -140,8 +140,8 @@ cd ~/src/hydra-skywater130 && make tile-gl
 ```
 `scripts/tile-gl.sh` copies `runs/wokwi/final/pnl/tt_um_hydra_mom.pnl.v` into the
 test directory, finds the sky130 cell models wherever the harden left them
-(the 2026-10 runs used `/tmp/pdk/ciel/...`), and runs all 17 tests with
-`GATES=yes`. It prints `PASS tile-gl` only on 17/17.
+(the 2026-10 runs used `/tmp/pdk/ciel/...`), and runs every test with
+`GATES=yes`. It prints `PASS tile-gl` only when every test passes.
 
 The register-transfer level suite passing proves the design. The same suite
 passing against the **hardened netlist** proves synthesis did not change it.
@@ -155,7 +155,7 @@ cp ../runs/wokwi/final/pnl/$TOP_MODULE.pnl.v gate_level_netlist.v
 make -B GATES=yes
 ```
 
-Required: **17 / 17**, the same as at register-transfer level.
+Required: every test, the same as at register-transfer level (18 on v3; v2 passed 17 / 17).
 
 If it fails with a missing `primitives.v`, the PDK is not enabled:
 

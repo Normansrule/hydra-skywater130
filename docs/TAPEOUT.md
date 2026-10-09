@@ -58,7 +58,7 @@ host already knows what descriptor it sent.
 
 ## 4. Gate-level
 
-`GATES=yes make` in `tt/tile/test` runs the same 17 tests against the hardened
+`GATES=yes make` in `tt/tile/test` runs the same tests as RTL (18 on v3) against the hardened
 netlist. Both personalities must pass there, not just in RTL.
 
 ## 5. Still open from the session-144 handoff

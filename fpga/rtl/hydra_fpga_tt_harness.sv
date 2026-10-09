@@ -36,7 +36,7 @@ module hydra_fpga_tt_harness #(
     .mem_rdata(32'h0),
     .reg_mode_o(reg_mode_o));
 
-  tt_um_hydra_mom u_tile (
+  hydra_mom_pins u_tile (
     .ui_in(ui_in), .uo_out(uo_out), .uio_in(8'h00), .uio_out(uio_out),
     .uio_oe(uio_oe), .ena(1'b1), .clk(clk), .rst_n(tile_rst_n));
 

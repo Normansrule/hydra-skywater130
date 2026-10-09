@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/img/hero.svg" width="100%" alt="HYDRA-130, a dispatcher chip that measures its own engines, open source for SkyWater's 130 nm process. A floorplan of the chip with each block drawn to its measured area; timing closes at every corner, sign-off is clean, and all 17 tile tests pass on the hardened netlist.">
+  <img src="docs/img/hero.svg" width="100%" alt="HYDRA-130, a dispatcher chip that measures its own engines, open source for SkyWater's 130 nm process. A floorplan of the chip with each block drawn to its measured area; the Tiny Tapeout tile's last harden closed timing at every corner with clean sign-off, and all 17 of its tests passed on the hardened netlist.">
 </p>
 
 <p align="center">
@@ -10,20 +10,30 @@
   &nbsp;·&nbsp;<a href="docs/SECURITY_PLAN.md">security plan</a>
 </p>
 
-**A robotics and security chip for SkyWater's open 130 nm process.** A hardware
-scheduler predicts how long each of five compute engines would take a piece of
-work, sends it to the cheapest, measures what really happened and corrects
-itself. Around it: a vector unit, a systolic matrix array, a lattice-crypto
-transform engine, a root-of-trust block modelled on Caliptra's discipline, two
-independent ways in for debugging, and a bring-up image for a real FPGA board.
-Every block is checked against an independent model, and every claim on this
-page is generated from, or checked against, the repository itself.
+**A robotics and security chip for SkyWater's open 130 nm process, built to go
+all out: CPU, GPU and TPU on one die, with a hardware scheduler between them.**
+The scheduler predicts how long each of five compute engines would take a
+piece of work, sends it to the cheapest, measures what really happened and
+corrects itself. Around it: a systolic matrix array (the TPU), a vector unit,
+a lattice-crypto transform engine, a root-of-trust block modelled on
+Caliptra's discipline, two independent ways in for debugging, and a bring-up
+image for a real FPGA board. A RISC-V CPU and a GPU join next (see
+[the plan](#cpu-and-gpu-what-joins-next)). Every block is checked against an
+independent model, and every claim on this page is generated from, or checked
+against, the repository itself.
+
+**Two repositories, two jobs.** This one is the product: the whole chip, every
+engine, every interface. The [Tiny Tapeout tile](https://github.com/Normansrule/tinytapeout-hydra)
+is the research experiment: the scheduler alone, cut to the cost model, its
+calibration and an SPI register map, on 12 tiles instead of 16. The two share
+the scheduler's modules byte for byte (`make tile-shared`), so the chip's
+verification of them covers the tile.
 
 ![Block diagram — every block names the file that implements it](docs/img/architecture.svg)
 
 | | |
 |---|---|
-| **Tiny Tapeout tile** | 4×4 tiles, **hardened: layout versus schematic match, design rules and antenna clean**, 67.3% utilisation |
+| **Tiny Tapeout research tile** | v3 on 3×4 tiles, harden pending · v2 on 4×4 **hardened: layout versus schematic match, design rules and antenna clean**, 67.3% utilisation |
 | **Clock** | 15.15 MHz (66 ns) — **every corner meets setup**; slow-corner slack +2.20 ns; sign-off clean |
 | **Dispatcher** | roofline cost model over five engines, self-calibrating, ~13-cycle decision |
 | **Compute engines** | 4×4 INT8 systolic array · 4-lane 32-bit vector unit · Barrett butterflies at the ML-KEM, ML-DSA and Falcon moduli |
@@ -38,8 +48,8 @@ page is generated from, or checked against, the repository itself.
 
 | block | what it does | on the Tiny Tapeout tile? |
 |---|---|---|
-| **Dispatcher** | roofline cost model over five engines, self-calibrating from measured completion times | **yes — this is the tile** |
-| **Two pin personalities** | v1 serial interface, or an SPI register map reaching the whole dispatcher | **yes** |
+| **Dispatcher** | roofline cost model over five engines, self-calibrating from measured completion times | **yes — this is the tile** (4 tags; the chip has 8) |
+| **Two pin personalities** | v1 serial interface, or an SPI register map reaching the whole dispatcher | SPI map only (`mom/hydra_mom_pins.sv` on the chip) |
 | **4×4 INT8 systolic array** | matrix multiply, 640 results exact against its model | full chip and FPGA |
 | **4-lane 32-bit vector unit** | eight operations, elementwise and reductions | full chip and FPGA |
 | **Number-theoretic transform engine** | Barrett butterflies at the ML-KEM (3329), ML-DSA (8380417) and Falcon (12289) moduli | full chip |
@@ -54,6 +64,25 @@ page is generated from, or checked against, the repository itself.
 | **Serial bridge** | the host link: commands, memory reads and writes | FPGA |
 | **Bring-up image** | LED walk, switch mirror, switch naming, serial echo | FPGA |
 | **Basys 3 bring-up** | all 16 LEDs and switches, 5 buttons, the four-digit display, serial | FPGA (Basys 3) |
+| **RISC-V CPU** | [Sixfold](https://github.com/Normansrule/sixfold-cpu): six-stage RV64IM + B + Zknh, cycle-exact against its model | next: joins the chip |
+| **GPU** | [Pixelstorm](https://github.com/Normansrule/pixelstorm-gpu) | next: joins the chip |
+
+## CPU and GPU: what joins next
+
+The chip's scheduler already chooses between five engines; three of them are
+built here (the TPU array, the vector unit, the transform engine). The CPU and
+GPU come from their own repositories, where each is verified on its own:
+
+- **CPU: Sixfold**, a six-stage RV64IM core with the bit-manipulation
+  extension and, since 2026-10-09, the Zknh SHA-2 instructions, checked cycle
+  for cycle against a software twin. On HYDRA it also takes `Xhydrasec`, user
+  mode and the illegal-instruction trap, so the key vault is reachable only
+  through instructions that cannot read a key.
+- **GPU: Pixelstorm**, attached to the scheduler as one more engine behind the
+  same port contract as the others.
+
+Neither is wired in yet, and nothing on this page counts them as done. The
+research tile will never carry them: it measures the scheduler alone.
 
 ## Watch a decision being made
 
@@ -92,11 +121,13 @@ six passes with a wider margin cleared it. Slew and capacitance warnings (5,039
 and 20) remain — the flow reports them but does not count them toward
 sign-off, and they are the next thing to understand.
 
-**The hardened netlist passes all 17 tile tests** (2026-10-07), the same suite
+**The hardened v2 netlist passes all 17 of its tile tests** (2026-10-07), the same suite
 as at register-transfer level, run gate by gate on the layout's own netlist.
 The first attempt passed 10: the hardening checkout held an older `test.py`
 that read the result 16 cycles before the shared cost engine produces it.
-`sync-tile` now proves the tests match, not only the design.
+`sync-tile` now proves the tests match, not only the design. The v3 research
+tile (18 tests, 3×4) has not been hardened yet; everything in this section is
+v2's.
 
 ## Pinout
 
@@ -186,7 +217,7 @@ proof names the cycle.
 
 | area | what is checked | evidence |
 |---|---|---|
-| Dispatcher | 17 tile tests, both personalities; v2 equals v1 pin for pin; shared engine decides as parallel | simulation · differential · equivalence |
+| Dispatcher | 18 research-tile tests over SPI; the chip's dispatcher equals v1 pin for pin; shared engine decides as parallel; tile and chip share the modules byte for byte | simulation · differential · equivalence |
 | Engines | array, vector unit, transform engine against models written from the contract | 1,600+ results exact |
 | Memory path | all three engines fed from banks the host loads | 254 results read back |
 | Formal | port contracts, key secrecy, hardware padding, image measurement, mailbox exclusion, test-port reset from any state | 25 proof runs over 15 modules |
@@ -278,11 +309,14 @@ HYDRA-130 tree and attach to the crossbar's engine ports (section 5).
 <details>
 <summary><b>2. Pins</b></summary>
 
-### 2.1 TinyTapeout tile — 24 signal pins, plus 3 fixed
+### 2.1 The dispatcher's 24 pins — chip, and research tile
 
-A tile gets 24 signal pins whatever its size: 8 in, 8 out, 8 bidirectional,
-plus `clk`, `rst_n` and `ena`. The tile has **two personalities**, chosen by a
-strap sampled while reset is low:
+The dispatcher sits behind 24 signal pins: 8 in, 8 out, 8 bidirectional, plus
+`clk`, `rst_n` and `ena` — a Tiny Tapeout tile's interface, kept on the chip
+as `mom/hydra_mom_pins.sv`. On the chip it has **two personalities**, chosen
+by a strap sampled while reset is low. The **research tile (v3) has only the
+register column below**: it ignores the strap, its tags run 0 to 3, and its
+`ui_in[7:3]` are unused.
 
 - hold `ui_in[7:4] = 0xA` through reset → **register** personality
 - anything else, including all zeros → **legacy** personality

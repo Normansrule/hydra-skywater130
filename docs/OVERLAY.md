@@ -43,7 +43,7 @@ hydra-skywater130/
 **Tile, in simulation**
 
 ```bash
-cd tt/tile/test && make            # 17 tests, both personalities
+cd tt/tile/test && make            # 18 tests, the research tile's register map
 ```
 
 **A board build** (ULX3S shown; swap the plan for another board)

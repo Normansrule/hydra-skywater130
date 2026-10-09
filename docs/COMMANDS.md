@@ -23,7 +23,8 @@ make all                         # TinyTapeout, sky130 and FPGA targets together
 | `make xbar` | crossbar: 20,000 vectors, proofs | 30 s |
 | `make system` | dispatcher + crossbar + engines | 40 s |
 | `make systile` | the same over the SPI register map | 60 s |
-| `make tile` | the tile's 17 cocotb tests | 30 s |
+| `make tile` | the research tile's 18 cocotb tests, over SPI | 70 s |
+| `make tile-shared` | the tile's dispatcher modules are the chip's (`mom/rtl`), byte for byte | 1 s |
 | `make diff` | v2 against v1, 400,000 cycles | 60 s |
 | `make harness` | the PC protocol end to end | 60 s |
 | `make sky130` | the chip through its pads | 20 s |

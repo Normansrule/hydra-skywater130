@@ -270,12 +270,18 @@ def hero():
 
 # ---------------------------------------------------------------------------
 def tile_hero():
-    """The Tiny Tapeout tile: pins around a 4x4 tile, the dispatcher inside."""
+    """The Tiny Tapeout research tile: pins around the tile grid, the dispatcher
+    inside. The grid comes from info.yaml; while a re-harden is pending the
+    sign-off rows say so and quote the last signed-off run."""
+    import yaml
     m, t, n_sby, gl, unb = data()
+    tiles = yaml.safe_load((ROOT / "tt/tile/info.yaml").read_text())["project"]["tiles"]
+    cols, rows_n = (int(v) for v in tiles.split("x"))
+    pending = m["tile"].get("harden_pending")
     W, H = 1200, 560
     s = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-labelledby="t d">',
          '<title id="t">tt_um_hydra_mom</title>',
-         '<desc id="d">The Tiny Tapeout tile: a descriptor shifted in on the input pins, five engines '
+         f'<desc id="d">The Tiny Tapeout research tile, {cols} by {rows_n} tiles: a descriptor written over SPI, five engines '
          'costed one after another by a single shared cost engine, and the winner reported on the output pins.</desc>']
     s.append('''<style>
   .bit { opacity: 1; } .cost { opacity: 1; } .out { opacity: 1; } .hl { opacity: 0; }
@@ -291,25 +297,31 @@ def tile_hero():
     s.append('<defs><pattern id="rows" width="8" height="7" patternUnits="userSpaceOnUse">'
              '<rect width="8" height="3" fill="#ffffff" opacity="0.06"/></pattern></defs>')
     s.append(f'<rect width="{W}" height="{H}" rx="18" fill="{SUB}"/>')
-    # the 4x4 tile
-    tx, ty, tw, th = 640, 70, 400, 400
-    for i in range(1, 4):
-        s.append(f'<line x1="{tx+i*tw/4}" y1="{ty}" x2="{tx+i*tw/4}" y2="{ty+th}" stroke="#ffffff" stroke-opacity=".06"/>'
-                 f'<line x1="{tx}" y1="{ty+i*th/4}" x2="{tx+tw}" y2="{ty+i*th/4}" stroke="#ffffff" stroke-opacity=".06"/>')
+    # the tile grid, cols x rows as info.yaml orders it
+    th = 400
+    tw = th * cols / rows_n * (161 / 111.52)     # one Tiny Tapeout tile is 161 x 111.52 um
+    tx, ty = 1040 - tw, 70
+    for i in range(1, cols):
+        s.append(f'<line x1="{tx+i*tw/cols:.1f}" y1="{ty}" x2="{tx+i*tw/cols:.1f}" y2="{ty+th}" stroke="#ffffff" stroke-opacity=".06"/>')
+    for i in range(1, rows_n):
+        s.append(f'<line x1="{tx}" y1="{ty+i*th/rows_n:.1f}" x2="{tx+tw:.1f}" y2="{ty+i*th/rows_n:.1f}" stroke="#ffffff" stroke-opacity=".06"/>')
     s.append(f'<rect x="{tx}" y="{ty}" width="{tw}" height="{th}" rx="4" fill="{SUB2}" fill-opacity=".6" stroke="{PAD}" stroke-opacity=".6" stroke-width="2"/>')
-    # pins: 8 in on the left, 8 out on the right
+    # pins: 8 in on the left (three carry SPI), 8 out on the right
+    spi = {0: "SCK", 1: "COPI", 2: "CSn"}
     for i in range(8):
         y = ty + 40 + i * 44
         d = 0.05 * i
-        s.append(f'<rect class="bit" style="animation-delay:{d:.2f}s" x="{tx-34}" y="{y-6}" width="22" height="12" rx="2" fill="{PAD}"/>'
-                 f'<text x="{tx-44}" y="{y+5}" text-anchor="end" style="{MONO};font-size:13px" fill="{TXT2}">ui[{i}]</text>')
-        s.append(f'<rect class="out" x="{tx+tw+12}" y="{y-6}" width="22" height="12" rx="2" fill="{PAD}"/>'
-                 f'<text x="{tx+tw+44}" y="{y+5}" style="{MONO};font-size:13px" fill="{TXT2}">uo[{i}]</text>')
+        used = i in spi
+        s.append(f'<rect class="{"bit" if used else ""}" style="animation-delay:{d:.2f}s" x="{tx-34:.1f}" y="{y-6}" width="22" height="12" rx="2" '
+                 f'fill="{PAD}" fill-opacity="{1 if used else .25}"/>'
+                 f'<text x="{tx-44:.1f}" y="{y+5}" text-anchor="end" style="{MONO};font-size:13px" fill="{TXT2}">{spi.get(i, "")}{" " if used else ""}ui[{i}]</text>')
+        s.append(f'<rect class="out" x="{tx+tw+12:.1f}" y="{y-6}" width="22" height="12" rx="2" fill="{PAD}"/>'
+                 f'<text x="{tx+tw+44:.1f}" y="{y+5}" style="{MONO};font-size:13px" fill="{TXT2}">uo[{i}]</text>')
     # pipeline inside: shift register -> features -> one shared cost engine -> select
-    stages = [("Descriptor", "128 bits, shifted in", MET1), ("Features", "work shape", MET1),
+    stages = [("SPI registers", "descriptor, GO, results", MET1), ("Features", "work shape", MET1),
               ("Cost engine", "one, shared", MET1), ("Select", "cheapest + margin", MET1)]
     for i, (a, b, c) in enumerate(stages):
-        x, y = tx + 30, ty + 30 + i * 90
+        x, y = round(tx + 24), ty + 30 + i * 90
         s.append(f'<rect x="{x}" y="{y}" width="200" height="66" rx="4" fill="{c}" fill-opacity=".18" stroke="{c}" stroke-width="1.3"/>'
                  f'<rect x="{x}" y="{y}" width="200" height="66" rx="4" fill="url(#rows)"/>'
                  f'<text x="{x+12}" y="{y+28}" style="{FONT};font-size:16px;font-weight:650" fill="{TXT}">{a}</text>'
@@ -319,32 +331,43 @@ def tile_hero():
     # five engines, costed in turn
     names = ["CPU", "SIMD", "TPU", "NTT", "Crypto"]
     for i, nme in enumerate(names):
-        x, y = tx + 262, ty + 30 + i * 70
+        x, y = round(tx + tw - 134), ty + 30 + i * 70
         win = nme == "TPU"
         s.append(f'<rect x="{x}" y="{y}" width="110" height="50" rx="4" fill="{DIFF}" fill-opacity="{".30" if win else ".12"}" '
                  f'stroke="{DIFF}" stroke-opacity="{1 if win else .55}" stroke-width="{2 if win else 1.2}"/>'
                  f'<text x="{x+55}" y="{y+31}" text-anchor="middle" style="{FONT};font-size:15px;font-weight:650" fill="{TXT}">{nme}</text>'
                  f'<rect class="hl" style="animation-delay:{i*0.6:.1f}s" x="{x}" y="{y}" width="110" height="50" rx="4" fill="none" stroke="{TXT}" stroke-width="2.4"/>'
-                 f'<path d="M{tx+230},{ty+30+2*90+33} L{x},{y+25}" stroke="{MET1}" stroke-opacity=".35" stroke-width="1.2"/>')
+                 f'<path d="M{round(tx+224)},{ty+30+2*90+33} L{x},{y+25}" stroke="{MET1}" stroke-opacity=".35" stroke-width="1.2"/>')
     # left text
     worst = min(c[1] for c in t["corners"])
-    s.append(f'<text x="56" y="132" style="{FONT};font-size:54px;font-weight:800;letter-spacing:-1.5px" fill="{TXT}">tt_um_hydra_mom</text>')
-    s.append(f'<text x="58" y="180" style="{FONT};font-size:20px" fill="{TXT2}">A work dispatcher on a 4×4 Tiny Tapeout tile.</text>')
-    s.append(f'<text x="58" y="208" style="{FONT};font-size:20px" fill="{TXT2}">It costs five engines, picks the cheapest.</text>')
-    rows = [
-        (MET1, "Timing", f'{t["period_ns"]} ns, every corner (+{worst:.2f} ns)'),
-        (PAD,  "Sign-off", "DRC, LVS, antenna clean" if (t["drc"] == 0 and t["lvs"] == 0 and t["antenna"] == 0) else "NOT clean"),
-        (PAD,  "Utilisation", f'{t["utilisation"]*100:.1f}% of the tile'),
-        (DIFF, "Gate level", f'{gl.replace(" / ", " of ")} tests on the hardened netlist' if gl else "pending"),
-    ]
-    y = 290
+    s.append(f'<text x="56" y="132" style="{FONT};font-size:46px;font-weight:800;letter-spacing:-1.2px" fill="{TXT}">tt_um_hydra_mom</text>')
+    s.append(f'<text x="58" y="180" style="{FONT};font-size:20px" fill="{TXT2}">The research tile: {cols}×{rows_n} Tiny Tapeout tiles.</text>')
+    s.append(f'<text x="58" y="208" style="{FONT};font-size:20px" fill="{TXT2}">It costs five engines, picks the cheapest,</text>')
+    s.append(f'<text x="58" y="236" style="{FONT};font-size:20px" fill="{TXT2}">and corrects its model from what happened.</text>')
+    clean = t["drc"] == 0 and t["lvs"] == 0 and t["antenna"] == 0
+    if pending:
+        rows = [
+            (PAD,  "This design", f'{m["tile"]["research_cells"]:,} cells, harden pending'),
+            (MET1, "Last harden", f'{pending}, {t["period_ns"]} ns, every corner'),
+            (PAD,  "", ("sign-off clean" if clean else "NOT clean") + f', {t["utilisation"]*100:.1f}% of 4×4'),
+            (DIFF, "Gate level", gl if gl else "pending"),
+        ]
+    else:
+        rows = [
+            (MET1, "Timing", f'{t["period_ns"]} ns, every corner (+{worst:.2f} ns)'),
+            (PAD,  "Sign-off", "DRC, LVS, antenna clean" if clean else "NOT clean"),
+            (PAD,  "Utilisation", f'{t["utilisation"]*100:.1f}% of the tile'),
+            (DIFF, "Gate level", f'{gl.replace(" / ", " of ")} tests on the hardened netlist' if gl else "pending"),
+        ]
+    y = 300
     for col, k, v in rows:
-        s.append(f'<rect x="58" y="{y-13}" width="14" height="14" rx="2" fill="{col}"/>'
-                 f'<text x="86" y="{y}" style="{FONT};font-size:19px;font-weight:650" fill="{TXT}">{k}</text>'
-                 f'<text x="216" y="{y}" style="{FONT};font-size:18px" fill="{TXT2}">{escape(v)}</text>')
-        y += 42
-    s.append(f'<text x="{tx+tw/2}" y="{ty+th+50}" text-anchor="middle" style="{FONT};font-size:14px" fill="{TXT2}">'
-             f'Not to scale: the pipeline as drawn in tt/tile/src/rtl/mom_top.sv</text>')
+        if k:
+            s.append(f'<rect x="58" y="{y-13}" width="14" height="14" rx="2" fill="{col}"/>'
+                     f'<text x="86" y="{y}" style="{FONT};font-size:19px;font-weight:650" fill="{TXT}">{k}</text>')
+        s.append(f'<text x="216" y="{y}" style="{FONT};font-size:18px" fill="{TXT2}">{escape(v)}</text>')
+        y += 38
+    s.append(f'<text x="{tx+tw/2:.1f}" y="{ty+th+50}" text-anchor="middle" style="{FONT};font-size:14px" fill="{TXT2}">'
+             f'Not to scale: the pipeline as drawn in src/rtl/mom_top.sv</text>')
     s.append('</svg>\n')
     write("tile_hero.svg", "".join(s), [OUT_TILE])
 
