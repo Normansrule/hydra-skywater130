@@ -46,8 +46,9 @@ def write(name, svg, repos=OUT):
 
 # ---------------------------------------------------------------------------
 def pinout():
-    """Both personalities per pin, on separate lines, so neither is truncated
-    into the other. info.yaml writes them as 'LEGACY x / REGISTER y'."""
+    """The research tile's pins, from info.yaml. v2 had two personalities per
+    pin ('LEGACY x / REGISTER y', drawn on two lines); v3 has one, and a pin
+    with no description is drawn as unused."""
     import yaml
     info = yaml.safe_load((ROOT / "tt/tile/info.yaml").read_text())
     pins = info["pinout"]
@@ -59,19 +60,18 @@ def pinout():
             leg, reg = desc.split(" / ", 1)
         leg = re.sub(r"^LEGACY\s+", "", leg)
         reg = re.sub(r"^REGISTER\s+", "", reg)
-        if not reg and not desc.startswith("LEGACY"):
-            reg = "same in both"
+        if not desc:
+            leg = "unused"
         cut = lambda t, n: t if len(t) <= n else t[:n-1] + "…"
-        return cut(leg, 46), cut(reg, 46)
+        return cut(leg, 60), cut(reg, 60)
 
     w, row, top = 1500, 42, 96
     chip_x, chip_w = 560, 380
     h = top + 8 * row + 250
     body = []
     body.append(f'<text x="24" y="58" style="{FONT};font-size:12.5px" fill="{DIM}">'
-                f'Each pin has two personalities, selected by a strap at reset: '
-                f'<tspan fill="{INK}" font-weight="600">LEGACY</tspan> (the v1 serial interface) and '
-                f'<tspan fill="{VIOLET}" font-weight="600">REGISTER</tspan> (the SPI register map).</text>')
+                f'The research tile (v3) has one interface: an SPI register map on three pins, '
+                f'and status summaries on the outputs. The HYDRA-130 chip keeps the v1 serial pins as well.</text>')
     body.append(f'<rect x="{chip_x}" y="{top}" width="{chip_w}" height="{8*row+6}" rx="12" '
                 f'fill="#f3f6fa" stroke="{INK}" stroke-width="1.6"/>')
     body.append(f'<text x="{chip_x+chip_w/2}" y="{top+4*row-4}" text-anchor="middle" '
@@ -110,7 +110,7 @@ def pinout():
         leg, reg = split(pins.get(f"uio[{i}]", ""))
         body.append(f'<text x="{x}" y="{y}" style="{MONO};font-size:12.5px;font-weight:700" fill="{VIOLET}">uio[{i}]</text>'
                     f'<text x="{x+70}" y="{y}" style="{FONT};font-size:12.5px" fill="{INK}">{escape(leg)}</text>')
-        if reg and reg != "same in both":
+        if reg:
             body.append(f'<text x="{x+70}" y="{y+15}" style="{FONT};font-size:11.5px" fill="{VIOLET}">{escape(reg)}</text>')
     write("pinout.svg", card(w, h, "".join(body), "HYDRA-130 · Tiny Tapeout pinout"))
 
@@ -297,7 +297,7 @@ def anim_dispatch():
                  f'keyTimes="0;{k0:.3f};{k0+0.001:.3f};{k1:.3f};{k1+0.001:.3f};1" '
                  f'dur="{total}s" repeatCount="indefinite"/></text>')
     b.append(f'<text x="130" y="{h-30}" style="{FONT};font-size:12px" fill="{DIM}">'
-             f'Costs here are illustrative; the cycle structure is the real one (tt/tile/src/rtl/mom_top.sv).</text>')
+             f'Costs here are illustrative; the cycle structure is the real one (mom/rtl/mom_top.sv).</text>')
     write("dispatch_anim.svg", card(w, h, "".join(b), "How a dispatch decision is made"))
 
 

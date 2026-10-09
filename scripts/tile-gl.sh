@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tile-gl.sh -- run the tile's 17 tests against the HARDENED netlist.
+# tile-gl.sh -- run the tile's cocotb tests against the HARDENED netlist.
 #
 # The register-transfer-level suite proves the design. This proves the
 # layout implements it: synthesis, buffering, the reset synchroniser and the
@@ -49,6 +49,11 @@ fi
 cp "$NET" "$T/gate_level_netlist.v"
 cd "$T" && rm -rf sim_build results.xml
 make -s GATES=yes 2>&1 | tee /tmp/tile-gl.log | grep -E "TESTS=|FAIL|PASS=" || true
-grep -qE "TESTS=17 PASS=17 FAIL=0" /tmp/tile-gl.log \
-  && echo "PASS tile-gl: all 17 tile tests pass on the hardened netlist" \
-  || { echo "FAIL tile-gl: see /tmp/tile-gl.log"; exit 1; }
+# Every test the RTL run has, and none failing: the count comes from the log,
+# so adding a test does not need an edit here.
+if grep -qE "TESTS=([0-9]+) PASS=\1 FAIL=0" /tmp/tile-gl.log; then
+  n=$(grep -oE "TESTS=[0-9]+" /tmp/tile-gl.log | tail -1 | cut -d= -f2)
+  echo "PASS tile-gl: all $n tile tests pass on the hardened netlist"
+else
+  echo "FAIL tile-gl: see /tmp/tile-gl.log"; exit 1
+fi

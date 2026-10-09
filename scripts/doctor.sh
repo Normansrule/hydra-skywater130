@@ -97,7 +97,7 @@ need gowin_pll "Gowin PLL reference (Apicula)" \
 
 echo
 echo "Tile suite"
-want cocotb-config "the tile's 17 tests (make tile)" \
+want cocotb-config "the tile's 18 tests (make tile)" \
                "pip install cocotb" \
                "cocotb-config --version"
 

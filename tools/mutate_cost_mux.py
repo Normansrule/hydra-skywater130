@@ -14,7 +14,7 @@ would report every mutation as caught.
 import pathlib, subprocess, sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-RTL = ROOT / "tt/tile/src/rtl/mom_top.sv"
+RTL = ROOT / "mom/rtl/mom_top.sv"
 
 MUTATIONS = [
     ("last engine never evaluated",
@@ -44,7 +44,7 @@ MUTATIONS = [
 
 def trace(mode):
     d = "1'b1" if mode == "shared" else "1'b0"
-    cmd = (f"sv2v --define=HYDRA_COST_SHARED=\"{d}\" tt/tile/src/rtl/*.sv "
+    cmd = (f"sv2v --define=HYDRA_COST_SHARED=\"{d}\" mom/rtl/*.sv "
            f"tt/tb/tb_cost_trace.sv > /tmp/mc_{mode}.v && "
            f"iverilog -g2012 -o /tmp/mc_{mode} /tmp/mc_{mode}.v && "
            f"vvp -n /tmp/mc_{mode}")

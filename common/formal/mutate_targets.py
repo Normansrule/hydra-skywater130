@@ -86,7 +86,7 @@ TARGETS = {
     # The tile's SPI target lives with the tile but is proved the same way.
     "hydra_tt_spi": {
         "sby": ROOT / "tt/formal/hydra_tt_spi.sby",
-        "src": ROOT / "tt/tile/src/rtl/hydra_tt_spi.sv",
+        "src": ROOT / "mom/rtl/hydra_tt_spi.sv",
         "mutations": [
             ("byte reported before eight bits",
              "if (bitcnt == 3'd7) begin", "if (bitcnt == 3'd6) begin"),
@@ -137,7 +137,7 @@ def run_sby(sby_text, src_text, src_name):
         (td / src_name).write_text(src_text)
         # Point [files] at the (possibly mutated) copy; prove task only.
         # Match the source by NAME anywhere in [files]: the tile's SPI proof
-        # lists ../tile/src/rtl/..., and matching only a "../rtl/" prefix
+        # lists ../../mom/rtl/..., and matching only a "../rtl/" prefix
         # left it reading a path that does not exist from the temporary
         # directory -- a baseline with no verdict, so none of its mutations
         # was ever tested (found 2026-10-08).

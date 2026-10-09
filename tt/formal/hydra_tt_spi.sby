@@ -16,4 +16,4 @@ read -formal hydra_tt_spi.sv
 prep -top hydra_tt_spi
 
 [files]
-../tile/src/rtl/hydra_tt_spi.sv
+../../mom/rtl/hydra_tt_spi.sv

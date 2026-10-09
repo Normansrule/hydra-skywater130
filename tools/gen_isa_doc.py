@@ -7,9 +7,9 @@ lives in the source, and nothing keeps the copy honest -- the stale-anchor
 failure this project keeps finding. So every field width, enum value,
 capability mask and register length below is parsed out of:
 
-    tt/tile/src/rtl/mom_pkg.sv        descriptor, enums, widths, constants
-    tt/tile/src/rtl/mom_param_rom.sv  per-engine capability and cost rows
-    tt/tile/src/rtl/hydra_tt_regs.sv  the host register map
+    mom/rtl/mom_pkg.sv        descriptor, enums, widths, constants
+    mom/rtl/mom_param_rom.sv  per-engine capability and cost rows
+    mom/rtl/hydra_tt_regs.sv  the host register map
 
 Usage:
     python3 tools/gen_isa_doc.py            write docs/ISA.md
@@ -20,9 +20,9 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-PKG = ROOT / "tt/tile/src/rtl/mom_pkg.sv"
-ROM = ROOT / "tt/tile/src/rtl/mom_param_rom.sv"
-REGS = ROOT / "tt/tile/src/rtl/hydra_tt_regs.sv"
+PKG = ROOT / "mom/rtl/mom_pkg.sv"
+ROM = ROOT / "mom/rtl/mom_param_rom.sv"
+REGS = ROOT / "mom/rtl/hydra_tt_regs.sv"
 OUT = ROOT / "docs/ISA.md"
 
 

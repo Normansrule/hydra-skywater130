@@ -30,7 +30,7 @@ module tb_v1_v2_diff;
 
   tt_um_hydra_mom_v1 v1 (.ui_in(ui_in), .uo_out(uo1), .uio_in(uio_in), .uio_out(uio1),
                          .uio_oe(oe1), .ena(1'b1), .clk(clk), .rst_n(rst_n));
-  tt_um_hydra_mom    v2 (.ui_in(ui_in), .uo_out(uo2), .uio_in(uio_in), .uio_out(uio2),
+  hydra_mom_pins     v2 (.ui_in(ui_in), .uo_out(uo2), .uio_in(uio_in), .uio_out(uio2),
                          .uio_oe(oe2), .ena(1'b1), .clk(clk), .rst_n(rst_n));
 
   always #27.5 clk = ~clk;
