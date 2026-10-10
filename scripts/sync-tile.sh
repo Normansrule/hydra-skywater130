@@ -94,5 +94,15 @@ fi
 
 echo
 echo "sync-tile: $DST now holds the verified tile. Previous files: $BACKUP"
-echo "Harden it only if src/project.v changed since your last harden:"
-echo "  cd $DST && source ~/ttsetup/venv/bin/activate && ./tt/tt_tool.py --harden"
+# Say plainly whether the netlist already in runs/ is from this design, so
+# nobody runs the gate-level tests against an old one (2026-10-09).
+NET="$DST/runs/wokwi/final/pnl/tt_um_hydra_mom.pnl.v"
+HARDEN="  cd $DST && source ~/ttsetup/venv/bin/activate && ./tt/tt_tool.py --harden"
+if [[ ! -f "$NET" ]]; then
+  echo "No hardened netlist yet. Harden, then make tile-gl:"; echo "$HARDEN"
+elif python3 "$ROOT/tools/netlist_matches.py" "$NET" "$DST/src/project.v" > /dev/null; then
+  echo "The netlist in runs/ matches this design: make tile-gl can run now."
+else
+  echo "HARDEN NEEDED: the netlist in runs/ is from an older design. Then make tile-gl:"
+  echo "$HARDEN"
+fi

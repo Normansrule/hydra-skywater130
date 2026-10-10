@@ -13,6 +13,15 @@ set -euo pipefail
 HC="${1:-$HOME/src/tinytapeout-hydra}"
 NET="$HC/runs/wokwi/final/pnl/tt_um_hydra_mom.pnl.v"
 [[ -f "$NET" ]] || { echo "tile-gl: no hardened netlist at $NET -- harden first"; exit 2; }
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# The netlist must come from the CURRENT design. On 2026-10-09 the v3 tests
+# ran against the v2 netlist left in runs/ (project.v had changed, nothing was
+# re-hardened) and 17 of 18 failed for that reason alone.
+python3 "$ROOT/tools/netlist_matches.py" "$NET" "$ROOT/tt/tile/src/project.v" || {
+  echo "tile-gl: harden first:"
+  echo "  cd $HC && source ~/ttsetup/venv/bin/activate && ./tt/tt_tool.py --harden"
+  exit 2; }
 
 # Find the PDK the run actually used. The 2026-10 runs read it from
 # /tmp/pdk/ciel/..., not from a documented location, so search rather than assume.
@@ -28,7 +37,6 @@ echo "tile-gl: netlist  $NET"
 echo "tile-gl: PDK_ROOT $PDK_ROOT"
 
 T="$HC/test"
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # The tests run here must be the VERIFIED tests. Tiny Tapeout's CI runs the
 # hardening checkout's test/ folder, so that is the one used -- but only after
