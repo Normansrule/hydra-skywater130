@@ -41,6 +41,8 @@ module tb_hydra_engine_gpu;
   logic [3:0]   cons_addr = '0;
   logic [AW-1:0] ld_addr = '0, rd_addr = '0;
   logic [31:0]  prog_data = '0, cons_data = '0, ld_data = '0;
+  logic         cfg_we = 0, cfg_addr = 0;
+  logic [15:0]  cfg_data = '0;
   wire          ld_refused;
   wire  [31:0]  rd_data, perf_cycles;
 
@@ -50,6 +52,7 @@ module tb_hydra_engine_gpu;
     .eng_done(eng_done), .eng_done_tag(eng_done_tag), .job_status(job_status),
     .prog_we(prog_we), .prog_addr(prog_addr), .prog_data(prog_data),
     .cons_we(cons_we), .cons_addr(cons_addr), .cons_data(cons_data),
+    .cfg_we(cfg_we), .cfg_addr(cfg_addr), .cfg_data(cfg_data),
     .ld_we(ld_we), .ld_addr(ld_addr), .ld_data(ld_data), .ld_refused(ld_refused),
     .rd_addr(rd_addr), .rd_data(rd_data), .perf_cycles(perf_cycles));
 
@@ -116,11 +119,11 @@ module tb_hydra_engine_gpu;
                          output logic [1:0] st, input bit poke_bank = 0);
     integer t, dones;
     while (!eng_ready) @(posedge clk);
-    @(posedge clk);
+    @(posedge clk); cfg_we <= 1; cfg_addr <= 0; cfg_data <= 16'(g);
+    @(posedge clk); cfg_we <= 1; cfg_addr <= 1; cfg_data <= 16'(b);
+    @(posedge clk); cfg_we <= 0;
     eng_valid <= 1; eng_tag <= tag;
     eng_wd <= '0;
-    eng_wd[116:101] <= 16'(g);
-    eng_wd[100:85]  <= 16'(b);
     @(posedge clk);
     eng_valid <= 0;
     after_done = 0;

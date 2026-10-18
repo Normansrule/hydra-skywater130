@@ -1,0 +1,24 @@
+# mom_select: the winner is valid, its cost is minimal over the valid
+# engines, and a tie goes to the lower index -- proved for the tile's five
+# slots and the chip's six (2026-10-18; the first six-slot version of the
+# tree left lane 5 out, and these properties fail on it).
+# The properties are the `ifdef FORMAL block in mom/rtl/mom_select.sv;
+# `make select-proof` converts it with sv2v first.
+[tasks]
+n5
+n6
+
+[options]
+mode prove
+
+[engines]
+smtbmc
+
+[script]
+read -formal mom_select_sv2v.v
+n5: chparam -set NENG 5 mom_select
+n6: chparam -set NENG 6 mom_select
+prep -top mom_select
+
+[files]
+mom_select_sv2v.v

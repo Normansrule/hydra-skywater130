@@ -1,6 +1,6 @@
 # Heterogeneous system: CPU, GPU and TPU behind one job interface (proposed)
 
-**Status: SPECIFICATION, with the GPU engine built (2026-10-17).** The GPU runs real kernels over a HYDRA bank (`sys/rtl/hydra_engine_gpu.sv`, `make gpu`) but is not yet a dispatcher slot; the CPU is not integrated. The
+**Status: SPECIFICATION, with the GPU engine built and scheduled (2026-10-18).** The GPU runs real kernels over a HYDRA bank (`make gpu`) and is the chip's sixth dispatcher slot in simulation (`make systile-gpu`); ABI version 2 is not built; the CPU is not integrated. The
 capability matrix is the record of what runs.
 
 ## Candidates, as inspected on 2026-10-11
@@ -74,8 +74,10 @@ admits only (PUBLIC_DEBUG, AUTO) and refuses everything else.
    computing over a HYDRA bank, the results checked against Pixelstorm's own
    model, completion only after the last global write, and refusal of a
    malformed launch. **Done in simulation, 2026-10-17** (`make gpu`: 14
-   kernels; the four refusals; a bank-write watcher after done). Still to
-   do: the sixth dispatcher slot and ABI version 2, and a board image.
+   kernels; the four refusals; a bank-write watcher after done). The sixth
+   dispatcher slot is built on the chip side (`NENG = 6`, `make systile-gpu`);
+   still to do: ABI version 2 (security mode, engine policy, contexts) and a
+   board image.
 3. CPU. Add a program and data load port and a done/halt handshake. Required
    evidence: a real program's results checked against Sixfold's model (the
    108 regression runs), with completion after the last store is visible.

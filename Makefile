@@ -29,7 +29,7 @@ provenance:                   ## which board bitstreams were built from the curr
 	@for d in fpga/build/*/; do grep -q '^provenance:' $$d/Makefile 2>/dev/null || continue; \
 	  $(MAKE) -s --no-print-directory -C $$d provenance 2>/dev/null || true; done
 
-verify: site-check readme-check tt-ready rst-sync-copy tile-shared lint basys3-selftest check-tile cost-mux cost-cal keyvault mailbox sha256 sha256-stream measure pcr selftest xsec jtag jtag-bridge padmux xbar xbar-bound tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-mem systile-two tile diff harness jtag-harness gpu sky130 tools boards bind uart-baud isa-check
+verify: site-check readme-check tt-ready rst-sync-copy tile-shared lint basys3-selftest check-tile cost-mux cost-cal keyvault mailbox sha256 sha256-stream measure pcr selftest xsec jtag jtag-bridge padmux xbar xbar-bound tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-mem systile-two tile diff harness jtag-harness gpu systile-gpu select-proof sky130 tools boards bind uart-baud isa-check
 	@echo "=== all checks passed ==="
 
 # All three targets from the one source, in one command. Each depends on the
@@ -283,6 +283,11 @@ cost-mux:                     ## the shared cost engine decides what the paralle
 	  && echo "PASS cost-mux: $$(wc -l < $(SIMTMP)/ct_s.txt) decisions identical to the parallel build" \
 	  || (echo "FAIL cost-mux: the two builds disagree"; diff $(SIMTMP)/ct_s.txt $(SIMTMP)/ct_p.txt | head; false)
 
+select-proof:                 ## the engine selector is valid, minimal and tie-breaks low, at 5 and 6 slots
+	cd mom && sv2v --define=FORMAL -E Assert rtl/mom_pkg.sv rtl/mom_select.sv > formal/mom_select_sv2v.v
+	cd mom/formal && sby -f mom_select.sby n5 | tail -1
+	cd mom/formal && sby -f mom_select.sby n6 | tail -1
+
 mom-mutate:                   ## put each SkyWater 130 audit fix in the dispatcher back; its test must fail
 	python3 tools/mutate_mom.py
 
@@ -445,6 +450,15 @@ systile-mem:                  ## the dispatcher and the memory-fed array, two jo
 	iverilog -g2012 -o $(SIMTMP)/hydra_systile_mem $(SIMTMP)/hydra_systile_mem.v
 	$(SIM) --show '^(PASS|FAIL|job)' -- vvp -n $(SIMTMP)/hydra_systile_mem
 
+systile-gpu:                  ## six slots: the scheduler sends INT32 GEMM to the GPU, INT8 to the array
+	@test -f $(PIXELSTORM)/rtl/ps_gpu_top.v || { echo "FAIL systile-gpu: $(PIXELSTORM) missing"; exit 1; }
+	rm -rf $(SIMTMP)/gpuvec_sys && node tools/gpu_vectors.js $(PIXELSTORM) $(SIMTMP)/gpuvec_sys 4096 > /dev/null
+	sv2v mom/rtl/*.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv mem/rtl/*.sv \
+	  sys/rtl/hydra_engine_tpu_dma.sv sys/rtl/hydra_engine_gpu.sv sys/rtl/hydra_sys_tile.sv \
+	  sys/tb/tb_sys_tile_gpu.sv > $(SIMTMP)/hydra_systile_gpu.v
+	iverilog -g2012 -I $(PIXELSTORM)/rtl -o $(SIMTMP)/hydra_systile_gpu $(SIMTMP)/hydra_systile_gpu.v $(PIXELSTORM)/rtl/ps_*.v
+	$(SIM) --show '^(PASS|FAIL|GPU)' -- vvp -n $(SIMTMP)/hydra_systile_gpu +dir=$(SIMTMP)/gpuvec_sys/07_matmul
+
 systile-tpu:                  ## the dispatcher scheduling the REAL array
 	python3 sys/tb/tpu_pattern_model.py 4 > /dev/null
 	sv2v mom/rtl/*.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv \
@@ -497,6 +511,7 @@ mutate:                       ## slow: every test must be able to fail
 	cd common/formal && python3 mutate_targets.py
 	python3 mem/formal/mutate_dma.py
 	python3 tools/mutate_mom.py
+	python3 tools/mutate_cost_mux.py
 	cd $(TILE) && python3 test/mutate_sim.py
 
 clean:

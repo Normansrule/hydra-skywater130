@@ -88,6 +88,7 @@ least significant bit = value 0.
 | 2 `TPU` | INT8 output-stationary systolic array, built 4x4 | GEMM, CONV2D | INT8, INT16 |
 | 3 `NTT` | number-theoretic transform butterflies, built 4 lanes | FFT, NTT | INT32, POLY_Q |
 | 4 `CRYPTO` | cipher/hash slot: latency model only | CIPHER, HASH | INT32 |
+| 5 `GPU` | Pixelstorm SIMT GPU (sys/rtl/hydra_engine_gpu.sv): chip only, NENG = 6 | ELEMENT, REDUCE, GEMM | INT32 |
 
 ## Engine cost parameters
 

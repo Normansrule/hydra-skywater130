@@ -37,11 +37,15 @@ package mom_pkg;
   // -------------------------------------------------------------------------
   // Engine identifiers
   // -------------------------------------------------------------------------
-  // Order matters: mom_select.sv uses ENG_N as the width of its one-hot valid
-  // mask and iterates 0..ENG_N-1 when finding the argmin. Adding an engine
-  // means bumping ENG_N and adding a row to mom_param_rom.sv, nothing else.
+  // Order matters: mom_select.sv uses the engine count as the width of its
+  // one-hot valid mask and iterates over it when finding the argmin. ENG_N
+  // is the DEFAULT count: the Tiny Tapeout tile uses it (five slots); the
+  // SkyWater chip instantiates mom_top with NENG = 6, which adds the GPU slot
+  // and its row in mom_param_rom.sv (2026-10-18). Engine IDs are 3 bits, so
+  // NENG may grow to 8 without changing a port.
   // -------------------------------------------------------------------------
   localparam int unsigned ENG_N = 5;
+  localparam int unsigned ENG_N_CHIP = 6;
 
   typedef enum logic [2:0] {
     // Dispatch slots. The comment says what is BUILT in the parent
@@ -51,7 +55,8 @@ package mom_pkg;
     ENG_SIMD   = 3'd1,  // 4-lane 32-bit integer vector unit
     ENG_TPU    = 3'd2,  // INT8 output-stationary systolic array, built 4x4
     ENG_NTT    = 3'd3,  // number-theoretic transform butterflies, built 4 lanes
-    ENG_CRYPTO = 3'd4   // cipher/hash slot: latency model only
+    ENG_CRYPTO = 3'd4,  // cipher/hash slot: latency model only
+    ENG_GPU    = 3'd5   // Pixelstorm SIMT GPU (sys/rtl/hydra_engine_gpu.sv): chip only, NENG = 6
   } engine_e;
 
   // -------------------------------------------------------------------------

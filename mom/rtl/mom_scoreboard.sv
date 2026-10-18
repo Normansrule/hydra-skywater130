@@ -52,6 +52,10 @@
 module mom_scoreboard
   import mom_pkg::*;
 #(
+  // Engine slots. ENG_N (5) for the Tiny Tapeout tile; the SkyWater chip
+  // sets 6 to give the GPU a slot (2026-10-18). Every per-engine array and
+  // loop below is sized by this, not by the package constant.
+  parameter int unsigned NENG = ENG_N,
   parameter int unsigned NTAG = 16,
   parameter int unsigned QMAX = 8      // per-engine outstanding limit
 ) (
@@ -78,8 +82,8 @@ module mom_scoreboard
   output logic [COST_W-1:0]  cal_t_predicted,
 
   // ---- to the cost engines -------------------------------------------------
-  output logic [ENG_N-1:0][7:0] queue_depth,
-  output logic [ENG_N-1:0]      engine_full,
+  output logic [NENG-1:0][7:0] queue_depth,
+  output logic [NENG-1:0]      engine_full,
 
   // ---- fence ---------------------------------------------------------------
   input  wire  [3:0]         fence_tag,
@@ -148,7 +152,7 @@ module mom_scoreboard
   // ---------------------------------------------------------------------------
   // PORT RANGE GUARDS
   //
-  // `disp_engine` is 3 bits and ENG_N is 5. `comp_tag` is 4 bits and NTAG may
+  // `disp_engine` is 3 bits and NENG is 5. `comp_tag` is 4 bits and NTAG may
   // be 4, 8, or 16. Both ports can therefore carry values that index past the
   // end of their arrays, and an out-of-range index is undefined rather than
   // merely wrong.
@@ -164,7 +168,7 @@ module mom_scoreboard
   // unpredictably when software makes a mistake, which is exactly when you most
   // want it not to.
   // ---------------------------------------------------------------------------
-  wire disp_engine_ok = ({29'd0, disp_engine} < ENG_N);
+  wire disp_engine_ok = ({29'd0, disp_engine} < NENG);
   wire comp_tag_ok    = ({28'd0, comp_tag} < NTAG);
   wire [TIW-1:0] comp_i  = comp_tag[TIW-1:0];
   wire [TIW-1:0] fence_i = fence_tag[TIW-1:0];
@@ -194,7 +198,7 @@ module mom_scoreboard
   // wrong produces a counter that drifts upward over hours until every engine
   // looks permanently full, which is a miserable bug to find in silicon.
   // ---------------------------------------------------------------------------
-  for (genvar e = 0; e < ENG_N; e++) begin : g_queue
+  for (genvar e = 0; e < NENG; e++) begin : g_queue
     wire inc = do_disp && (disp_engine == 3'(e));
     wire dec = do_comp && (t_eng[comp_i] == 3'(e));
 
@@ -284,7 +288,7 @@ module mom_scoreboard
   // decrement logic above has the simultaneous case wrong.
   always @(*) begin
     if (rst_n)
-      for (int e = 0; e < ENG_N; e++)
+      for (int e = 0; e < NENG; e++)
         assert (queue_depth[e] <= 8'(NTAG));
   end
 

@@ -78,7 +78,12 @@
 
 module mom_param_rom
   import mom_pkg::*;
-(
+#(
+  // Engine slots. ENG_N (5) for the Tiny Tapeout tile; the SkyWater chip
+  // sets 6 to give the GPU a slot (2026-10-18). Every per-engine array and
+  // loop below is sized by this, not by the package constant.
+  parameter int unsigned NENG = ENG_N
+) (
   input  wire                    clk,
   input  wire                    rst_n,
 
@@ -91,7 +96,7 @@ module mom_param_rom
   // ---- read port: all rows presented in parallel ---------------------------
   // The cost engines are instantiated one per engine and each takes its own
   // row combinationally, so there is no read address and no arbitration.
-  output eng_param_t [ENG_N-1:0] params
+  output eng_param_t [NENG-1:0] params
 );
 
   // ---------------------------------------------------------------------------
@@ -116,6 +121,14 @@ module mom_param_rom
   localparam logic [EPARAM_W-1:0] DEF_TPU    = {4'd7, 12'd64, 4'd5, 8'd2,  6'b000011, 9'b000011000};
   localparam logic [EPARAM_W-1:0] DEF_NTT    = {4'd5, 12'd32, 4'd4, 8'd8,  6'b100100, 9'b001100000};
   localparam logic [EPARAM_W-1:0] DEF_CRYPTO = {4'd4, 12'd16, 4'd4, 8'd4,  6'b000100, 9'b110000000};
+  // GPU, chip only (NENG = 6). Nominal, like every row here: Pixelstorm issues
+  // one warp instruction per SM per cycle, 2 SMs x 8 lanes = 16 lane-ops
+  // (log2 4); a launch loads the program and parameters and starts the
+  // blocks, taken as 128 cycles; one 16-byte line per memory round trip of
+  // about 6 cycles, so about 2-4 bytes per cycle (log2 2); 4 pJ per lane-op
+  // (16 quarter-pJ). 32-bit integers only; element-wise, reduction and
+  // matrix work. Calibration corrects all of it from measured times.
+  localparam logic [EPARAM_W-1:0] DEF_GPU    = {4'd4, 12'd128, 4'd2, 8'd16, 6'b000100, 9'b000001110};
 
   // Note the masks encode real capability limits, and they matter:
   //   TPU accepts INT8 and INT16 only. Handing it FP32 would be a silent
@@ -125,7 +138,7 @@ module mom_param_rom
   //   CPU and SIMD accept everything except POLY_Q, which needs modular
   //     reduction hardware they do not have.
 
-  logic [EPARAM_W-1:0] row [ENG_N];
+  logic [EPARAM_W-1:0] row [NENG];
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -134,7 +147,9 @@ module mom_param_rom
       row[ENG_TPU]    <= DEF_TPU;
       row[ENG_NTT]    <= DEF_NTT;
       row[ENG_CRYPTO] <= DEF_CRYPTO;
-    end else if (wr_en && wr_priv && ({29'd0, wr_engine} < ENG_N)) begin
+      // empty at the tile's five slots; the GPU row on the chip
+      for (int e = int'(ENG_GPU); e < int'(NENG); e++) row[e] <= DEF_GPU;
+    end else if (wr_en && wr_priv && ({29'd0, wr_engine} < NENG)) begin
       row[wr_engine] <= wr_data;
     end
   end
@@ -151,7 +166,7 @@ module mom_param_rom
   // Field order is fixed by eng_param_t in mom_pkg.sv:
   //   [33:30] p_peak_log2  [29:18] t_setup  [17:14] bw_bytes_log2
   //   [13:6]  eps_op       [5:0]   dtype_msk   (see mom_pkg for full layout)
-  for (genvar e = 0; e < ENG_N; e++) begin : g_unpack
+  for (genvar e = 0; e < NENG; e++) begin : g_unpack
     assign params[e] = eng_param_t'(row[e]);
   end
 
@@ -173,7 +188,7 @@ module mom_param_rom
   // ---------------------------------------------------------------------------
   always @(posedge clk) begin
     if (rst_n && $past(rst_n) && $past(wr_en) && !$past(wr_priv)) begin
-      for (int e = 0; e < ENG_N; e++)
+      for (int e = 0; e < NENG; e++)
         assert (row[e] == $past(row[e]));
     end
   end
@@ -181,8 +196,8 @@ module mom_param_rom
   // A privileged write must land, and land only on the addressed row.
   always @(posedge clk) begin
     if (rst_n && $past(rst_n) && $past(wr_en) && $past(wr_priv)
-        && ($past(wr_engine) < 3'(ENG_N))) begin
-      for (int e = 0; e < ENG_N; e++)
+        && ($past(wr_engine) < 3'(NENG))) begin
+      for (int e = 0; e < NENG; e++)
         if (3'(e) != $past(wr_engine))
           assert (row[e] == $past(row[e]));
     end

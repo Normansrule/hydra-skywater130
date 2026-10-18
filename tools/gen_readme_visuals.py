@@ -194,7 +194,7 @@ def connections():
     W, H = 1400, 720
     b = [t(48, 64, "What connects to what", 26, TXT, weight=750),
          t(48, 92, "A job goes in from either host, is costed by the scheduler, runs on the cheapest eligible engine, "
-                   "and its completion recalibrates the model. Dashed: built but not yet connected.", 13.5, TXT2)]
+                   "and its completion recalibrates the model. Six slots on the chip, five on the tile.", 13.5, TXT2)]
 
     def box(x, y, w, h, title, sub, col, state, dashed=False):
         da = ' stroke-dasharray="7 5"' if dashed else ""
@@ -217,7 +217,7 @@ def connections():
                ("TPU", "4×4 INT8 systolic + memory", GREEN, "simulated, P&R", False),
                ("NTT", "Barrett butterflies", GREEN, "simulated", False),
                ("Crypto slot", "latency model", SLATE, "model only", False),
-               ("GPU", "Pixelstorm 2 SM × 4 × 8", PINK, "simulated, synthesized", True)]
+               ("GPU (chip only)", "Pixelstorm 2 SM × 4 × 8", PINK, "scheduled, simulated", False)]
     for i, (n, s, c, st, dash) in enumerate(engines):
         y = 126 + i * 92
         b.append(box(1140, y, 214, 80, n, s, c, st, dash))
@@ -235,9 +235,6 @@ def connections():
         y = 166 + i * 92
         wires.append(f"M1070,498 H1105 V{y} H1140")
     for k, wpath in enumerate(wires):
-        if k == len(wires) - 1:          # the GPU: built, not yet a crossbar slot
-            b.append(f'<path d="{wpath}" fill="none" stroke="{PINK}" stroke-opacity=".6" stroke-width="2" stroke-dasharray="6 6"/>')
-            continue
         b.append(f'<path d="{wpath}" fill="none" stroke="{EDGE}" stroke-width="2.4"/>')
         b.append(f'<path class="flow" d="{wpath}" fill="none" stroke="{BLUE}" stroke-width="2.4" stroke-opacity=".9"/>')
     b.append(t(48, H - 40, "States are the capability matrix's (docs/verification/capability-matrix.md). "
@@ -254,7 +251,7 @@ LEVELS = ["simulated", "synthesized", "placed and routed", "on a board"]
 CAPS = [  # engine, what, {level: make target or None}, note
     ("TPU", "4×4 INT8 systolic array, memory-fed", {"simulated": "dma", "synthesized": "fpga", "placed and routed": "fpga"}, "ecp5-evn-tpu, ecp5-evn-mem"),
     ("Vector", "4 lanes × 32-bit integer", {"simulated": "dma-simd", "synthesized": "fpga", "placed and routed": "fpga"}, "ecp5-evn-two"),
-    ("GPU", "Pixelstorm SIMT, 2 SM × 4 warps × 8 lanes", {"simulated": "gpu", "synthesized": "gpu"}, "62,625 LUT4 on ECP5; not yet a slot"),
+    ("GPU", "Pixelstorm SIMT, 2 SM × 4 warps × 8 lanes", {"simulated": "systile-gpu", "synthesized": "gpu"}, "the chip's sixth scheduler slot; 62,625 LUT4 on ECP5"),
     ("NTT", "Barrett butterflies, 3 moduli", {"simulated": "ntt-moduli"}, "not in an FPGA image yet"),
     ("CPU", "Sixfold RV64IM (separate repository)", {}, "not integrated: needs a load port and done/halt"),
     ("Scheduler", "cost model, calibration, tags", {"simulated": "systile", "synthesized": "fpga", "placed and routed": "fpga"}, "also hardened as the Tiny Tapeout tile"),
@@ -291,7 +288,7 @@ def capabilities():
             else:
                 b.append(f'<rect x="{x}" y="{y+12}" width="{cw-28}" height="{row-34}" rx="8" fill="none" stroke="{EDGE}" stroke-dasharray="5 5"/>')
     b.append(t(48, H - 30, "From docs/verification/capability-matrix.md. 'make fpga' places and routes the ECP5 images; "
-                           "'make gpu' runs 14 real kernels against Pixelstorm's own model.", 12.5, DIM))
+                           "'make systile-gpu' schedules a real GPU kernel on the six-slot chip.", 12.5, DIM))
     write("capabilities.svg", svg(W, H, "Engine capabilities on FPGA",
           "A grid of engines against simulated, synthesized, placed and routed, and on a board. TPU, vector and scheduler "
           "are placed and routed on ECP5; the GPU is simulated and synthesized; NTT simulated; the CPU not integrated; "

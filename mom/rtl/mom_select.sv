@@ -52,6 +52,10 @@
 module mom_select
   import mom_pkg::*;
 #(
+  // Engine slots. ENG_N (5) for the Tiny Tapeout tile; the SkyWater chip
+  // sets 6 to give the GPU a slot (2026-10-18). Every per-engine array and
+  // loop below is sized by this, not by the package constant.
+  parameter int unsigned NENG = ENG_N,
   // The runner-up margin needs a SECOND full comparator tree, measured at
   // roughly 900 cells. It is a diagnostic: it tells software how confident a
   // dispatch decision was, and a near-zero margin across many descriptors
@@ -64,9 +68,9 @@ module mom_select
   // zero.
   parameter bit WANT_MARGIN = 1
 ) (
-  input  wire  [ENG_N-1:0][COST_W-1:0] cost,
-  input  wire  [ENG_N-1:0]             valid,
-  input  wire  [ENG_N-1:0]             capable,
+  input  wire  [NENG-1:0][COST_W-1:0] cost,
+  input  wire  [NENG-1:0]             valid,
+  input  wire  [NENG-1:0]             capable,
 
   output logic [2:0]         sel_engine,
   output logic [COST_W-1:0]  sel_cost,
@@ -113,9 +117,9 @@ module mom_select
   // ---------------------------------------------------------------------------
   localparam int unsigned PW = 1 + COST_W + 3;
 
-  logic [PW-1:0] lane [ENG_N];
+  logic [PW-1:0] lane [NENG];
 
-  for (genvar e = 0; e < ENG_N; e++) begin : g_pack
+  for (genvar e = 0; e < NENG; e++) begin : g_pack
     assign lane[e] = { ~valid[e], cost[e], 3'(e) };
   end
 
@@ -134,11 +138,22 @@ module mom_select
   // Level 1: (0,1) and (2,3), lane 4 passes through
   // Level 2: winners of level 1
   // Level 3: against lane 4
+  // Lanes 5 and up (the chip's GPU slot, NENG = 6) are folded in after lane 4,
+  // one comparator each, so the earlier, lower-index winner keeps ties. With
+  // the tile's five lanes the chain is empty and the tree is the one that was
+  // hardened. (The first NENG version left the tree at five lanes, and the
+  // six-slot bench caught a 16,392-cycle engine beating an 8,320-cycle GPU,
+  // 2026-10-18.)
   // ---------------------------------------------------------------------------
   wire [PW-1:0] l1_a = pick(lane[0], lane[1]);
   wire [PW-1:0] l1_b = pick(lane[2], lane[3]);
   wire [PW-1:0] l2   = pick(l1_a, l1_b);
-  wire [PW-1:0] best = pick(l2, lane[4]);
+  wire [PW-1:0] best_chain [NENG-4];
+  assign best_chain[0] = pick(l2, lane[4]);
+  for (genvar e = 5; e < NENG; e++) begin : g_more
+    assign best_chain[e-4] = pick(best_chain[e-5], lane[e]);
+  end
+  wire [PW-1:0] best = best_chain[NENG-5];
 
   // ---------------------------------------------------------------------------
   // Runner-up. Computed by re-running the tree with the winner masked out.
@@ -149,8 +164,8 @@ module mom_select
   wire [PW-1:0] snd;
 
   if (WANT_MARGIN) begin : g_margin
-    logic [PW-1:0] lane2 [ENG_N];
-    for (genvar e = 0; e < ENG_N; e++) begin : g_pack2
+    logic [PW-1:0] lane2 [NENG];
+    for (genvar e = 0; e < NENG; e++) begin : g_pack2
       // Mask the winner by forcing its invalid bit, which is the reliable way
       // to make a lane lose rather than hoping all-ones cost is unreachable.
       assign lane2[e] = (3'(e) == best[2:0]) ? {1'b1, cost[e], 3'(e)} : lane[e];
@@ -159,7 +174,12 @@ module mom_select
     wire [PW-1:0] m1_a = pick(lane2[0], lane2[1]);
     wire [PW-1:0] m1_b = pick(lane2[2], lane2[3]);
     wire [PW-1:0] m2   = pick(m1_a, m1_b);
-    assign snd = pick(m2, lane2[4]);
+    wire [PW-1:0] snd_chain [NENG-4];
+    assign snd_chain[0] = pick(m2, lane2[4]);
+    for (genvar e = 5; e < NENG; e++) begin : g_more2
+      assign snd_chain[e-4] = pick(snd_chain[e-5], lane2[e]);
+    end
+    assign snd = snd_chain[NENG-5];
   end else begin : g_no_margin
     // Invalid-flagged so the margin computation below yields zero without
     // needing a separate branch there.
@@ -194,14 +214,14 @@ module mom_select
   // specification of the module, checked exhaustively rather than sampled.
   always @(*) begin
     if (any_valid)
-      for (int e = 0; e < ENG_N; e++)
+      for (int e = 0; e < NENG; e++)
         if (valid[e]) assert (sel_cost <= cost[e]);
   end
 
   // Tie-break: no valid engine with a lower index may share the winning cost.
   always @(*) begin
     if (any_valid)
-      for (int e = 0; e < ENG_N; e++)
+      for (int e = 0; e < NENG; e++)
         if (valid[e] && (3'(e) < sel_engine)) assert (cost[e] > sel_cost);
   end
 `endif

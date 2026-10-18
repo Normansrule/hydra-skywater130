@@ -48,6 +48,10 @@
 module mom_top
   import mom_pkg::*;
 #(
+  // Engine slots. ENG_N (5) for the Tiny Tapeout tile; the SkyWater chip
+  // sets 6 to give the GPU a slot (2026-10-18). Every per-engine array and
+  // loop below is sized by this, not by the package constant.
+  parameter int unsigned NENG = ENG_N,
   // ===========================================================================
   // COST_SHARED: one cost engine, walked over the engines, instead of five
   // ===========================================================================
@@ -140,28 +144,28 @@ module mom_top
   // ===========================================================================
   // Parameters, calibration, scoreboard
   // ===========================================================================
-  eng_param_t [ENG_N-1:0] params;
+  eng_param_t [NENG-1:0] params;
 
-  mom_param_rom u_prom (
+  mom_param_rom #(.NENG(NENG)) u_prom (
     .clk(clk), .rst_n(rst_n),
     .wr_en(csr_wr), .wr_priv(csr_priv),
     .wr_engine(csr_engine), .wr_data(csr_data),
     .params(params)
   );
 
-  logic [ENG_N-1:0][7:0] queue_depth;
-  logic [ENG_N-1:0]      engine_full;
+  logic [NENG-1:0][7:0] queue_depth;
+  logic [NENG-1:0]      engine_full;
   logic              cal_valid;
   logic [2:0]        cal_engine;
   opclass_e          cal_opclass;
   logic [COST_W-1:0] cal_t_meas, cal_t_pred;
 
-  // One shared calibration array with ENG_N parallel read ports. See the
+  // One shared calibration array with NENG parallel read ports. See the
   // header of mom_calibrate.sv for why this is not five instances.
-  wire [ENG_N-1:0][7:0] k_cal;
+  wire [NENG-1:0][7:0] k_cal;
   wire                  cal_last_dir;    // observability only
 
-  mom_calibrate u_cal (
+  mom_calibrate #(.NENG(NENG)) u_cal (
     .clk(clk), .rst_n(rst_n),
     .freeze(csr_cal_freeze), .reset_factors(csr_cal_reset),
     .rd_opclass(f_wd.op_class), .rd_k(k_cal),
@@ -175,11 +179,11 @@ module mom_top
   // Stage 2: five cost engines in parallel
   // ===========================================================================
   // Driven by the engines in parallel mode, by lane registers in shared mode.
-  logic [ENG_N-1:0][COST_W-1:0] cost;
-  logic [ENG_N-1:0][COST_W-1:0] t_pred;
-  logic [ENG_N-1:0]             cvalid;
+  logic [NENG-1:0][COST_W-1:0] cost;
+  logic [NENG-1:0][COST_W-1:0] t_pred;
+  logic [NENG-1:0]             cvalid;
 
-  logic [ENG_N-1:0]             ccapable;
+  logic [NENG-1:0]             ccapable;
 
   // Shared-mode sequencer state, declared here so both branches can read it.
   logic                         eval_done;      // costs for all engines ready
@@ -198,7 +202,7 @@ module mom_top
   generate
   if (!COST_SHARED) begin : g_parallel
     // ---- five engines, one cycle, bit-exact with v1 --------------------------
-    for (genvar e = 0; e < ENG_N; e++) begin : g_cost
+    for (genvar e = 0; e < NENG; e++) begin : g_cost
       mom_cost_engine #(.ENGINE_ID(engine_e'(e))) u_ce (
         .clk(clk), .rst_n(rst_n), .adv(a_adv),
         .log2_w(f_lg_w), .bytes_q(f_wd.bytes), .log2_i(f_lg_i),
@@ -228,7 +232,7 @@ module mom_top
     logic [2:0] idx;
     logic       phase;
 
-    wire last = ({29'd0, idx} == ENG_N - 1) && phase;
+    wire last = ({29'd0, idx} == NENG - 1) && phase;
 
     always_ff @(posedge clk or negedge rst_n) begin
       if (!rst_n) begin
@@ -273,8 +277,8 @@ module mom_top
     assign lane_tpred   = s_tpred;
     assign lane_valid   = s_valid;
     assign lane_capable = s_capable;
-    assign cost = {ENG_N*COST_W{1'b0}}; assign t_pred = {ENG_N*COST_W{1'b0}};
-    assign cvalid = {ENG_N{1'b0}}; assign ccapable = {ENG_N{1'b0}};
+    assign cost = {NENG*COST_W{1'b0}}; assign t_pred = {NENG*COST_W{1'b0}};
+    assign cvalid = {NENG{1'b0}}; assign ccapable = {NENG{1'b0}};
   end
   endgenerate
 
@@ -300,9 +304,9 @@ module mom_top
   // are one cycle old; that only shades the estimate, and the scoreboard's
   // own full check is on live state, so a full engine is still refused.
   // ---------------------------------------------------------------------------
-  logic [ENG_N-1:0][COST_W-1:0] cost_q;
-  logic [ENG_N-1:0][COST_W-1:0] t_pred_q;
-  logic [ENG_N-1:0]             cvalid_q, ccapable_q;
+  logic [NENG-1:0][COST_W-1:0] cost_q;
+  logic [NENG-1:0][COST_W-1:0] t_pred_q;
+  logic [NENG-1:0]             cvalid_q, ccapable_q;
   work_desc_t                   c_wd, a_wd;
   logic                         c_valid, a_valid;
   wire                          c_ready;                 // stage 3 drains us
@@ -332,10 +336,10 @@ module mom_top
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
       c_valid    <= 1'b0;
-      cost_q     <= {ENG_N*COST_W{1'b0}};
-      t_pred_q   <= {ENG_N*COST_W{1'b0}};
-      cvalid_q   <= {ENG_N{1'b0}};
-      ccapable_q <= {ENG_N{1'b0}};
+      cost_q     <= {NENG*COST_W{1'b0}};
+      t_pred_q   <= {NENG*COST_W{1'b0}};
+      cvalid_q   <= {NENG{1'b0}};
+      ccapable_q <= {NENG{1'b0}};
       c_wd       <= {WD_W{1'b0}};
     end else if (COST_SHARED) begin
       // One engine per two cycles, written straight into these registers.
@@ -368,7 +372,7 @@ module mom_top
   logic              sel_ok;
   logic              sel_capable;
 
-  mom_select u_sel (
+  mom_select #(.NENG(NENG)) u_sel (
     .cost(cost_q), .valid(cvalid_q), .capable(ccapable_q),
     .sel_engine(sel_eng), .sel_cost(sel_cost),
     .any_valid(sel_ok), .any_capable(sel_capable),
@@ -393,7 +397,7 @@ module mom_top
   // ===========================================================================
   wire sb_ready;
 
-  mom_scoreboard #(.NTAG(NTAG), .QMAX(QMAX)) u_sb (
+  mom_scoreboard #(.NENG(NENG), .NTAG(NTAG), .QMAX(QMAX)) u_sb (
     .clk(clk), .rst_n(rst_n),
     .disp_valid(c_valid && sel_ok && disp_accept),
     .disp_ready(sb_ready),

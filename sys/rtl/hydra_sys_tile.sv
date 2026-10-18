@@ -73,7 +73,15 @@ module hydra_sys_tile
   //   1 PATTERN  the vector unit, operands from a pattern generator
   // Any other value stops elaboration.
   parameter int unsigned TPU_ENGINE  = 0,
-  parameter int unsigned SIMD_ENGINE = 0
+  parameter int unsigned SIMD_ENGINE = 0,
+  // Engine 5, the GPU (only with NENG = 6, the SkyWater chip's count):
+  //   0 MODEL    a latency model
+  //   1 PIXELSTORM  sys/rtl/hydra_engine_gpu.sv, loaded over the memory port:
+  //              bank 3, address [15:14] = 0 its global memory (word [11:0]),
+  //              1 its program (word [9:0]), 2 its kernel parameters ([3:0]),
+  //              3 its launch shape (0 grid, 1 block);
+  //              mem_raddr[15] = 1 reads its global memory back
+  parameter int unsigned GPU_ENGINE  = 0
 ) (
   input  wire [7:0] ui_in,
   output wire [7:0] uo_out,
@@ -110,9 +118,11 @@ module hydra_sys_tile
   localparam bit REAL_TPU     = (TPU_ENGINE == TPU_PATTERN);
   localparam bit TPU_FROM_MEM = (TPU_ENGINE == TPU_MEMORY);
   localparam bit REAL_SIMD    = (SIMD_ENGINE == SIMD_PATTERN);
+  localparam bit REAL_GPU     = (GPU_ENGINE == 1) && (NENG > 5);
   generate   // an unknown personality must not quietly become the model
     if (TPU_ENGINE > TPU_MEMORY)   begin : g_bad_tpu_engine  hydra_sys_tile_unknown_TPU_ENGINE  u_bad (); end
     if (SIMD_ENGINE > SIMD_PATTERN) begin : g_bad_simd_engine hydra_sys_tile_unknown_SIMD_ENGINE u_bad (); end
+    if (GPU_ENGINE > 1 || (GPU_ENGINE == 1 && NENG < 6)) begin : g_bad_gpu_engine hydra_sys_tile_GPU_ENGINE_needs_NENG_6 u_bad (); end
   endgenerate
 
   // ---------------------------------------------------------------------------
@@ -181,7 +191,7 @@ module hydra_sys_tile
   // ---------------------------------------------------------------------------
   // Dispatcher
   // ---------------------------------------------------------------------------
-  mom_top #(.NTAG(NTAG), .QMAX(4)) u_mom (
+  mom_top #(.NENG(NENG), .NTAG(NTAG), .QMAX(4)) u_mom (
     .clk(clk), .rst_n(rst_n),
     .wd_valid(wd_valid), .wd_ready(wd_ready), .wd(work_desc_t'(wd)),
     .disp_valid(disp_valid), .disp_accept(disp_accept),
@@ -239,6 +249,14 @@ module hydra_sys_tile
   wire        memtpu_ready, memtpu_done;
   wire [3:0]  memtpu_done_tag;
   wire [15:0] memtpu_tiles;
+  wire        gpu_ready, gpu_done, gpu_refused;
+  wire [3:0]  gpu_done_tag;
+  wire [31:0] gpu_rdata;
+  wire [31:0] tpu_m_rdata;
+  wire        tpu_m_refused;
+  // the memory port is shared: bank 3 belongs to the GPU when there is one
+  assign mem_rdata   = (REAL_GPU && mem_raddr[15]) ? gpu_rdata : tpu_m_rdata;
+  assign mem_refused = tpu_m_refused | gpu_refused;
 
   generate
     if (TPU_FROM_MEM) begin : g_mem_tpu
@@ -248,17 +266,17 @@ module hydra_sys_tile
         .eng_valid(eng_valid[2]), .eng_ready(memtpu_ready), .eng_wd(eng_wd),
         .eng_tag(eng_tag[2*4 +: 4]),
         .eng_done(memtpu_done), .eng_done_tag(memtpu_done_tag),
-        .ld_we(mem_we), .ld_bank(mem_bank), .ld_addr(mem_addr[9:0]),
-        .ld_data(mem_wdata), .ld_refused(mem_refused),
-        .c_raddr(mem_raddr[9:0]), .c_rdata(mem_rdata),
+        .ld_we(mem_we && !(REAL_GPU && mem_bank == 2'd3)), .ld_bank(mem_bank), .ld_addr(mem_addr[9:0]),
+        .ld_data(mem_wdata), .ld_refused(tpu_m_refused),
+        .c_raddr(mem_raddr[9:0]), .c_rdata(tpu_m_rdata),
         .tiles_done(memtpu_tiles), .job_status());
     end else begin : g_no_mem_tpu
       assign memtpu_ready = 1'b0;
       assign memtpu_done = 1'b0;
       assign memtpu_done_tag = 4'd0;
       assign memtpu_tiles = 16'd0;
-      assign mem_rdata = 32'd0;
-      assign mem_refused = 1'b0;
+      assign tpu_m_rdata = 32'd0;
+      assign tpu_m_refused = 1'b0;
     end
   endgenerate
 
@@ -302,6 +320,30 @@ module hydra_sys_tile
     end
   endgenerate
 
+  // ---- the GPU, when asked for (chip only) ----------------------------------
+  wire        gpu_sel = (mem_bank == 2'd3);
+  generate
+    if (REAL_GPU) begin : g_real_gpu
+      hydra_engine_gpu #(.TAGW(4), .AW(12)) u_gpu (
+        .clk(clk), .rst_n(rst_n),
+        .eng_valid(eng_valid[5]), .eng_ready(gpu_ready), .eng_wd(eng_wd),
+        .eng_tag(eng_tag[5*4 +: 4]),
+        .eng_done(gpu_done), .eng_done_tag(gpu_done_tag), .job_status(),
+        .prog_we(mem_we && gpu_sel && mem_addr[15:14] == 2'd1), .prog_addr(mem_addr[9:0]), .prog_data(mem_wdata),
+        .cons_we(mem_we && gpu_sel && mem_addr[15:14] == 2'd2), .cons_addr(mem_addr[3:0]), .cons_data(mem_wdata),
+        .cfg_we(mem_we && gpu_sel && mem_addr[15:14] == 2'd3), .cfg_addr(mem_addr[0]), .cfg_data(mem_wdata[15:0]),
+        .ld_we(mem_we && gpu_sel && mem_addr[15:14] == 2'd0), .ld_addr(mem_addr[11:0]), .ld_data(mem_wdata),
+        .ld_refused(gpu_refused), .rd_addr(mem_raddr[11:0]), .rd_data(gpu_rdata),
+        .perf_cycles());
+    end else begin : g_no_gpu
+      assign gpu_ready = 1'b0;
+      assign gpu_done = 1'b0;
+      assign gpu_done_tag = 4'd0;
+      assign gpu_refused = 1'b0;
+      assign gpu_rdata = 32'd0;
+    end
+  endgenerate
+
   genvar e;
   generate
     for (e = 0; e < NENG; e++) begin : g_eng
@@ -340,6 +382,10 @@ module hydra_sys_tile
         assign eng_ready_raw[e]       = TPU_FROM_MEM ? memtpu_ready    : REAL_TPU ? tpu_ready    : (cnt == 0);
         assign eng_done[e]            = TPU_FROM_MEM ? memtpu_done     : REAL_TPU ? tpu_done     : done_q;
         assign eng_done_tag[e*4 +: 4] = TPU_FROM_MEM ? memtpu_done_tag : REAL_TPU ? tpu_done_tag : held;
+      end else if (e == 5) begin : g_eng5_sel
+        assign eng_ready_raw[e]       = REAL_GPU ? gpu_ready    : (cnt == 0);
+        assign eng_done[e]            = REAL_GPU ? gpu_done     : done_q;
+        assign eng_done_tag[e*4 +: 4] = REAL_GPU ? gpu_done_tag : held;
       end else begin : g_eng_model
         assign eng_ready_raw[e]       = (cnt == 0);
         assign eng_done[e]            = done_q;

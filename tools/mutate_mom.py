@@ -28,7 +28,7 @@ MUTATIONS = [
      "  wire [COST_W+1:0]    t_cal      = {2'b00, t_cal_wide[COST_W+KCAL_SHIFT-1 -: COST_W]};",
      "cost-cal"),
     ("MODEL-02 out-of-range update index not guarded", "mom/rtl/mom_calibrate.sv",
-     "  wire upd_idx_ok = ({29'd0, upd_engine} < ENG_N) && ({28'd0, upd_opclass} < NOPC);",
+     "  wire upd_idx_ok = ({29'd0, upd_engine} < NENG) && ({28'd0, upd_opclass} < NOPC);",
      "  wire upd_idx_ok = 1'b1;",
      "cost-cal"),
     ("RTL-02 dispatch recorded on valid-and-not-HOLD, not on the crossbar handshake", "sys/rtl/hydra_sys_tile.sv",
@@ -98,6 +98,19 @@ MUTATIONS = [
      "      if (prog_we && eng_ready) prog_loaded <= 1'b1;",
      "      prog_loaded <= 1'b1;",
      "gpu"),
+    # Six slots on the chip (NENG = 6, 2026-10-18).
+    ("SLOT-01 the select tree stops at five lanes and never sees the GPU", "mom/rtl/mom_select.sv",
+     "  wire [PW-1:0] best = best_chain[NENG-5];",
+     "  wire [PW-1:0] best = best_chain[0];",
+     "systile-gpu"),
+    ("SLOT-02 the GPU's parameter row is never loaded", "mom/rtl/mom_param_rom.sv",
+     "      for (int e = int'(ENG_GPU); e < int'(NENG); e++) row[e] <= DEF_GPU;",
+     "      for (int e = int'(ENG_GPU); e < int'(NENG); e++) row[e] <= '0;",
+     "systile-gpu"),
+    ("SLOT-03 engine 5's completion taken from the latency model, not the GPU", "sys/rtl/hydra_sys_tile.sv",
+     "        assign eng_done[e]            = REAL_GPU ? gpu_done     : done_q;",
+     "        assign eng_done[e]            = done_q;",
+     "systile-gpu"),
 ]
 
 

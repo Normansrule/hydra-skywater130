@@ -18,14 +18,14 @@ RTL = ROOT / "mom/rtl/mom_top.sv"
 
 MUTATIONS = [
     ("last engine never evaluated",
-     "    wire last = (idx == 3'(ENG_N - 1)) && phase;",
-     "    wire last = (idx == 3'(ENG_N - 2)) && phase;"),
+     "    wire last = ({29'd0, idx} == NENG - 1) && phase;",
+     "    wire last = ({29'd0, idx} == NENG - 2) && phase;"),
     ("results captured a cycle early, before stage B settles",
      "    assign lane_we      = eval_busy && phase;",
      "    assign lane_we      = eval_busy && !phase;"),
     ("calibration factor taken from the next engine's row",
      "      .param(params[idx]), .k_cal(k_cal[idx]),",
-     "      .param(params[idx]), .k_cal(k_cal[(idx + 1) % ENG_N]),"),
+     "      .param(params[idx]), .k_cal(k_cal[(idx + 1) % NENG]),"),
     ("result written to the wrong lane",
      "    assign lane_idx     = idx;",
      "    assign lane_idx     = (idx == 3'd0) ? 3'd1 : idx;"),
@@ -62,21 +62,27 @@ def main():
     print(f"baseline green: {len(base_s)} identical decision lines\n")
 
     orig = RTL.read_text()
-    killed = survived = 0
+    killed = survived = stale = 0
     for name, old, new in MUTATIONS:
+        # A missing anchor used to be skipped quietly, so the first and third
+        # breaks had not been applied since the lint cleanup changed their
+        # lines (found 2026-10-18). A stale anchor is now a failure.
         if orig.count(old) != 1:
-            print(f"SKIP  {name}: anchor not unique ({orig.count(old)})")
+            print(f"STALE {name}: anchor matches {orig.count(old)} times")
+            stale += 1
             continue
         RTL.write_text(orig.replace(old, new))
         try:
             caught = trace("shared") != base_p
         finally:
             RTL.write_text(orig)
-        print(("KILL  " if caught else "ALIVE ") + name)
+        known_equivalent = "(equivalent" in name
+        print(("KILL  " if caught else "ALIVE ") + name
+              + ("  [known equivalent, see its comment]" if known_equivalent and not caught else ""))
         killed += caught
-        survived += not caught
-    print(f"\n{killed} killed, {survived} survived")
-    sys.exit(1 if survived else 0)
+        survived += (not caught) and not known_equivalent
+    print(f"\n{killed} killed, {survived} survived unexpectedly, {stale} stale")
+    sys.exit(1 if survived or stale else 0)
 
 
 if __name__ == "__main__":

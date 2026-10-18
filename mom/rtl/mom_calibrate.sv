@@ -99,6 +99,10 @@
 module mom_calibrate
   import mom_pkg::*;
 #(
+  // Engine slots. ENG_N (5) for the Tiny Tapeout tile; the SkyWater chip
+  // sets 6 to give the GPU a slot (2026-10-18). Every per-engine array and
+  // loop below is sized by this, not by the package constant.
+  parameter int unsigned NENG = ENG_N,
   // EWMA-equivalent shift. Larger = slower, smoother adaptation.
   //   alpha=3  12.5% per update, ~6 updates to correct 2x
   //   alpha=4   6.25%            ~12 updates      (default)
@@ -125,7 +129,7 @@ module mom_calibrate
   // were frozen, so four of the five held stale unity factors and the
   // calibration loop silently did nothing for four engines out of five.
   input  wire  opclass_e            rd_opclass,
-  output wire  [ENG_N-1:0][7:0]     rd_k,
+  output wire  [NENG-1:0][7:0]     rd_k,
 
   // ---- update port, one completion per cycle at most -----------------------
   input  wire                upd_valid,
@@ -141,7 +145,7 @@ module mom_calibrate
 
   localparam int unsigned NOPC = 9;   // opclass_e cardinality
 
-  logic [7:0] k [ENG_N][NOPC];
+  logic [7:0] k [NENG][NOPC];
 
   // ---------------------------------------------------------------------------
   // Read port. Guarded so an out-of-range index returns unity rather than X,
@@ -150,7 +154,7 @@ module mom_calibrate
   // Guarded so an out-of-range op class returns unity rather than X. This
   // feeds a multiplier in the cost engine, and an X there would propagate into
   // the comparison tree and make the dispatch decision nondeterministic.
-  for (genvar e = 0; e < ENG_N; e++) begin : g_rd
+  for (genvar e = 0; e < NENG; e++) begin : g_rd
     assign rd_k[e] = ({28'd0, rd_opclass} < NOPC) ? k[e][rd_opclass]
                                                      : KCAL_UNITY;
   end
@@ -165,7 +169,7 @@ module mom_calibrate
   // An index outside the table updates nothing and is not counted. Without
   // this guard the write landed on ANOTHER entry once the array was
   // flattened (k[7][0] changed k[1][6] in simulation): MODEL-02.
-  wire upd_idx_ok = ({29'd0, upd_engine} < ENG_N) && ({28'd0, upd_opclass} < NOPC);
+  wire upd_idx_ok = ({29'd0, upd_engine} < NENG) && ({28'd0, upd_opclass} < NOPC);
   wire [7:0] k_cur = upd_idx_ok ? k[upd_engine][upd_opclass] : KCAL_UNITY;
 
   // Compared at full width (SkyWater 130 audit MODEL-02, 2026-10-11). This
@@ -221,13 +225,13 @@ module mom_calibrate
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-      for (int e = 0; e < ENG_N; e++)
+      for (int e = 0; e < NENG; e++)
         for (int c = 0; c < NOPC; c++)
           k[e][c] <= KCAL_UNITY;
       upd_count <= 16'd0;
       last_dir  <= 1'b0;
     end else if (reset_factors) begin
-      for (int e = 0; e < ENG_N; e++)
+      for (int e = 0; e < NENG; e++)
         for (int c = 0; c < NOPC; c++)
           k[e][c] <= KCAL_UNITY;
       upd_count <= 16'd0;
@@ -297,7 +301,7 @@ module mom_calibrate
   // one cannot be proved by induction alone.
   always @(*) begin
     if (rst_n)
-      for (int e = 0; e < ENG_N; e++)
+      for (int e = 0; e < NENG; e++)
         for (int c = 0; c < NOPC; c++)
           assert (k[e][c] >= K_MIN && k[e][c] <= K_MAX);
   end
@@ -305,7 +309,7 @@ module mom_calibrate
   // freeze must mean freeze.
   always @(posedge clk) begin
     if (rst_n && $past(rst_n) && $past(freeze) && !$past(reset_factors))
-      for (int e = 0; e < ENG_N; e++)
+      for (int e = 0; e < NENG; e++)
         for (int c = 0; c < NOPC; c++)
           assert (k[e][c] == $past(k[e][c]));
   end

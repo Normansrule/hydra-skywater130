@@ -87,11 +87,11 @@ Next (specified in `docs/architecture/heterogeneous-system.md`, not built):
   exit, any `FAIL` line, or a missing `PASS` line.
 - Testbenches compare against **independent Python models** (e.g.
   `cost-cal`: 41,076 products within 1/256 of exact).
-- Formal proofs with SymbiYosys (`make verify` runs 20 proof tasks and 5
+- Formal proofs with SymbiYosys (`make verify` runs 22 proof tasks and 5
   covers; counted from the Makefile, not from `.sby` files).
 - **Mutation testing**: every named deliberate break must be caught —
   `tt/tile/test/mutate_sim.py` (17/17), `mem/formal/mutate_dma.py` (26/26),
-  `tools/mutate_mom.py` (19/19: 8 dispatcher, 4 bridge host-path, 7 GPU), `common/formal/mutate_targets.py`, and
+  `tools/mutate_mom.py` (22/22: 8 dispatcher, 4 bridge host-path, 7 GPU, 3 six-slot), `common/formal/mutate_targets.py`, and
   `scripts/ci_selftest.sh` (22 runs). When code changes, update the anchors;
   never delete a mutation to get green.
 - `make lint`: Verilator `-Wall` with LibreLane's settings, **0 warnings** on

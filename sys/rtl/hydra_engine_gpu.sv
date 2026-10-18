@@ -19,7 +19,7 @@
  *                                        global write is in the bank
  *   ld_*                                 the host fills the bank between jobs
  *   rd_*                                 the host reads results back
- *   prog_*, cons_*                       the host loads the kernel
+ *   prog_*, cons_*, cfg_*                the host loads the kernel and its launch shape
  *
  * It is the engine, not the dispatcher slot. Giving it a sixth slot in the
  * cost model (ENG_N = 6, ABI version 2) is a separate change; see
@@ -28,11 +28,13 @@
  * ===========================================================================
  * THE JOB
  * ===========================================================================
- * Descriptor fields used (the version-1 layout, mom/rtl/mom_pkg.sv):
- *   m [116:101]  grid  -- blocks to launch
- *   n [100:85]   block -- threads per block
- * The program and the kernel parameters are loaded beforehand through
- * prog_* and cons_*; the parameters carry the buffer addresses, exactly as
+ * The descriptor says how much work there is, for the scheduler's cost
+ * model; it does not say how to launch it. The program, the kernel
+ * parameters and the launch shape (cfg address 0: grid, blocks to launch;
+ * 1: block, threads per block) are loaded beforehand through prog_*, cons_*
+ * and cfg_*. (The first version took grid and block from the descriptor's
+ * M and N; that tied the cost model's view of the work to one kernel's
+ * thread layout, 2026-10-18.) The parameters carry the buffer addresses, as
  * CUDA kernel arguments do.
  *
  * REFUSED, before anything is launched (job_status = ST_REFUSED):
@@ -90,6 +92,9 @@ module hydra_engine_gpu #(
   input  wire                 cons_we,
   input  wire [CONST_AW-1:0]  cons_addr,
   input  wire [31:0]          cons_data,
+  input  wire                 cfg_we,          // launch shape, between jobs
+  input  wire                 cfg_addr,        // 0 grid, 1 block
+  input  wire [15:0]          cfg_data,
 
   // ---- bank load and readback (between jobs) --------------------------------
   input  wire              ld_we,
@@ -105,8 +110,7 @@ module hydra_engine_gpu #(
   localparam int unsigned LW = 4;          // Pixelstorm LINE_WORDS
 
   // ---- job acceptance --------------------------------------------------------
-  wire [15:0] wd_grid  = eng_wd[116:101];
-  wire [15:0] wd_block = eng_wd[100:85];
+  logic [15:0] wd_grid, wd_block;            // the loaded launch shape
 
   typedef enum logic [2:0] { E_IDLE, E_LAUNCH, E_RUN, E_DRAIN, E_DONE } est_e;
   est_e est;
@@ -245,12 +249,16 @@ module hydra_engine_gpu #(
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
       est <= E_IDLE; prog_loaded <= 1'b0; tag_q <= '0; range_err <= 1'b0;
+      wd_grid <= '0; wd_block <= '0;
       gpu_launch <= 1'b0; grid_q <= '0; block_q <= '0;
       eng_done <= 1'b0; eng_done_tag <= '0; job_status <= ST_OK; perf_cycles <= '0;
     end else begin
       gpu_launch <= 1'b0;
       eng_done   <= 1'b0;
       if (prog_we && eng_ready) prog_loaded <= 1'b1;
+      if (cfg_we && eng_ready) begin
+        if (cfg_addr) wd_block <= cfg_data; else wd_grid <= cfg_data;
+      end
       if (m_req_valid && mst == M_IDLE &&
           !((m_req_op == 2'd2) ? word_ok : line_ok)) range_err <= 1'b1;
 
@@ -281,7 +289,7 @@ module hydra_engine_gpu #(
     end
   end
 
-  wire _unused = &{gpu_running, eng_wd[127:117], eng_wd[84:0], 1'b0};
+  wire _unused = &{gpu_running, eng_wd, 1'b0};
 endmodule
 
 `default_nettype wire

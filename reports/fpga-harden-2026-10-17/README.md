@@ -23,3 +23,5 @@ clean, then tile-gl 21/21. The v3.4 numbers in docs/timing.json come from
 
 v3.6 (rung realbuf2) signed off clean: `harden-ladder-20261017-223414-v3.6.log.gz`, `harden-ladder-20261017-223414-v3.6-checks.out`.
 GPU engine synthesized for ECP5 with yosys 0.52 (synth_ecp5): `gpu-ecp5-yosys-stat.txt`.
+
+v3.7 (same settings, netlist regenerated after the engine-count change): `harden-ladder-20261018-105631-v3.7.log.gz`, `harden-ladder-20261018-105631-v3.7-checks.out`. Its netlist is proved equivalent to v3.6's: `tile-netlist-equivalence-neng.log.gz` (7,060 of 7,060 equivalence cells proven).
