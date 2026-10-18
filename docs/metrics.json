@@ -355,6 +355,18 @@
       "result": "8 cases",
       "kind": "simulation",
       "target": "systile-abi"
+    },
+    {
+      "what": "Sixfold CPU in its HYDRA wrapper: every program vs Sixfold's cycle-exact model",
+      "result": "24 programs",
+      "kind": "simulation",
+      "target": "cpu"
+    },
+    {
+      "what": "CPU, GPU and TPU slots: a real program scheduled to the CPU through ABI v2",
+      "result": "4 cases",
+      "kind": "simulation",
+      "target": "systile-cpu"
     }
   ],
   "pending": [

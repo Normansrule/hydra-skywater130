@@ -4,3 +4,6 @@
 [submodule "ext/pixelstorm-gpu"]
 	path = ext/pixelstorm-gpu
 	url = https://github.com/Normansrule/pixelstorm-gpu.git
+[submodule "ext/sixfold-cpu"]
+	path = ext/sixfold-cpu
+	url = https://github.com/Normansrule/sixfold-cpu.git

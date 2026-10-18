@@ -213,11 +213,12 @@ def connections():
     b.append(box(320, 210, 200, 120, "Bridge", "one command set,", BLUE, "simulated, P&R"))
     b.append(t(334, 274, "two independent hosts", 12, TXT2))
     b.append(box(580, 210, 200, 120, "SPI register map", "descriptor, GO, results", BLUE, "hardened (tile)"))
-    b.append(box(840, 150, 230, 240, "Scheduler (MOM)", "features → cost engine", BLUE, "hardened (tile v3.6)"))
+    tver = json.loads((ROOT / "docs/timing.json").read_text())["runs"][-1].get("version", "")
+    b.append(box(840, 150, 230, 240, "Scheduler (MOM)", "features → cost engine", BLUE, f"hardened (tile {tver})"))
     for i, s in enumerate(["roofline cost per engine", "eligibility before cost", "pick the cheapest", "calibrate on completion"]):
         b.append(t(856, 222 + i * 26, "• " + s, 12.5, TXT))
     b.append(box(840, 450, 230, 96, "Crossbar", "dispatch and completion", BLUE, "simulated, proved"))
-    engines = [("CPU slot", "latency model; Sixfold not yet", SLATE, "model only", False),
+    engines = [("CPU (chip only)", "Sixfold RV64, 6 stages", PINK, "scheduled, simulated", False),
                ("Vector unit", "4 lanes × 32-bit", GREEN, "simulated, P&R", False),
                ("TPU", "4×4 INT8 systolic + memory", GREEN, "simulated, P&R", False),
                ("NTT", "Barrett butterflies", GREEN, "simulated", False),
@@ -258,7 +259,7 @@ CAPS = [  # engine, what, {level: make target or None}, note
     ("Vector", "4 lanes × 32-bit integer", {"simulated": "dma-simd", "synthesized": "fpga", "placed and routed": "fpga"}, "ecp5-evn-two"),
     ("GPU", "Pixelstorm SIMT, 2 SM × 4 warps × 8 lanes", {"simulated": "systile-gpu", "synthesized": "gpu"}, "the chip's sixth scheduler slot; 62,625 LUT4 on ECP5"),
     ("NTT", "Barrett butterflies, 3 moduli", {"simulated": "ntt-moduli"}, "not in an FPGA image yet"),
-    ("CPU", "Sixfold RV64IM (separate repository)", {}, "not integrated: needs a load port and done/halt"),
+    ("CPU", "Sixfold RV64IM + Zba/Zbb/Zbs + Zknh", {"simulated": "systile-cpu"}, "the chip's CPU slot; 24 programs cycle-exact against Sixfold's model"),
     ("Scheduler", "cost model, calibration, tags", {"simulated": "systile", "synthesized": "fpga", "placed and routed": "fpga"}, "also hardened as the Tiny Tapeout tile"),
 ]
 
@@ -323,8 +324,9 @@ def milestones():
             ("scheduler, pad multiplexer, SPI through the pads", DONE, "sky130"),
             ("GPU as the sixth scheduler slot", DONE, "systile-gpu"),
             ("ABI version 2: modes, policy, contexts", DONE, "systile-abi"),
-            ("Sixfold RV64 CPU behind ABI version 2", PLAN, "needs a load port and done/halt"),
-            ("harden the OpenFrame chip", BLOCK, "waits for engines in the chip top"),
+            ("Sixfold RV64 CPU on the CPU slot", DONE, "systile-cpu"),
+            ("CPU, GPU and TPU in the OpenFrame top", PLAN, "they run in the system tile; the pad top has the scheduler"),
+            ("harden the OpenFrame chip", BLOCK, "the CPU memory must become SRAM macros first"),
         ]),
         ("FPGA", [
             ("ECP5 images placed and routed, timing met", DONE, "fpga"),

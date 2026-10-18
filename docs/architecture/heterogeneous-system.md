@@ -89,6 +89,11 @@ admits only (PUBLIC_DEBUG, AUTO) and refuses everything else.
 3. CPU. Add a program and data load port and a done/halt handshake. Required
    evidence: a real program's results checked against Sixfold's model (the
    108 regression runs), with completion after the last store is visible.
+   **Done in simulation, 2026-10-18** (`sys/rtl/hydra_engine_cpu.sv`, Sixfold
+   unchanged): all 24 programs match the model's registers, TOHOST and cycle
+   count (`make cpu`), and the CPU is the chip's slot 0 behind ABI version 2
+   (`make systile-cpu`). Its 64 KiB same-cycle memory is a simulation
+   arrangement; synthesis needs SRAM and Sixfold's caches.
 4. Synthesise CPU + GPU + TPU + scheduler + bridge for the target board
    before claiming fit. ECP5-85F LUT4 counts are not comparable with AMD
    LUT6 counts.

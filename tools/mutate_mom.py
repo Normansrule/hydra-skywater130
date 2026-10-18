@@ -132,6 +132,27 @@ MUTATIONS = [
      "        S_SEND: if (out_ready) begin out_valid <= 1'b0; st <= S_WAIT; end",
      "        S_SEND: if (out_ready) begin out_valid <= 1'b0; st <= S_IDLE; end",
      "abi-v2"),
+    # The Sixfold CPU wrapper (2026-10-18).
+    ("CPU-01 done reported on the first cycle, not when the core halts", "sys/rtl/hydra_engine_cpu.sv",
+     "          if (HALTED) begin",
+     "          if (1'b1) begin",
+     "cpu-quick"),
+    ("CPU-02 a host memory write accepted while the core runs", "sys/rtl/hydra_engine_cpu.sv",
+     "  wire host_owns  = eng_ready && !accept;",
+     "  wire host_owns  = 1'b1;",
+     "cpu-quick"),
+    ("CPU-03 a launch with no program loaded is run", "sys/rtl/hydra_engine_cpu.sv",
+     "  wire malformed = !loaded || (entry[1:0] != 2'd0) || (entry >= MEM_BYTES);",
+     "  wire malformed = (entry[1:0] != 2'd0) || (entry >= MEM_BYTES);",
+     "cpu-quick"),
+    ("CPU-04 the cycle limit is never enforced", "sys/rtl/hydra_engine_cpu.sv",
+     "          end else if (count + 32'd1 >= limit) begin",
+     "          end else if (1'b0) begin",
+     "cpu-quick"),
+    ("CPU-05 engine 0's completion taken from the latency model, not the CPU", "sys/rtl/hydra_sys_tile.sv",
+     "        assign eng_done[e]            = REAL_CPU ? cpu_done     : done_q;",
+     "        assign eng_done[e]            = done_q;",
+     "systile-cpu"),
 ]
 
 

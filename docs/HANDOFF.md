@@ -91,7 +91,7 @@ Next (specified in `docs/architecture/heterogeneous-system.md`, not built):
   covers; counted from the Makefile, not from `.sby` files).
 - **Mutation testing**: every named deliberate break must be caught —
   `tt/tile/test/mutate_sim.py` (17/17), `mem/formal/mutate_dma.py` (26/26),
-  `tools/mutate_mom.py` (27/27: 8 dispatcher, 4 bridge host-path, 7 GPU, 3 six-slot, 5 ABI v2), `common/formal/mutate_targets.py`, and
+  `tools/mutate_mom.py` (32/32: 8 dispatcher, 4 bridge host-path, 7 GPU, 3 six-slot, 5 ABI v2, 5 CPU), `common/formal/mutate_targets.py`, and
   `scripts/ci_selftest.sh` (22 runs). When code changes, update the anchors;
   never delete a mutation to get green.
 - `make lint`: Verilator `-Wall` with LibreLane's settings, **0 warnings** on
@@ -230,3 +230,9 @@ Next (specified in `docs/architecture/heterogeneous-system.md`, not built):
   placement (775 on v3.6, 1,333 on v3.7, 1,164 on v3.8) for the same logic.
 - Commands to test and publish: `docs/PUBLISH_AND_TEST.md`. Next: the
   Sixfold CPU behind ABI version 2, slew to zero, board runs.
+- Sixfold CPU (submodule `ext/sixfold-cpu` @ a642bd6, unchanged) in
+  `sys/rtl/hydra_engine_cpu.sv`: load port, done on HALTED, cycle limit,
+  refusals. All 24 programs match the model's registers, TOHOST and cycle
+  count (`make cpu`, slow; `make cpu-quick` in verify). The chip's slot 0
+  (`CPU_ENGINE = 1`): `make systile-cpu`. Its 64 KiB same-cycle memory is a
+  simulation arrangement: SRAM and Sixfold's caches come before synthesis.

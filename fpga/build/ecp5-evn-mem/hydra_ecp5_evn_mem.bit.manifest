@@ -1,7 +1,7 @@
-image   96e2f503eda331cf4ef3a2fec96d410883bbfd3477d87af18ff3a765f8149756  hydra_ecp5_evn_mem.bit
-srchash 5f72612e6e6a36af
+image   ee1d7c39df2de235d9347184fec95595054390ea2cb9f878de10ce93cf11ec03  hydra_ecp5_evn_mem.bit
+srchash 7be6c02f01ba9d08
 tools   sv2v v0.0.13 Yosys 0.52 (git sha1 fee39a3284c90249e1d9684cf6944ffbbcbb8f90) nextpnr-ecp5 -- Next Generation Place and Route (Version 0.9-3) 
-built   2026-10-18T21:31:30Z
+built   2026-10-18T22:59:13Z
 seed    1
 3a571bd7a18cbb62b971b91d7c8a4c455d8f2e364ceb3fe8187896be95c8b193  ../../../mom/rtl/mom_pkg.sv
 0aaef5206af26e1aef10c82394e743094cc490799a01b3000773403e69857ba3  ../../../mom/rtl/mom_features.sv
@@ -28,7 +28,7 @@ c968d823a517a5fe3ebf295f66715ed1c315490a8c4c0286baa774fb5086854b  ../../../mem/r
 4cd639c6180f4721062e49a4172a15e460c43313bd189a5d7b7d8c45413e061d  ../../../mem/rtl/hydra_dma_gemm.sv
 fa4fd3239256c8b630a59ed7e44297b949d72f70ae694da4e6d429ea40c57112  ../../../sys/rtl/hydra_engine_tpu.sv
 7a0031117021ba6ccc10d40a77968af95bf24e013fe39a040f4ae66b2d87de0b  ../../../sys/rtl/hydra_engine_tpu_dma.sv
-7596d98387d3a620c55911bc244980ff134bb034f9de6592e7c1e860feb38300  ../../../sys/rtl/hydra_sys_tile.sv
+d1ea6af40cc0dfc302c3dc15c1b4f1d62b6d66fe5917d0e14a523e0429a30640  ../../../sys/rtl/hydra_sys_tile.sv
 a6c47e7440da050800e21ce8463c66a87abbc1170b174b19ea1840d71dd4e471  ../../../fpga/rtl/hydra_fpga_bridge.sv
 6798beb0dff0862b04ae406e5dfaca401458fb5ccfcb2d962dd3d8e0877cd2b3  ../../../fpga/rtl/hydra_fpga_mem_harness.sv
 cfe0610e3b3eab2fa52db8674ecbe03923cec9f180b86935c493a7e2f822f64a  ../../../common/rtl/hydra_rst_sync.sv

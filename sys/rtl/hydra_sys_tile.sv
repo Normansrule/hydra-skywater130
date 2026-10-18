@@ -90,7 +90,17 @@ module hydra_sys_tile
   //      epoch[15:0]}, 5 the healthy-engine mask. mem_raddr[15:14] = 3
   //      reads {refusals[15:0], 8'b0, last refusal code[3:0]}. A refusal
   //      also reaches the host as the register map's error with the tag.
-  parameter int unsigned ABI_V2      = 0
+  parameter int unsigned ABI_V2      = 0,
+  // Engine 0, the CPU slot (chip only):
+  //   0 MODEL    a latency model (the tile's CPU slot is always this)
+  //   1 SIXFOLD  sys/rtl/hydra_engine_cpu.sv, the Sixfold RV64 core. Loaded
+  //              through the control space (bank 3, [15:14] = 3): offset 6
+  //              memory word address, 7 write the word there and step the
+  //              address, 8 entry address, 9 cycle limit, 10 register to read
+  //              back. mem_raddr[15:14] = 3 with offset 1 reads the memory
+  //              word at the address register, 2 the selected register's low
+  //              32 bits, 3 its high 32 bits, 4 {status, TOHOST[29:0]}
+  parameter int unsigned CPU_ENGINE  = 0
 ) (
   input  wire [7:0] ui_in,
   output wire [7:0] uo_out,
@@ -249,6 +259,50 @@ module hydra_sys_tile
   end
   wire [31:0] abi_status = {abi_refusals, 12'd0, abi_last_code};
 
+  // ---- CPU slot controls ---------------------------------------------------
+  localparam bit REAL_CPU = (CPU_ENGINE == 1);
+  logic [13:0] cpu_addr_q;
+  logic [4:0]  cpu_reg_q;
+  wire         cpu_wr = ctl_sel && mem_addr[3:0] == 4'd7;
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin cpu_addr_q <= '0; cpu_reg_q <= '0; end
+    else begin
+      if (ctl_sel && mem_addr[3:0] == 4'd6) cpu_addr_q <= mem_wdata[13:0];
+      else if (cpu_wr)                       cpu_addr_q <= cpu_addr_q + 14'd1;
+      if (ctl_sel && mem_addr[3:0] == 4'd10) cpu_reg_q <= mem_wdata[4:0];
+    end
+  end
+  wire        cpu_ready, cpu_done;
+  wire [3:0]  cpu_done_tag;
+  wire [1:0]  cpu_status;
+  wire [63:0] cpu_tohost, cpu_dbg;
+  wire [31:0] cpu_rdata;
+  generate
+    if (REAL_CPU) begin : g_real_cpu
+      hydra_engine_cpu #(.TAGW(4)) u_cpu (
+        .clk(clk), .rst_n(rst_n),
+        .eng_valid(eng_valid[0]), .eng_ready(cpu_ready), .eng_wd(eng_wd), .eng_tag(eng_tag[3:0]),
+        .eng_done(cpu_done), .eng_done_tag(cpu_done_tag), .job_status(cpu_status), .tohost(cpu_tohost),
+        .ld_we(cpu_wr), .ld_addr(cpu_addr_q), .ld_data(mem_wdata), .ld_refused(),
+        .rd_addr(cpu_addr_q), .rd_data(cpu_rdata), .dbg_reg(cpu_reg_q), .dbg_data(cpu_dbg),
+        .cfg_we(ctl_sel && (mem_addr[3:0] == 4'd8 || mem_addr[3:0] == 4'd9)), .cfg_addr(mem_addr[0]),
+        .cfg_data(mem_wdata), .perf_cycles());
+    end else begin : g_no_cpu
+      assign cpu_ready = 1'b0; assign cpu_done = 1'b0; assign cpu_done_tag = 4'd0;
+      assign cpu_status = 2'd0; assign cpu_tohost = '0; assign cpu_dbg = '0; assign cpu_rdata = '0;
+    end
+  endgenerate
+  logic [31:0] ctl_rdata;
+  always_comb begin
+    unique case (mem_raddr[3:0])
+      4'd1:    ctl_rdata = cpu_rdata;
+      4'd2:    ctl_rdata = cpu_dbg[31:0];
+      4'd3:    ctl_rdata = cpu_dbg[63:32];
+      4'd4:    ctl_rdata = {cpu_status, cpu_tohost[29:0]};
+      default: ctl_rdata = abi_status;
+    endcase
+  end
+
   generate
     if (ABI_V2 != 0) begin : g_abi_v2
       hydra_abi_v2 #(.NENG(NENG), .NCTX(16)) u_abi (
@@ -320,7 +374,7 @@ module hydra_sys_tile
   wire [31:0] tpu_m_rdata;
   wire        tpu_m_refused;
   // the memory port is shared: bank 3 belongs to the GPU when there is one
-  assign mem_rdata   = (ABI_V2 != 0 && mem_raddr[15:14] == 2'd3) ? abi_status
+  assign mem_rdata   = (mem_raddr[15:14] == 2'd3) ? ctl_rdata
                      : (REAL_GPU && mem_raddr[15:14] == 2'd2) ? gpu_rdata : tpu_m_rdata;
   assign mem_refused = tpu_m_refused | gpu_refused;
 
@@ -441,7 +495,11 @@ module hydra_sys_tile
 
       // Each engine's handshake comes from its one personality, all three
       // signals from the same source.
-      if (e == 1) begin : g_eng1_sel
+      if (e == 0) begin : g_eng0_sel
+        assign eng_ready_raw[e]       = REAL_CPU ? cpu_ready    : (cnt == 0);
+        assign eng_done[e]            = REAL_CPU ? cpu_done     : done_q;
+        assign eng_done_tag[e*4 +: 4] = REAL_CPU ? cpu_done_tag : held;
+      end else if (e == 1) begin : g_eng1_sel
         assign eng_ready_raw[e]       = REAL_SIMD ? simd_ready    : (cnt == 0);
         assign eng_done[e]            = REAL_SIMD ? simd_done     : done_q;
         assign eng_done_tag[e*4 +: 4] = REAL_SIMD ? simd_done_tag : held;

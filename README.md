@@ -19,8 +19,8 @@ engineering records. **What runs depends on the build you choose.**
 
 > **Development status.** This is not yet a complete or board-qualified
 > CPU/GPU/TPU system. No image has been run on a physical board. The public
-> ULX3S build is the scheduler and its serial bridge. On the chip side the GPU
-> is the scheduler's sixth slot, in simulation only; no CPU is integrated. Fully homomorphic encryption (FHE) and sequestered execution
+> ULX3S build is the scheduler and its serial bridge. On the chip side the CPU,
+> GPU and TPU are scheduler slots behind ABI version 2, in simulation only. Fully homomorphic encryption (FHE) and sequestered execution
 > (SE) are written specifications, and the host driver refuses jobs that ask
 > for them. The separate Tiny Tapeout chip is the scheduler alone.
 
@@ -47,7 +47,7 @@ proves it, and the tile's numbers come from `docs/timing.json`. Commands to test
 | Security IP | key vault, mailbox, SHA-256, measurement register, security instructions | simulated and proved **as separate blocks**; not integrated into any build | `make keyvault sha256-stream pcr xsec` |
 | GPU engine | Pixelstorm (single-instruction, multiple-thread, SIMT), 2 multiprocessors × 4 warps × 8 lanes, on a HYDRA scratchpad bank | simulated: 14 real kernels leave the bank exactly as Pixelstorm's own model does; malformed launches refused; synthesized for ECP5. The **chip's sixth scheduler slot**: an INT32 matrix multiply is costed and sent to it, INT8 kept off it | `make gpu`, `make systile-gpu` |
 | ABI version 2 | a 64-bit header in front of each descriptor: security mode, engine policy (AUTO or a forced engine), context and epoch | simulated on the chip, against an independent model and end to end: eligibility applied before cost, forced engines honoured, FHE/SE and stale contexts refused with no fallback; proved | `make abi-v2 systile-abi` |
-| CPU | Sixfold (64-bit RISC-V) | separate repository; **not integrated** | [plan](docs/architecture/heterogeneous-system.md) |
+| CPU | Sixfold (64-bit RISC-V, 6 stages), in a HYDRA wrapper with a load port and a done/halt handshake | simulated: all 24 Sixfold programs give the registers, TOHOST value and cycle count of Sixfold's own model; the chip's CPU slot, chosen for scalar work and kept off the GPU. **Not synthesized** (its 64 KiB memory must become SRAM) | `make cpu`, `make systile-cpu` |
 | FHE, SE, mode switching | specifications only | **UNSUPPORTED** in every build | [FHE](docs/security/fhe-profile.md), [SE](docs/security/se-contract.md), [transition](docs/security/mode-transition.md) |
 
 Each of these levels is defined in the

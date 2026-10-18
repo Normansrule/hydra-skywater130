@@ -29,7 +29,7 @@ provenance:                   ## which board bitstreams were built from the curr
 	@for d in fpga/build/*/; do grep -q '^provenance:' $$d/Makefile 2>/dev/null || continue; \
 	  $(MAKE) -s --no-print-directory -C $$d provenance 2>/dev/null || true; done
 
-verify: site-check readme-check tt-ready rst-sync-copy tile-shared lint basys3-selftest check-tile cost-mux cost-cal keyvault mailbox sha256 sha256-stream measure pcr selftest xsec jtag jtag-bridge padmux xbar xbar-bound tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-mem systile-two tile diff harness jtag-harness gpu systile-gpu select-proof abi-v2 systile-abi sky130 tools boards bind uart-baud isa-check
+verify: check-deps site-check readme-check tt-ready rst-sync-copy tile-shared lint basys3-selftest check-tile cost-mux cost-cal keyvault mailbox sha256 sha256-stream measure pcr selftest xsec jtag jtag-bridge padmux xbar xbar-bound tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-mem systile-two tile diff harness jtag-harness gpu systile-gpu select-proof abi-v2 systile-abi cpu-quick systile-cpu sky130 tools boards bind uart-baud isa-check
 	@echo "=== all checks passed ==="
 
 # All three targets from the one source, in one command. Each depends on the
@@ -309,6 +309,38 @@ diff:                         ## v2 legacy is v1, pin for pin
 	  iverilog -g2012 -o $(SIMTMP)/hydra_diff $(SIMTMP)/hydra_diff.v tb/tb_v1_v2_diff.sv && \
 	  $(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_diff
 
+SIXFOLD := ext/sixfold-cpu
+SIXFOLD_RTL = $(filter-out %Riscv64_top.sv %Scratchpad_Memory.sv %Instruction_Cache.sv %Data_Cache.sv, \
+                $(addprefix $(SIXFOLD)/,$(shell cat $(SIXFOLD)/src/sources.f 2>/dev/null)))
+cpu-quick:                    ## the CPU wrapper on one program plus every refusal (what the mutation suite runs)
+	@test -f $(SIXFOLD)/src/Riscv64.sv || { echo "FAIL cpu-quick: $(SIXFOLD) missing"; exit 1; }
+	rm -rf $(SIMTMP)/cpuvec_q && node tools/cpu_vectors.mjs $(SIXFOLD) $(SIMTMP)/cpuvec_q > /dev/null
+	iverilog -g2012 -o $(SIMTMP)/hydra_cpu_q $(SIXFOLD_RTL) sys/rtl/hydra_engine_cpu.sv sys/tb/tb_hydra_engine_cpu.sv 2>&1 | \
+	  { grep -v -e 'sorry: constant selects' || true; }
+	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_cpu_q +dir=$(SIMTMP)/cpuvec_q/05_fibonacci +neg
+
+cpu:                          ## the Sixfold CPU in its HYDRA wrapper: every program vs Sixfold's own model, cycle for cycle
+	@test -f $(SIXFOLD)/src/Riscv64.sv || { echo "FAIL cpu: $(SIXFOLD) missing -- git submodule update --init"; exit 1; }
+	rm -rf $(SIMTMP)/cpuvec && node tools/cpu_vectors.mjs $(SIXFOLD) $(SIMTMP)/cpuvec > $(SIMTMP)/cpuvec.log
+	iverilog -g2012 -o $(SIMTMP)/hydra_cpu $(SIXFOLD_RTL) sys/rtl/hydra_engine_cpu.sv sys/tb/tb_hydra_engine_cpu.sv 2>&1 | \
+	  { grep -v -e 'sorry: constant selects' || true; }
+	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_cpu +dir=$(SIMTMP)/cpuvec/05_fibonacci +neg
+	@n=0; while read -r p; do \
+	  $(SIM) --tail 1 --show '^PASS' -- vvp -n $(SIMTMP)/hydra_cpu +dir=$(SIMTMP)/cpuvec/$$p || exit 1; \
+	  n=$$((n+1)); done < $(SIMTMP)/cpuvec/programs.txt; \
+	  echo "PASS cpu: $$n Sixfold programs give the model's registers, TOHOST and cycle count; refusals, limit and ownership checked"
+
+systile-cpu:                  ## CPU, GPU and TPU slots on one chip: a real Sixfold program scheduled to the CPU through ABI v2
+	@test -f $(SIXFOLD)/src/Riscv64.sv || { echo "FAIL systile-cpu: $(SIXFOLD) missing"; exit 1; }
+	@test -f $(PIXELSTORM)/rtl/ps_gpu_top.v || { echo "FAIL systile-cpu: $(PIXELSTORM) missing"; exit 1; }
+	rm -rf $(SIMTMP)/cpuvec_sys && node tools/cpu_vectors.mjs $(SIXFOLD) $(SIMTMP)/cpuvec_sys > /dev/null
+	sv2v mom/rtl/*.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv mem/rtl/*.sv \
+	  sys/rtl/hydra_engine_tpu_dma.sv sys/rtl/hydra_engine_gpu.sv sys/rtl/hydra_engine_cpu.sv \
+	  sys/rtl/hydra_abi_v2.sv sys/rtl/hydra_sys_tile.sv sys/tb/tb_sys_tile_cpu.sv > $(SIMTMP)/hydra_systile_cpu.v
+	iverilog -g2012 -I $(PIXELSTORM)/rtl -o $(SIMTMP)/hydra_systile_cpu $(SIMTMP)/hydra_systile_cpu.v \
+	  $(PIXELSTORM)/rtl/ps_*.v $(SIXFOLD_RTL) 2>&1 | { grep -v -e 'sorry: constant selects' -e 'verinum' || true; }
+	$(SIM) --show '^(PASS|FAIL|[0-9] )' -- vvp -n $(SIMTMP)/hydra_systile_cpu +dir=$(SIMTMP)/cpuvec_sys/05_fibonacci
+
 harness:                      ## the PC protocol, end to end
 	cd fpga && sv2v ../mom/rtl/*.sv ../mom/hydra_mom_pins.sv ../common/rtl/hydra_rst_sync.sv \
 	  rtl/hydra_fpga_uart.sv rtl/hydra_fpga_bridge.sv \
@@ -535,3 +567,6 @@ clean:
 	rm -rf fpga/build/*/{*.v,*.json,*.config,*.asc,*.bin,*.bit} \
 	       common/tb/padmux_vectors.hex $(TILE)/test/sim_build common/formal/*_prove \
 	       common/formal/*_cover tt/formal/*_prove tt/formal/*_cover
+
+check-deps:                   ## every tool and Python package make verify needs, named up front
+	@./scripts/check_deps.sh
