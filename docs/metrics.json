@@ -147,7 +147,7 @@
       "target": "tile"
     },
     {
-      "what": "tile suite on the hardened netlist (v3.7, 2026-10-18)",
+      "what": "tile suite on the hardened netlist (v3.8, 2026-10-18)",
       "result": "21 / 21",
       "kind": "gate level",
       "target": "tile-gl"
@@ -343,11 +343,23 @@
       "result": "proved",
       "kind": "formal",
       "target": "select-proof"
+    },
+    {
+      "what": "ABI version 2 front end against an independent model (randomized)",
+      "result": "4,000 cases",
+      "kind": "simulation",
+      "target": "abi-v2"
+    },
+    {
+      "what": "ABI version 2 end to end on the six-slot chip",
+      "result": "8 cases",
+      "kind": "simulation",
+      "target": "systile-abi"
     }
   ],
   "pending": [
-    "v3.7 at 4x4 hardened clean on 2026-10-18 (v3.6 settings, netlist regenerated after the engine-count change and proved equivalent to v3.6's): DRC, LVS, antenna 0, setup +9.387 ns and hold +0.107 ns worst corner, 48.9%, 21/21 gate level.",
-    "Slew: 5,039 on v2; 3,665 on v3.2; 4,197 on v3.4; v3.5 (no buf_1) failed setup and was rejected; v3.6 (no weak or delay buffers at all) 775, only at the three slow corners (max_ss 775, nom_ss 559, min_ss 322), capacitance 0. FIRST_TRY.md requires 0. v3.7, the same design re-placed after a textual netlist change, ended at 1,333 (slow corners only) and capacitance 1: the count moves with placement, not only with settings.",
+    "v3.8 at 4x4 hardened clean on 2026-10-18 (v3.6 settings; the scheduler's eligibility input tied off; netlist proved equivalent to v3.7's): DRC, LVS, antenna 0, setup +10.064 ns and hold +0.108 ns worst corner, 48.7%, 21/21 gate level.",
+    "Slew: 5,039 on v2; 3,665 on v3.2; 4,197 on v3.4; v3.5 (no buf_1) failed setup and was rejected; v3.6 (no weak or delay buffers at all) 775, only at the three slow corners (max_ss 775, nom_ss 559, min_ss 322), capacitance 0. FIRST_TRY.md requires 0. v3.7, the same design re-placed after a textual netlist change, ended at 1,333 (slow corners only) and capacitance 1: the count moves with placement, not only with settings. v3.8: 1,164 slew, capacitance 0.",
     "The butterfly engine's area at q=8380417 (ML-DSA) is not yet measured: its 46-bit products make it the slowest of the three to synthesise. q=12289 and q=3329 are measured.",
     "Never run on hardware. The bring-up image is built and simulated; docs/FPGA_BRINGUP.md is the procedure, and LED polarity is still an assumption until a board confirms it.",
     "Full SkyWater chip never hardened: no LibreLane run of the OpenFrame chip has completed, so it has no gate-level netlist, timing sign-off, DRC or LVS result. (The Tiny Tapeout tile HAS: v3.4 sign-off clean on 2026-10-17.)",

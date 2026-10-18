@@ -511,6 +511,110 @@
           0
         ]
       ]
+    },
+    {
+      "label": "2026-10-18, tile v3.8, CLOCK_PERIOD 66 ns",
+      "version": "v3.8",
+      "source": "build/harden-ladder/20261018-131019/checks.out",
+      "settings": "v3.6 settings; the scheduler's eligibility input tied off for the tile; netlist proved equivalent to v3.7's (7,132 of 7,132)",
+      "period_ns": 66,
+      "critical_path_ns": 55.936,
+      "fmax_slow_MHz": 17.88,
+      "utilisation": 0.487147,
+      "slew_violations": 1164,
+      "cap_violations": 0,
+      "drc": 0,
+      "lvs": 0,
+      "antenna": 0,
+      "slew_report": {
+        "max_ss_100C_1v60": {
+          "slew": [
+            1164,
+            -0.652
+          ],
+          "cap": [
+            0,
+            null
+          ]
+        },
+        "nom_tt_025C_1v80": {
+          "slew": [
+            24,
+            -0.053
+          ],
+          "cap": [
+            0,
+            null
+          ]
+        }
+      },
+      "slew_by_corner": {
+        "max_ss_100C_1v60": 1164,
+        "nom_ss_100C_1v60": 861,
+        "min_ss_100C_1v60": 498,
+        "max_tt_025C_1v80": 32,
+        "nom_tt_025C_1v80": 24,
+        "min_tt_025C_1v80": 0,
+        "max_ff_n40C_1v95": 0,
+        "nom_ff_n40C_1v95": 0,
+        "min_ff_n40C_1v95": 0
+      },
+      "corners": [
+        [
+          "max_ss_100C_1v60",
+          10.064,
+          0.885,
+          0
+        ],
+        [
+          "nom_ss_100C_1v60",
+          11.015,
+          0.875,
+          0
+        ],
+        [
+          "min_ss_100C_1v60",
+          12.108,
+          0.868,
+          0
+        ],
+        [
+          "max_tt_025C_1v80",
+          38.927,
+          0.32,
+          0
+        ],
+        [
+          "nom_tt_025C_1v80",
+          39.451,
+          0.317,
+          0
+        ],
+        [
+          "min_tt_025C_1v80",
+          40.033,
+          0.315,
+          0
+        ],
+        [
+          "max_ff_n40C_1v95",
+          49.299,
+          0.112,
+          0
+        ],
+        [
+          "nom_ff_n40C_1v95",
+          49.667,
+          0.11,
+          0
+        ],
+        [
+          "min_ff_n40C_1v95",
+          49.856,
+          0.108,
+          0
+        ]
+      ]
     }
   ]
 }

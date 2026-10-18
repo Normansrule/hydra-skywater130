@@ -231,6 +231,7 @@ module hydra_mom_pins
 
   mom_top #(.NTAG(NTAG), .QMAX(4)) u_mom (
     .clk(clk), .rst_n(rst_n_sync),
+    .eng_elig({ENG_N{1'b1}}),   // every engine eligible: version-1 behaviour
     .wd_valid(reg_mode ? r_wd_valid : go_pulse), .wd_ready(wd_ready),
     .wd(work_desc_t'(reg_mode ? r_wd : sr)),
     .disp_valid(disp_valid), .disp_accept(disp_accept),

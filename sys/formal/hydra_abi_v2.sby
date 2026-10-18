@@ -1,0 +1,18 @@
+# hydra_abi_v2: nothing reaches the scheduler without a passing header; the
+# mask it carries is never empty and never names an absent slot; the mask
+# is stable while a job is inside; FHE and SE are never forwarded. The
+# properties are the `ifdef FORMAL block in sys/rtl/hydra_abi_v2.sv.
+[options]
+mode prove
+depth 12
+
+[engines]
+smtbmc
+
+[script]
+read -formal hydra_abi_v2_sv2v.v
+chparam -set NCTX 4 hydra_abi_v2
+prep -top hydra_abi_v2
+
+[files]
+hydra_abi_v2_sv2v.v

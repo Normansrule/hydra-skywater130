@@ -29,7 +29,7 @@ provenance:                   ## which board bitstreams were built from the curr
 	@for d in fpga/build/*/; do grep -q '^provenance:' $$d/Makefile 2>/dev/null || continue; \
 	  $(MAKE) -s --no-print-directory -C $$d provenance 2>/dev/null || true; done
 
-verify: site-check readme-check tt-ready rst-sync-copy tile-shared lint basys3-selftest check-tile cost-mux cost-cal keyvault mailbox sha256 sha256-stream measure pcr selftest xsec jtag jtag-bridge padmux xbar xbar-bound tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-mem systile-two tile diff harness jtag-harness gpu systile-gpu select-proof sky130 tools boards bind uart-baud isa-check
+verify: site-check readme-check tt-ready rst-sync-copy tile-shared lint basys3-selftest check-tile cost-mux cost-cal keyvault mailbox sha256 sha256-stream measure pcr selftest xsec jtag jtag-bridge padmux xbar xbar-bound tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-mem systile-two tile diff harness jtag-harness gpu systile-gpu select-proof abi-v2 systile-abi sky130 tools boards bind uart-baud isa-check
 	@echo "=== all checks passed ==="
 
 # All three targets from the one source, in one command. Each depends on the
@@ -283,6 +283,14 @@ cost-mux:                     ## the shared cost engine decides what the paralle
 	  && echo "PASS cost-mux: $$(wc -l < $(SIMTMP)/ct_s.txt) decisions identical to the parallel build" \
 	  || (echo "FAIL cost-mux: the two builds disagree"; diff $(SIMTMP)/ct_s.txt $(SIMTMP)/ct_p.txt | head; false)
 
+abi-v2:                       ## descriptor ABI version 2: refusals and eligibility against an independent model, plus proofs
+	python3 sys/tb/abi_v2_model.py $(SIMTMP)/abi_v2_vectors.txt 4000
+	sv2v mom/rtl/mom_pkg.sv sys/rtl/hydra_abi_v2.sv sys/tb/tb_abi_v2.sv > $(SIMTMP)/hydra_abi_v2.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_abi_v2 $(SIMTMP)/hydra_abi_v2.v
+	$(SIM) --tail 1 -- vvp -n $(SIMTMP)/hydra_abi_v2 +vec=$(SIMTMP)/abi_v2_vectors.txt
+	cd sys && sv2v --define=FORMAL -E Assert ../mom/rtl/mom_pkg.sv rtl/hydra_abi_v2.sv > formal/hydra_abi_v2_sv2v.v
+	cd sys/formal && sby -f hydra_abi_v2.sby | tail -1
+
 select-proof:                 ## the engine selector is valid, minimal and tie-breaks low, at 5 and 6 slots
 	cd mom && sv2v --define=FORMAL -E Assert rtl/mom_pkg.sv rtl/mom_select.sv > formal/mom_select_sv2v.v
 	cd mom/formal && sby -f mom_select.sby n5 | tail -1
@@ -458,6 +466,15 @@ systile-gpu:                  ## six slots: the scheduler sends INT32 GEMM to th
 	  sys/tb/tb_sys_tile_gpu.sv > $(SIMTMP)/hydra_systile_gpu.v
 	iverilog -g2012 -I $(PIXELSTORM)/rtl -o $(SIMTMP)/hydra_systile_gpu $(SIMTMP)/hydra_systile_gpu.v $(PIXELSTORM)/rtl/ps_*.v
 	$(SIM) --show '^(PASS|FAIL|GPU)' -- vvp -n $(SIMTMP)/hydra_systile_gpu +dir=$(SIMTMP)/gpuvec_sys/07_matmul
+
+systile-abi:                  ## ABI version 2 end to end: contexts, modes, forced engines, no fallback
+	@test -f $(PIXELSTORM)/rtl/ps_gpu_top.v || { echo "FAIL systile-abi: $(PIXELSTORM) missing"; exit 1; }
+	rm -rf $(SIMTMP)/gpuvec_abi && node tools/gpu_vectors.js $(PIXELSTORM) $(SIMTMP)/gpuvec_abi 4096 > /dev/null
+	sv2v mom/rtl/*.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv mem/rtl/*.sv \
+	  sys/rtl/hydra_engine_tpu_dma.sv sys/rtl/hydra_engine_gpu.sv sys/rtl/hydra_abi_v2.sv \
+	  sys/rtl/hydra_sys_tile.sv sys/tb/tb_sys_tile_abi.sv > $(SIMTMP)/hydra_systile_abi.v
+	iverilog -g2012 -I $(PIXELSTORM)/rtl -o $(SIMTMP)/hydra_systile_abi $(SIMTMP)/hydra_systile_abi.v $(PIXELSTORM)/rtl/ps_*.v
+	$(SIM) --show '^(PASS|FAIL|[0-9] )' -- vvp -n $(SIMTMP)/hydra_systile_abi +dir=$(SIMTMP)/gpuvec_abi/07_matmul
 
 systile-tpu:                  ## the dispatcher scheduling the REAL array
 	python3 sys/tb/tpu_pattern_model.py 4 > /dev/null

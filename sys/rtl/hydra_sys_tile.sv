@@ -80,8 +80,17 @@ module hydra_sys_tile
   //              bank 3, address [15:14] = 0 its global memory (word [11:0]),
   //              1 its program (word [9:0]), 2 its kernel parameters ([3:0]),
   //              3 its launch shape (0 grid, 1 block);
-  //              mem_raddr[15] = 1 reads its global memory back
-  parameter int unsigned GPU_ENGINE  = 0
+  //              mem_raddr[15:14] = 2 reads its global memory back
+  parameter int unsigned GPU_ENGINE  = 0,
+  // Descriptor ABI version 2 (sys/rtl/hydra_abi_v2.sv), chip only:
+  //   0  version 1: every engine eligible, the tile's behaviour
+  //   1  every descriptor needs the 64-bit header loaded first over the
+  //      memory port, bank 3, address [15:14] = 3: offset 2 header [31:0],
+  //      3 header [63:32], 4 a context write {owned[24], id[23:16],
+  //      epoch[15:0]}, 5 the healthy-engine mask. mem_raddr[15:14] = 3
+  //      reads {refusals[15:0], 8'b0, last refusal code[3:0]}. A refusal
+  //      also reaches the host as the register map's error with the tag.
+  parameter int unsigned ABI_V2      = 0
 ) (
   input  wire [7:0] ui_in,
   output wire [7:0] uo_out,
@@ -139,8 +148,15 @@ module hydra_sys_tile
     .rx_valid(rx_valid), .rx_byte(rx_byte), .rx_index(rx_index),
     .tx_load(tx_load), .tx_byte(tx_byte));
 
-  wire                wd_valid, wd_ready;
+  wire                wd_valid, wd_ready;          // register map side
   wire [WD_W-1:0]     wd;
+  wire                s_wd_valid, s_wd_ready;      // scheduler side
+  wire [WD_W-1:0]     s_wd;
+  wire [NENG-1:0]     s_elig;
+  wire                abi_err;
+  wire [7:0]          abi_err_tag;
+  wire                m_err_unsupported;
+  wire [7:0]          m_err_tag;
   wire                disp_valid, disp_accept;
   wire [2:0]          disp_engine;
   wire [3:0]          disp_tag;
@@ -193,7 +209,8 @@ module hydra_sys_tile
   // ---------------------------------------------------------------------------
   mom_top #(.NENG(NENG), .NTAG(NTAG), .QMAX(4)) u_mom (
     .clk(clk), .rst_n(rst_n),
-    .wd_valid(wd_valid), .wd_ready(wd_ready), .wd(work_desc_t'(wd)),
+    .wd_valid(s_wd_valid), .wd_ready(s_wd_ready), .wd(work_desc_t'(s_wd)),
+    .eng_elig(s_elig),
     .disp_valid(disp_valid), .disp_accept(disp_accept),
     .disp_engine(disp_engine), .disp_tag(disp_tag), .disp_wd(disp_wd),
     .comp_valid(comp_valid), .comp_tag(comp_tag),
@@ -201,9 +218,57 @@ module hydra_sys_tile
     .csr_wr(r_csr_wr), .csr_priv(r_csr_priv), .csr_engine(r_csr_engine),
     .csr_data(r_csr_data), .csr_bw_dma_log2(r_bw), .csr_eps_mem(r_eps),
     .csr_e_shift(r_esh), .csr_cal_freeze(r_cal_freeze), .csr_cal_reset(r_cal_reset),
-    .err_unsupported(err_unsupported), .err_tag(err_tag),
+    .err_unsupported(m_err_unsupported), .err_tag(m_err_tag),
     .err_stale_comp(err_stale_comp), .obs_margin(obs_margin),
     .obs_cal_updates(obs_cal_updates), .obs_tag_busy(obs_tag_busy));
+
+  // A refusal from either the version-2 front end or the scheduler reaches
+  // the host the same way. They cannot coincide: the front end holds a job
+  // until the scheduler has dispatched or refused it.
+  assign err_unsupported = m_err_unsupported | abi_err;
+  assign err_tag         = abi_err ? abi_err_tag : m_err_tag;
+
+  // ---------------------------------------------------------------------------
+  // Descriptor ABI version 2
+  // ---------------------------------------------------------------------------
+  wire        ctl_sel = mem_we && (mem_bank == 2'd3) && (mem_addr[15:14] == 2'd3);
+  logic [63:0] hdr_q;
+  logic [NENG-1:0] healthy_q;
+  logic [3:0]  abi_last_code;
+  logic [15:0] abi_refusals;
+  wire  [3:0]  abi_code;
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+      hdr_q <= '0; healthy_q <= '1; abi_last_code <= '0; abi_refusals <= '0;
+    end else begin
+      if (ctl_sel && mem_addr[3:0] == 4'd2) hdr_q[31:0]  <= mem_wdata;
+      if (ctl_sel && mem_addr[3:0] == 4'd3) hdr_q[63:32] <= mem_wdata;
+      if (ctl_sel && mem_addr[3:0] == 4'd5) healthy_q    <= mem_wdata[NENG-1:0];
+      if (abi_err) begin abi_last_code <= abi_code; abi_refusals <= abi_refusals + 16'd1; end
+    end
+  end
+  wire [31:0] abi_status = {abi_refusals, 12'd0, abi_last_code};
+
+  generate
+    if (ABI_V2 != 0) begin : g_abi_v2
+      hydra_abi_v2 #(.NENG(NENG), .NCTX(16)) u_abi (
+        .clk(clk), .rst_n(rst_n),
+        .in_valid(wd_valid), .in_ready(wd_ready), .in_hdr(hdr_q), .in_body(wd),
+        .out_valid(s_wd_valid), .out_ready(s_wd_ready), .out_body(s_wd), .out_elig(s_elig),
+        .sched_done((disp_valid && disp_accept) || m_err_unsupported),
+        .err_valid(abi_err), .err_code(abi_code), .err_tag(abi_err_tag),
+        .ctx_we(ctl_sel && mem_addr[3:0] == 4'd4), .ctx_id(mem_wdata[23:16]),
+        .ctx_owned(mem_wdata[24]), .ctx_epoch(mem_wdata[15:0]), .healthy(healthy_q));
+    end else begin : g_abi_v1
+      assign s_wd_valid = wd_valid;
+      assign wd_ready   = s_wd_ready;
+      assign s_wd       = wd;
+      assign s_elig     = '1;
+      assign abi_err    = 1'b0;
+      assign abi_code   = 4'd0;
+      assign abi_err_tag = 8'd0;
+    end
+  endgenerate
 
   // ---------------------------------------------------------------------------
   // Crossbar and engines
@@ -255,7 +320,8 @@ module hydra_sys_tile
   wire [31:0] tpu_m_rdata;
   wire        tpu_m_refused;
   // the memory port is shared: bank 3 belongs to the GPU when there is one
-  assign mem_rdata   = (REAL_GPU && mem_raddr[15]) ? gpu_rdata : tpu_m_rdata;
+  assign mem_rdata   = (ABI_V2 != 0 && mem_raddr[15:14] == 2'd3) ? abi_status
+                     : (REAL_GPU && mem_raddr[15:14] == 2'd2) ? gpu_rdata : tpu_m_rdata;
   assign mem_refused = tpu_m_refused | gpu_refused;
 
   generate
@@ -331,7 +397,8 @@ module hydra_sys_tile
         .eng_done(gpu_done), .eng_done_tag(gpu_done_tag), .job_status(),
         .prog_we(mem_we && gpu_sel && mem_addr[15:14] == 2'd1), .prog_addr(mem_addr[9:0]), .prog_data(mem_wdata),
         .cons_we(mem_we && gpu_sel && mem_addr[15:14] == 2'd2), .cons_addr(mem_addr[3:0]), .cons_data(mem_wdata),
-        .cfg_we(mem_we && gpu_sel && mem_addr[15:14] == 2'd3), .cfg_addr(mem_addr[0]), .cfg_data(mem_wdata[15:0]),
+        .cfg_we(mem_we && gpu_sel && mem_addr[15:14] == 2'd3 && mem_addr[3:1] == 3'd0),
+        .cfg_addr(mem_addr[0]), .cfg_data(mem_wdata[15:0]),
         .ld_we(mem_we && gpu_sel && mem_addr[15:14] == 2'd0), .ld_addr(mem_addr[11:0]), .ld_data(mem_wdata),
         .ld_refused(gpu_refused), .rd_addr(mem_raddr[11:0]), .rd_data(gpu_rdata),
         .perf_cycles());

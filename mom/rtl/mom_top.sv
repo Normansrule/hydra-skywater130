@@ -83,6 +83,12 @@ module mom_top
   input  wire                wd_valid,
   output wire                wd_ready,
   input  wire  work_desc_t   wd,
+  // Engines this descriptor may use (ABI version 2's eligibility, applied
+  // BEFORE cost: an engine outside the mask is neither valid nor capable, so
+  // it can never win and never counts as a way to run the job). The caller
+  // holds it steady for the one descriptor it has in flight. The Tiny
+  // Tapeout tile ties it to all ones, which is the version-1 behaviour.
+  input  wire  [NENG-1:0]    eng_elig,
 
   // ---- dispatch out, to the engine crossbar --------------------------------
   output logic               disp_valid,
@@ -373,7 +379,7 @@ module mom_top
   logic              sel_capable;
 
   mom_select #(.NENG(NENG)) u_sel (
-    .cost(cost_q), .valid(cvalid_q), .capable(ccapable_q),
+    .cost(cost_q), .valid(cvalid_q & eng_elig), .capable(ccapable_q & eng_elig),
     .sel_engine(sel_eng), .sel_cost(sel_cost),
     .any_valid(sel_ok), .any_capable(sel_capable),
     .sel_margin(obs_margin)

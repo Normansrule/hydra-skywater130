@@ -18,6 +18,11 @@ gen_readme_visuals.py -- the README's explanatory figures, drawn from sources.
                      routed, board). Each filled cell names the make target
                      that reproduces it, and the generator refuses a target
                      that does not exist in the Makefile.
+  progress.svg       the progress tracker: every milestone per target, done /
+                     in progress / planned / blocked, each done item naming
+                     the command that proves it (refused if the Makefile has
+                     no such target). The bars are counts of those rows, and
+                     the tile's slew figure comes from docs/timing.json.
 
 Animation is CSS inside the SVG (GitHub renders it through <img>) and stops
 under prefers-reduced-motion, leaving the final, fully labelled state.
@@ -295,17 +300,97 @@ def capabilities():
           "nothing has run on a board.", "".join(b)))
 
 
+# ---------------------------------------------------------------------------
+# progress tracker
+DONE, WIP, PLAN, BLOCK = "done", "in progress", "planned", "blocked"
+
+
+def milestones():
+    """(target, [(milestone, state, evidence)]). A done row's evidence is a
+    make target, checked against the Makefile; other rows say what they wait
+    on. Numbers come from docs/timing.json, never typed here."""
+    runs = json.loads((ROOT / "docs/timing.json").read_text())["runs"]
+    t = runs[-1]
+    worst = min(c[1] for c in t["corners"])
+    return [
+        ("Tiny Tapeout tile", [
+            ("RTL and 21 cocotb tests", DONE, "tile"),
+            (f"hardened clean at 4×4 ({t.get('version', '')}, +{worst:.2f} ns)", DONE, "tile-gl"),
+            (f"slew warnings to zero ({t['slew_violations']:,} left, slow corners)", WIP, "one change per harden"),
+            ("shuttle submission", PLAN, "owner releases; GDS action builds"),
+        ]),
+        ("SkyWater 130 chip", [
+            ("scheduler, pad multiplexer, SPI through the pads", DONE, "sky130"),
+            ("GPU as the sixth scheduler slot", DONE, "systile-gpu"),
+            ("ABI version 2: modes, policy, contexts", DONE, "systile-abi"),
+            ("Sixfold RV64 CPU behind ABI version 2", PLAN, "needs a load port and done/halt"),
+            ("harden the OpenFrame chip", BLOCK, "waits for engines in the chip top"),
+        ]),
+        ("FPGA", [
+            ("ECP5 images placed and routed, timing met", DONE, "fpga"),
+            ("Basys 3 image, serial and JTAG host paths", WIP, "simulated; Vivado not installed"),
+            ("first image on a real board (ULX3S)", BLOCK, "needs the board"),
+        ]),
+        ("Security", [
+            ("key vault, SHA-256, measurement as blocks", DONE, "sha256-stream"),
+            ("FHE and SE modes", PLAN, "specifications; refused by host and chip"),
+        ]),
+    ]
+
+
+def progress():
+    mk = (ROOT / "Makefile").read_text()
+    groups = milestones()
+    for _, rows in groups:
+        for _, st, ev in rows:
+            if st == DONE and not re.search(rf"^{re.escape(ev)}:", mk, re.M):
+                raise SystemExit(f"gen_readme_visuals: progress cites make {ev}, which the Makefile does not have")
+    col = {DONE: GREEN, WIP: GOLD, PLAN: SLATE, BLOCK: RED}
+    W, rowh, gap = 1400, 40, 64
+    H = 130 + sum(76 + len(r) * rowh for _, r in groups) + 30
+    b = [t(48, 64, "Progress", 26, TXT, weight=750),
+         t(48, 92, "Every milestone with its state. A done row names the command that proves it; "
+                   "the bars count rows, and the numbers come from docs/timing.json.", 13.5, TXT2)]
+    y = 130
+    k = 0
+    for name, rows in groups:
+        n_done = sum(1 for _, s, _ in rows if s == DONE)
+        b.append(t(48, y + 24, name, 18, TXT, weight=750))
+        b.append(t(W - 48, y + 24, f"{n_done} of {len(rows)} done", 13, TXT2, "end"))
+        bx, bw = 330, 820
+        b.append(f'<rect x="{bx}" y="{y+12}" width="{bw}" height="12" rx="6" fill="{PANEL}"/>')
+        for j, (_, s, _) in enumerate(rows):
+            seg = bw / len(rows)
+            b.append(f'<rect class="rise" style="animation-delay:{k*0.06 + j*0.05:.2f}s" x="{bx + j*seg + 1:.1f}" '
+                     f'y="{y+12}" width="{seg-2:.1f}" height="12" rx="6" fill="{col[s]}" fill-opacity="{1 if s == DONE else .55}"/>')
+        y += 56
+        for ms, s, ev in rows:
+            k += 1
+            d = f'style="animation-delay:{k*0.06:.2f}s"'
+            b.append(f'<g class="rise" {d}><rect x="64" y="{y-14}" width="104" height="22" rx="11" fill="{col[s]}" fill-opacity=".2" stroke="{col[s]}"/>'
+                     + t(116, y + 2, s, 12, col[s], "middle", 700)
+                     + t(186, y + 2, ms, 14, TXT)
+                     + t(W - 48, y + 2, ("make " + ev) if s == DONE else ev, 12.5, TXT2 if s != DONE else GREEN, "end",
+                         mono=(s == DONE)) + '</g>')
+            y += rowh
+        y += 20
+    write("progress.svg", svg(W, H, "HYDRA-130 progress",
+          "The progress tracker: Tiny Tapeout tile, SkyWater 130 chip, FPGA and security milestones, each done, "
+          "in progress, planned or blocked, with the command that proves each done item.", "".join(b)))
+
+
 def main():
     chip_package()
     connections()
     capabilities()
+    progress()
     if CHECK:
         if STALE:
             print("\n".join(f"readme-visuals: {s} is out of date -- run: make readme-art" for s in STALE))
             sys.exit(1)
-        print("readme-visuals: package, connection and capability figures current")
+        print("readme-visuals: package, connection, capability and progress figures current")
     else:
-        print("gen_readme_visuals: chip_package.svg, connections.svg, capabilities.svg")
+        print("gen_readme_visuals: chip_package.svg, connections.svg, capabilities.svg, progress.svg")
 
 
 if __name__ == "__main__":

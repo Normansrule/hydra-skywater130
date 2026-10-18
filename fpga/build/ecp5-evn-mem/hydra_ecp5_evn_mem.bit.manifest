@@ -1,7 +1,7 @@
-image   3d515135b84e696f525a3a392eb1e0ee16ea17bf5d22eaa183a8bda6d1712418  hydra_ecp5_evn_mem.bit
-srchash 11345784c414f1e0
+image   96e2f503eda331cf4ef3a2fec96d410883bbfd3477d87af18ff3a765f8149756  hydra_ecp5_evn_mem.bit
+srchash 5f72612e6e6a36af
 tools   sv2v v0.0.13 Yosys 0.52 (git sha1 fee39a3284c90249e1d9684cf6944ffbbcbb8f90) nextpnr-ecp5 -- Next Generation Place and Route (Version 0.9-3) 
-built   2026-10-18T19:00:12Z
+built   2026-10-18T21:31:30Z
 seed    1
 3a571bd7a18cbb62b971b91d7c8a4c455d8f2e364ceb3fe8187896be95c8b193  ../../../mom/rtl/mom_pkg.sv
 0aaef5206af26e1aef10c82394e743094cc490799a01b3000773403e69857ba3  ../../../mom/rtl/mom_features.sv
@@ -10,10 +10,10 @@ d4f47dff91b5ab9aca911ecf7ebab9b12e5cd89233a2e63f4501dbd52eddc8a5  ../../../mom/r
 ef47c2df5291254347bfd34ffacfabd3893057c28a94ea3d3546cd55184e174a  ../../../mom/rtl/mom_calibrate.sv
 4c5b5645ed446370ec379e0bbdb58e41872c2bf7005187da7d5e15d15077c82b  ../../../mom/rtl/mom_select.sv
 324419476dd01d20ee001958cd0bda05c6cf6707a8cd50d614f4aee6e0175a6b  ../../../mom/rtl/mom_scoreboard.sv
-a6642a37a0e49a76612d0797d258c51950a31b0028efd6be0fcd8929274ee2b8  ../../../mom/rtl/mom_top.sv
+78bc7ffcdda050b7a43e826e482fdf557077d0c9c4faea7100f822c8a54dc216  ../../../mom/rtl/mom_top.sv
 36be4ae86046106e09fec98207e1d4c9372fb9676d6b554ec451becf72f92860  ../../../mom/rtl/hydra_tt_spi.sv
 c7d8c2795e3c709528e5342086e84a28d4b5284d874bfe3dd0ed50c79cad6603  ../../../mom/rtl/hydra_tt_regs.sv
-d538415943fd48fdb62e64b39b9c4f12f487b1d5a4dcb505ee9876e78f7fb9d3  ../../../mom/hydra_mom_pins.sv
+d1e8e9db955ac07de47cdfea9e1eb3d400006f8d10b26de0b82e46867ebb896a  ../../../mom/hydra_mom_pins.sv
 603fda177eac7e7cbd4e4fe278b079e43235146d439554290b50abf8025bd4eb  ../../../fpga/rtl/hydra_fpga_uart.sv
 6d3370f04b2ad230d56f235bc6697e012f5b63f77fedc5e90feb766ac8533903  ../../../common/rtl/mom_xbar.sv
 a72ed2531d0c2309b409dff5d9eb27189d0d5ddfe0adfabdc7d9e67421aee00f  ../../../engines/tpu/rtl/tpu_pkg.sv
@@ -28,7 +28,7 @@ c968d823a517a5fe3ebf295f66715ed1c315490a8c4c0286baa774fb5086854b  ../../../mem/r
 4cd639c6180f4721062e49a4172a15e460c43313bd189a5d7b7d8c45413e061d  ../../../mem/rtl/hydra_dma_gemm.sv
 fa4fd3239256c8b630a59ed7e44297b949d72f70ae694da4e6d429ea40c57112  ../../../sys/rtl/hydra_engine_tpu.sv
 7a0031117021ba6ccc10d40a77968af95bf24e013fe39a040f4ae66b2d87de0b  ../../../sys/rtl/hydra_engine_tpu_dma.sv
-c15a4ae7d0535305b2acb535ad8d351a46a5457d157e11bb0ed3da817561be3a  ../../../sys/rtl/hydra_sys_tile.sv
+7596d98387d3a620c55911bc244980ff134bb034f9de6592e7c1e860feb38300  ../../../sys/rtl/hydra_sys_tile.sv
 a6c47e7440da050800e21ce8463c66a87abbc1170b174b19ea1840d71dd4e471  ../../../fpga/rtl/hydra_fpga_bridge.sv
 6798beb0dff0862b04ae406e5dfaca401458fb5ccfcb2d962dd3d8e0877cd2b3  ../../../fpga/rtl/hydra_fpga_mem_harness.sv
 cfe0610e3b3eab2fa52db8674ecbe03923cec9f180b86935c493a7e2f822f64a  ../../../common/rtl/hydra_rst_sync.sv

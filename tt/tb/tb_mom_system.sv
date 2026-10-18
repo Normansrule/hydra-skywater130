@@ -48,6 +48,7 @@ module tb_mom_system;
 
   mom_top #(.NTAG(NTAG), .QMAX(4)) u_mom (
     .clk(clk), .rst_n(rst_n),
+    .eng_elig({ENG_N{1'b1}}),   // every engine eligible: version-1 behaviour
     .wd_valid(wd_valid), .wd_ready(wd_ready), .wd(wd),
     .disp_valid(disp_valid), .disp_accept(disp_accept),
     .disp_engine(disp_engine), .disp_tag(disp_tag), .disp_wd(disp_wd),

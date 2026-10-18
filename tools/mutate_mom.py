@@ -111,6 +111,27 @@ MUTATIONS = [
      "        assign eng_done[e]            = REAL_GPU ? gpu_done     : done_q;",
      "        assign eng_done[e]            = done_q;",
      "systile-gpu"),
+    # Descriptor ABI version 2 (2026-10-18).
+    ("ABI-01 security mode FHE or SE accepted", "sys/rtl/hydra_abi_v2.sv",
+     "    else if (h_mode != 2'd0)               verdict = E_MODE;",
+     "    else if (1'b0)                         verdict = E_MODE;",
+     "abi-v2"),
+    ("ABI-02 engine policy ignored: every job treated as AUTO", "sys/rtl/hydra_abi_v2.sv",
+     "  wire [NENG-1:0] elig = policy_mask(h_pol) & PRESENT[NENG-1:0] & healthy;",
+     "  wire [NENG-1:0] elig = policy_mask(3'd0) & PRESENT[NENG-1:0] & healthy;",
+     "systile-abi"),
+    ("ABI-03 eligibility applied after cost, not before (the scheduler ignores the mask)", "mom/rtl/mom_top.sv",
+     "    .cost(cost_q), .valid(cvalid_q & eng_elig), .capable(ccapable_q & eng_elig),",
+     "    .cost(cost_q), .valid(cvalid_q), .capable(ccapable_q),",
+     "systile-abi"),
+    ("ABI-04 context epoch not compared: a revoked job runs", "sys/rtl/hydra_abi_v2.sv",
+     "                (epoch[h_ctx[$clog2(NCTX)-1:0]] == h_epoch);",
+     "                1'b1;",
+     "abi-v2"),
+    ("ABI-05 a second job taken before the first is dispatched", "sys/rtl/hydra_abi_v2.sv",
+     "        S_SEND: if (out_ready) begin out_valid <= 1'b0; st <= S_WAIT; end",
+     "        S_SEND: if (out_ready) begin out_valid <= 1'b0; st <= S_IDLE; end",
+     "abi-v2"),
 ]
 
 

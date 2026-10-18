@@ -25,19 +25,28 @@ engineering records. **What runs depends on the build you choose.**
 > for them. The separate Tiny Tapeout chip is the scheduler alone.
 
 <p align="center">
-  <img src="docs/img/hero.svg" width="100%" alt="HYDRA-130 lead figure, animated. Left: the Tiny Tapeout tile's sign-off facts from its v3.7 harden (timing met at all nine corners, design rules, LVS and antenna clean, 1,333 slow-corner slew warnings), the gate-level result, the proof tasks, the GPU engine's kernel count and a note that the security blocks are simulated only. Right: an area chart, not a floorplan, with each separately synthesized block drawn to its standard-cell area and an illustrative dispatch to the systolic array.">
+  <img src="docs/img/hero.svg" width="100%" alt="HYDRA-130 lead figure, animated. Left: the Tiny Tapeout tile's sign-off facts from its v3.8 harden (timing met at all nine corners, design rules, LVS and antenna clean, 1,164 slow-corner slew warnings), the gate-level result, the proof tasks, the GPU engine's kernel count and a note that the security blocks are simulated only. Right: an area chart, not a floorplan, with each separately synthesized block drawn to its standard-cell area and an illustrative dispatch to the systolic array.">
 </p>
+
+## Progress
+
+![Progress tracker: every milestone per target with its state and the command that proves it](docs/img/progress.svg)
+
+Generated from the repository's own evidence (`tools/gen_readme_visuals.py`): a done row names the command that
+proves it, and the tile's numbers come from `docs/timing.json`. Commands to test and publish:
+[docs/PUBLISH_AND_TEST.md](docs/PUBLISH_AND_TEST.md).
 
 ## What works now
 
 | part | what it is | evidence reached | how to check |
 |---|---|---|---|
-| Scheduler (Mathematical Operation MUX, MOM) | cost model over five engine slots, tags, self-calibration | simulated against models; proofs on its interfaces; the tile version has been hardened (v3.7, 2026-10-18) | `make systile`, `make cost-cal`, `make tile` |
+| Scheduler (Mathematical Operation MUX, MOM) | cost model over five engine slots, tags, self-calibration | simulated against models; proofs on its interfaces; the tile version has been hardened (v3.8, 2026-10-18) | `make systile`, `make cost-cal`, `make tile` |
 | TPU | 4×4 INT8 systolic array, also fed from scratchpad memory | simulated against an independent model; mutation-tested | `make tpu`, `make dma` |
 | Vector unit | 4 lanes × 32-bit integer. **Not a GPU** | simulated; mutation-tested | `make simd`, `make dma-simd` |
 | Number-theoretic transform (NTT) butterflies | 4 Barrett butterflies at q = 3329, 8380417, 12289. **Not a transform, not FHE** | simulated at all three moduli, core and memory path | `make ntt-moduli` |
 | Security IP | key vault, mailbox, SHA-256, measurement register, security instructions | simulated and proved **as separate blocks**; not integrated into any build | `make keyvault sha256-stream pcr xsec` |
 | GPU engine | Pixelstorm (single-instruction, multiple-thread, SIMT), 2 multiprocessors × 4 warps × 8 lanes, on a HYDRA scratchpad bank | simulated: 14 real kernels leave the bank exactly as Pixelstorm's own model does; malformed launches refused; synthesized for ECP5. The **chip's sixth scheduler slot**: an INT32 matrix multiply is costed and sent to it, INT8 kept off it | `make gpu`, `make systile-gpu` |
+| ABI version 2 | a 64-bit header in front of each descriptor: security mode, engine policy (AUTO or a forced engine), context and epoch | simulated on the chip, against an independent model and end to end: eligibility applied before cost, forced engines honoured, FHE/SE and stale contexts refused with no fallback; proved | `make abi-v2 systile-abi` |
 | CPU | Sixfold (64-bit RISC-V) | separate repository; **not integrated** | [plan](docs/architecture/heterogeneous-system.md) |
 | FHE, SE, mode switching | specifications only | **UNSUPPORTED** in every build | [FHE](docs/security/fhe-profile.md), [SE](docs/security/se-contract.md), [transition](docs/security/mode-transition.md) |
 
@@ -135,7 +144,7 @@ behaviour on purpose, so that a change to it cannot go in silently.
 | mutation test | that the named deliberate breaks are caught | that every defect would be |
 | FPGA place and route | mapping and timing for that device and those constraints | that a board works |
 | board test | measured behaviour of one image on one board (none yet) | other configurations |
-| ASIC reports | the named checks on one exact layout (the tile, v3.7) | fabricated silicon, or the full chip |
+| ASIC reports | the named checks on one exact layout (the tile, v3.8) | fabricated silicon, or the full chip |
 
 Every simulation runs through `scripts/runsim.sh`, so a failure cannot pass
 quietly. `scripts/ci_selftest.sh` breaks the design on purpose and requires
@@ -154,6 +163,7 @@ target and date. Do not carry tile area or timing over to the parent system.
 | need | document |
 |---|---|
 | your first simulation | [Getting started](docs/GETTING_STARTED.md) |
+| commands to test and publish | [Publish and test](docs/PUBLISH_AND_TEST.md) |
 | what each part has been shown to do | [Capability matrix](docs/verification/capability-matrix.md) |
 | as-built views, IP library, roadmap | [Architecture](docs/ARCHITECTURE.md) |
 | datasheets (preliminary) | [scheduler tile](docs/datasheets/HYDRA-TT-A.md), [FPGA images](docs/datasheets/HYDRA-FPGA-EVAL.md) |

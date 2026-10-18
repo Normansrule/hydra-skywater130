@@ -91,7 +91,7 @@ Next (specified in `docs/architecture/heterogeneous-system.md`, not built):
   covers; counted from the Makefile, not from `.sby` files).
 - **Mutation testing**: every named deliberate break must be caught —
   `tt/tile/test/mutate_sim.py` (17/17), `mem/formal/mutate_dma.py` (26/26),
-  `tools/mutate_mom.py` (22/22: 8 dispatcher, 4 bridge host-path, 7 GPU, 3 six-slot), `common/formal/mutate_targets.py`, and
+  `tools/mutate_mom.py` (27/27: 8 dispatcher, 4 bridge host-path, 7 GPU, 3 six-slot, 5 ABI v2), `common/formal/mutate_targets.py`, and
   `scripts/ci_selftest.sh` (22 runs). When code changes, update the anchors;
   never delete a mutation to get green.
 - `make lint`: Verilator `-Wall` with LibreLane's settings, **0 warnings** on
@@ -212,3 +212,21 @@ Next (specified in `docs/architecture/heterogeneous-system.md`, not built):
 - `tools/drt_progress.py` reported a clean route as STUCK when the router
   started a second pass in the same log; it now judges the newest pass only
   (selftest case added).
+
+## 10. Session of 2026-10-18
+
+- Authorship: every commit in both repositories rewritten to Aleksander J.
+  Norman only (owner's decision); git in WSL commits as him. No co-author
+  trailers. Backups: `~/backups/history-rewrite-20261018-103221/`.
+- Engine count: the nine shared modules take `NENG` (default 5). The chip
+  uses 6, the GPU on slot 5 (`hydra_sys_tile`, `GPU_ENGINE = 1`). The
+  selector's tree was fixed at five lanes; fixed and proved at 5 and 6
+  (`make select-proof`).
+- ABI version 2 on the chip: `sys/rtl/hydra_abi_v2.sv`, eligibility applied
+  before cost through `mom_top`'s `eng_elig` (the tile ties it to all ones).
+  `make abi-v2 systile-abi`.
+- Tile: each netlist change proved equivalent before re-hardening (logs in
+  `reports/fpga-harden-2026-10-17/`); v3.8 signed off clean. Slew moves with
+  placement (775 on v3.6, 1,333 on v3.7, 1,164 on v3.8) for the same logic.
+- Commands to test and publish: `docs/PUBLISH_AND_TEST.md`. Next: the
+  Sixfold CPU behind ABI version 2, slew to zero, board runs.

@@ -25,3 +25,5 @@ v3.6 (rung realbuf2) signed off clean: `harden-ladder-20261017-223414-v3.6.log.g
 GPU engine synthesized for ECP5 with yosys 0.52 (synth_ecp5): `gpu-ecp5-yosys-stat.txt`.
 
 v3.7 (same settings, netlist regenerated after the engine-count change): `harden-ladder-20261018-105631-v3.7.log.gz`, `harden-ladder-20261018-105631-v3.7-checks.out`. Its netlist is proved equivalent to v3.6's: `tile-netlist-equivalence-neng.log.gz` (7,060 of 7,060 equivalence cells proven).
+
+v3.8 (eligibility input tied off, ABI version 2 on the chip): `harden-ladder-20261018-131019-v3.8.log.gz`, `harden-ladder-20261018-131019-v3.8-checks.out`; netlist equivalence to v3.7: `tile-netlist-equivalence-elig.log.gz` (7,132 of 7,132 proven).

@@ -1,6 +1,6 @@
 # Heterogeneous system: CPU, GPU and TPU behind one job interface (proposed)
 
-**Status: SPECIFICATION, with the GPU engine built and scheduled (2026-10-18).** The GPU runs real kernels over a HYDRA bank (`make gpu`) and is the chip's sixth dispatcher slot in simulation (`make systile-gpu`); ABI version 2 is not built; the CPU is not integrated. The
+**Status: SPECIFICATION, with the GPU engine built and scheduled (2026-10-18).** The GPU runs real kernels over a HYDRA bank (`make gpu`) and is the chip's sixth dispatcher slot in simulation (`make systile-gpu`); ABI version 2 is built on the chip side (`sys/rtl/hydra_abi_v2.sv`): the header is checked, the engine policy and engine health become an eligibility mask, and the scheduler applies it before comparing costs; the CPU is not integrated. The
 capability matrix is the record of what runs.
 
 ## Candidates, as inspected on 2026-10-11
@@ -42,6 +42,14 @@ v1 consumer refuse a v2 descriptor rather than misread it.
 | `profile_id` | 8 | FHE scheme and parameter set, or the SE profile |
 | then the v1 body | 128 | operation class, data type, dimensions and bank addresses as today |
 
+As built (2026-10-18): the header is the 64 bits above, MSB first, with the
+remaining 15 bits reserved and required to be zero; `key_handle` and
+`profile_id` must be zero in PUBLIC_DEBUG. Refusal codes: 1 version,
+2 reserved bits, 3 security mode, 4 policy, 5 context or epoch, 6 key or
+profile set, 7 no eligible engine; a job no eligible engine can perform is
+refused by the scheduler itself. Headers, contexts and the healthy-engine
+mask are loaded over the memory port (`hydra_sys_tile`, `ABI_V2 = 1`).
+
 ## Eligibility before cost
 
 Engines are filtered **before** any cost is compared:
@@ -76,8 +84,8 @@ admits only (PUBLIC_DEBUG, AUTO) and refuses everything else.
    malformed launch. **Done in simulation, 2026-10-17** (`make gpu`: 14
    kernels; the four refusals; a bank-write watcher after done). The sixth
    dispatcher slot is built on the chip side (`NENG = 6`, `make systile-gpu`);
-   still to do: ABI version 2 (security mode, engine policy, contexts) and a
-   board image.
+   ABI version 2 is built on the chip side too (`sys/rtl/hydra_abi_v2.sv`,
+   `make abi-v2 systile-abi`); still to do: a board image.
 3. CPU. Add a program and data load port and a done/halt handshake. Required
    evidence: a real program's results checked against Sixfold's model (the
    108 regression runs), with completion after the last store is visible.
