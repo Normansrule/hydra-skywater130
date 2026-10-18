@@ -109,7 +109,7 @@ module mom_scoreboard
   // ---------------------------------------------------------------------------
   logic [COST_W-1:0] now;
   always_ff @(posedge clk or negedge rst_n)
-    if (!rst_n) now <= '0; else now <= now + 32'd1;
+    if (!rst_n) now <= {COST_W{1'b0}}; else now <= now + 32'd1;
 
   // ---------------------------------------------------------------------------
   // Tag table
@@ -124,15 +124,23 @@ module mom_scoreboard
     assign tag_busy_vec[t] = busy[t];
   end
 
+  // Tag ports are 4 bits; the arrays have NTAG entries. Every array index
+  // below uses exactly the bits that address NTAG entries (TIW of them), and
+  // only after the range guard has checked the whole 4-bit value.
+  localparam int unsigned TIW = (NTAG > 1) ? $clog2(NTAG) : 1;
+
   // Lowest free tag. A priority encoder over 16 bits, about 40 gates.
-  logic [3:0] free_tag;
-  logic       have_free;
+  logic [3:0]     free_tag;
+  logic [TIW-1:0] free_i;
+  logic           have_free;
   always_comb begin
+    free_i    = {TIW{1'b0}};
     free_tag  = 4'd0;
     have_free = 1'b0;
     for (int t = NTAG - 1; t >= 0; t--)
       if (!busy[t]) begin
-        free_tag  = 4'(t);
+        free_i    = t[TIW-1:0];
+        free_tag  = t[3:0];
         have_free = 1'b1;
       end
   end
@@ -156,21 +164,23 @@ module mom_scoreboard
   // unpredictably when software makes a mistake, which is exactly when you most
   // want it not to.
   // ---------------------------------------------------------------------------
-  wire disp_engine_ok = (disp_engine < 3'(ENG_N));
+  wire disp_engine_ok = ({29'd0, disp_engine} < ENG_N);
   wire comp_tag_ok    = ({28'd0, comp_tag} < NTAG);
+  wire [TIW-1:0] comp_i  = comp_tag[TIW-1:0];
+  wire [TIW-1:0] fence_i = fence_tag[TIW-1:0];
 
   wire engine_has_room = disp_engine_ok && !engine_full[disp_engine];
   assign disp_ready = have_free && engine_has_room;
   assign disp_tag   = free_tag;
 
   wire do_disp = disp_valid && disp_ready;
-  wire do_comp = comp_valid && comp_tag_ok && busy[comp_tag];
+  wire do_comp = comp_valid && comp_tag_ok && busy[comp_i];
 
   // A completion whose tag is out of range, or in range but not busy, is
   // dropped. Dropping it silently is what breaks the occupancy counter, so it
   // is reported instead. Out-of-range counts as stale: the tag was certainly
   // never dispatched.
-  wire stale_comp = comp_valid && (!comp_tag_ok || !busy[comp_tag]);
+  wire stale_comp = comp_valid && (!comp_tag_ok || !busy[comp_i]);
 
   always_ff @(posedge clk or negedge rst_n)
     if (!rst_n) err_stale_comp <= 1'b0;
@@ -186,7 +196,7 @@ module mom_scoreboard
   // ---------------------------------------------------------------------------
   for (genvar e = 0; e < ENG_N; e++) begin : g_queue
     wire inc = do_disp && (disp_engine == 3'(e));
-    wire dec = do_comp && (t_eng[comp_tag] == 3'(e));
+    wire dec = do_comp && (t_eng[comp_i] == 3'(e));
 
     always_ff @(posedge clk or negedge rst_n) begin
       if (!rst_n)
@@ -197,7 +207,7 @@ module mom_scoreboard
         queue_depth[e] <= queue_depth[e] - 8'd1;
     end
 
-    assign engine_full[e] = (queue_depth[e] >= 8'(QMAX));
+    assign engine_full[e] = ({24'd0, queue_depth[e]} >= QMAX);
   end
 
   // ---------------------------------------------------------------------------
@@ -209,19 +219,19 @@ module mom_scoreboard
         busy[t]    <= 1'b0;
         t_eng[t]   <= 3'd0;
         t_opc[t]   <= OPC_SCALAR;
-        t_start[t] <= '0;
-        t_pred[t]  <= '0;
+        t_start[t] <= {COST_W{1'b0}};
+        t_pred[t]  <= {COST_W{1'b0}};
       end
     end else begin
       if (do_disp) begin
-        busy[free_tag]    <= 1'b1;
-        t_eng[free_tag]   <= disp_engine;
-        t_opc[free_tag]   <= disp_opclass;
-        t_start[free_tag] <= now;
-        t_pred[free_tag]  <= disp_t_pred;
+        busy[free_i]    <= 1'b1;
+        t_eng[free_i]   <= disp_engine;
+        t_opc[free_i]   <= disp_opclass;
+        t_start[free_i] <= now;
+        t_pred[free_i]  <= disp_t_pred;
       end
       if (do_comp)
-        busy[comp_tag] <= 1'b0;
+        busy[comp_i] <= 1'b0;
     end
   end
 
@@ -233,14 +243,17 @@ module mom_scoreboard
       cal_valid <= 1'b0;
     end else begin
       cal_valid       <= do_comp;
-      cal_engine      <= t_eng[comp_tag];
-      cal_opclass     <= t_opc[comp_tag];
-      cal_t_measured  <= now - t_start[comp_tag];
-      cal_t_predicted <= t_pred[comp_tag];
+      cal_engine      <= t_eng[comp_i];
+      cal_opclass     <= t_opc[comp_i];
+      cal_t_measured  <= now - t_start[comp_i];
+      cal_t_predicted <= t_pred[comp_i];
     end
   end
 
-  assign fence_busy = busy[fence_tag];
+  // A fence on a tag that does not exist (FENCE is four bits; the tile has
+  // four tags) reads "not busy": nothing is in flight under it. It used to
+  // index past the end of busy[] (audit R7, 2026-10-11).
+  assign fence_busy = ({28'd0, fence_tag} < NTAG) ? busy[fence_i] : 1'b0;
 
 `ifdef FORMAL
   // ---------------------------------------------------------------------------

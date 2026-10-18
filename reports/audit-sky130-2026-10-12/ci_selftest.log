@@ -1,0 +1,26 @@
+ci_selftest: each break must make its target fail
+  CAUGHT    ntt-moduli, model stage (make ntt-moduli failed)
+  CAUGHT    ntt-moduli, sv2v stage (make ntt-moduli failed)
+  CAUGHT    ntt-moduli, iverilog stage (make ntt-moduli failed)
+  CAUGHT    ntt-moduli, sim stage (make ntt-moduli failed)
+  CAUGHT    ntt-moduli, count stage (make ntt-moduli failed)
+  CAUGHT    TPU accumulates one too many, sv2v testbench (make tpu failed)
+  CAUGHT    dispatcher never retires, system testbench (make system failed)
+  CAUGHT    scratchpad drops every write, sv2v memory testbench (make dma failed)
+  CAUGHT    syntax error in RTL (make ntt failed)
+  CAUGHT    reference model missing (make simd failed)
+  CAUGHT    formal property broken (make padmux failed)
+  CAUGHT    direct-iverilog testbench, every SPI byte dropped (make sky130 failed)
+  CAUGHT    tile cocotb test fails (make tile failed)
+ci_selftest: the same targets, unbroken, must pass
+  PASS      unbroken: make ntt-moduli
+  PASS      unbroken: make tpu
+  PASS      unbroken: make system
+  PASS      unbroken: make dma
+  PASS      unbroken: make ntt
+  PASS      unbroken: make simd
+  PASS      unbroken: make sky130
+  PASS      unbroken: make padmux
+  PASS      unbroken: make tile
+=== ci_selftest: every break was caught, every clean run passed (22 runs) ===
+EXIT 0

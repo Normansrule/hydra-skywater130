@@ -77,7 +77,8 @@ module hydra_ulx3s_tt (
   assign gp_0 = c_uio_mirror[0];
   assign gp_8 = c_reg_mode_o;
 
-  hydra_fpga_tt_harness u_core (
+  // UART: 12.5 MHz / 109 = 114678.9 baud, -0.45% against 115200 (budget 2%)
+  hydra_fpga_tt_harness #(.CLKS_PER_BIT(109)) u_core (
     .clk(c_clk),
     .reg_mode_o(c_reg_mode_o),
     .rst_n(c_rst_n),

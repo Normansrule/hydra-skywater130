@@ -1,0 +1,23 @@
+FAIL MODEL-01: t_pred=511 k=4 exact=31 got 16 (48.39% low)
+FAIL MODEL-01: t_pred=1023 k=4 exact=63 got 48 (23.81% low)
+FAIL MODEL-01: t_pred=2047 k=4 exact=127 got 112 (11.81% low)
+FAIL MODEL-01: t_pred=4095 k=4 exact=255 got 240 (5.88% low)
+FAIL MODEL-01: t_pred=8191 k=4 exact=511 got 496 (2.94% low)
+FAIL MODEL-01: t_pred=16383 k=4 exact=1023 got 1008 (1.47% low)
+FAIL MODEL-01: t_pred=32767 k=4 exact=2047 got 2032 (0.73% low)
+FAIL MODEL-01: t_pred=131071 k=4 exact=8191 got 4096 (49.99% low)
+FAIL MODEL-01: t_pred=262143 k=4 exact=16383 got 12288 (25.00% low)
+MODEL-01: 30462 calibrated predictions within 1/256 of the exact product
+MODEL-02: k=68, t_pred=4042322161 (calibrated about 2^32), measured 1024 -> k=72
+FAIL MODEL-02: k moved the wrong way (68 -> 72): the comparison wrapped
+FAIL MODEL-02: an out-of-range update changed k[1][6]
+FAIL MODEL-02: an out-of-range update was counted (2 -> 4)
+FAIL tb_cost_cal: 10617 errors
+1:FAIL MODEL-01: t_pred=511 k=4 exact=31 got 16 (48.39% low)
+2:FAIL MODEL-01: t_pred=1023 k=4 exact=63 got 48 (23.81% low)
+3:FAIL MODEL-01: t_pred=2047 k=4 exact=127 got 112 (11.81% low)
+4:FAIL MODEL-01: t_pred=4095 k=4 exact=255 got 240 (5.88% low)
+5:FAIL MODEL-01: t_pred=8191 k=4 exact=511 got 496 (2.94% low)
+6:FAIL MODEL-01: t_pred=16383 k=4 exact=1023 got 1008 (1.47% low)
+7:FAIL MODEL-01: t_pred=32767 k=4 exact=2047 got 2032 (0.73% low)
+8:FAIL MODEL-01: t_pred=131071 k=4 exact=8191 got 4096 (49.99% low)

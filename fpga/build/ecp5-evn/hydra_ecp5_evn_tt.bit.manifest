@@ -1,0 +1,24 @@
+image   8e73d4edc824383a569809e946b42cb394384019bb29f04a11f27157a7e1ccb8  hydra_ecp5_evn_tt.bit
+srchash cfd42e873fbdd940
+tools   sv2v v0.0.13 Yosys 0.52 (git sha1 fee39a3284c90249e1d9684cf6944ffbbcbb8f90) nextpnr-ecp5 -- Next Generation Place and Route (Version 0.9-3) 
+built   2026-10-18T05:00:18Z
+seed    1
+10a0a4771136053f9b081a3cf910d3f8100ff4ed2f519212bf0db1175007e8b2  ../../../mom/rtl/mom_pkg.sv
+0aaef5206af26e1aef10c82394e743094cc490799a01b3000773403e69857ba3  ../../../mom/rtl/mom_features.sv
+4268b10381e7a8ee45a0bad0d8a8136c325850f9e7d2512cc222bf328aa422ce  ../../../mom/rtl/mom_param_rom.sv
+d4f47dff91b5ab9aca911ecf7ebab9b12e5cd89233a2e63f4501dbd52eddc8a5  ../../../mom/rtl/mom_cost_engine.sv
+a325639c20383230a8b089f27c2e1c6969e34c167acbf0dd62be715dc036a8c8  ../../../mom/rtl/mom_calibrate.sv
+5cb6a723edb624e9c43ab86fe6075574eacf5ec46245ff42e4c478d831a72a00  ../../../mom/rtl/mom_select.sv
+6ca8428384eed21041b144dd0554be92900980343e35f61b47bb5b31fb77ee85  ../../../mom/rtl/mom_scoreboard.sv
+841da967f46d48a1514e871d780761417fbe5850b8dde25f0967b1918d0949f3  ../../../mom/rtl/mom_top.sv
+36be4ae86046106e09fec98207e1d4c9372fb9676d6b554ec451becf72f92860  ../../../mom/rtl/hydra_tt_spi.sv
+c7d8c2795e3c709528e5342086e84a28d4b5284d874bfe3dd0ed50c79cad6603  ../../../mom/rtl/hydra_tt_regs.sv
+d538415943fd48fdb62e64b39b9c4f12f487b1d5a4dcb505ee9876e78f7fb9d3  ../../../mom/hydra_mom_pins.sv
+603fda177eac7e7cbd4e4fe278b079e43235146d439554290b50abf8025bd4eb  ../../../fpga/rtl/hydra_fpga_uart.sv
+a6c47e7440da050800e21ce8463c66a87abbc1170b174b19ea1840d71dd4e471  ../../../fpga/rtl/hydra_fpga_bridge.sv
+6b7cbc18de7c5dcae71d8f7d633d524a7f3e4c1b98f7de0af0b2f2bfe3d6a477  ../../../fpga/rtl/hydra_fpga_tt_harness.sv
+cfe0610e3b3eab2fa52db8674ecbe03923cec9f180b86935c493a7e2f822f64a  ../../../common/rtl/hydra_rst_sync.sv
+f43c770e78a69f2fd836a1bfbcd6a7cf73d2e3336e8280ba215658e24672095e  hydra_ecp5_evn_tt.sv
+5ee163e3d81f27216a0d4c8167a5fe7607940ca2d98fdbfb123af59e7de0284d  hydra_ecp5_evn_tt.lpf
+061b12f7553968eb811948a3c0ee2f3457b71318fd4e3b91343a233f41bae0b8  ../../../plans/ecp5-evn.yaml
+547ff6cb05ad99314cead29d3101db35c45dfe4ea3ce9b0695ec86fa24adc818  Makefile

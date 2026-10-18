@@ -1,0 +1,8 @@
+FAIL: at 15209628 the register block recorded a dispatch the crossbar had not taken
+FAIL: at 15209684 the register block recorded a dispatch the crossbar had not taken
+RTL-02: 1596 dispatches recorded by the register block, 105 taken by the crossbar, 1491 recorded early
+FAIL: dispatch observation does not follow the crossbar handshake
+RTL-04: 22 RESULT reads, 2 of them while RESULT changed, 0 torn
+RTL-08: host COMP write -> status 9000
+FAIL: a host completion was accepted and discarded without an error
+FAIL tb_sys_tile: 2 errors

@@ -23,4 +23,11 @@ place_design
 route_design
 report_timing_summary -file hydra_arty_a7_35_tt_timing.rpt
 report_utilization -file hydra_arty_a7_35_tt_util.rpt
+report_drc -file hydra_arty_a7_35_tt_drc.rpt
+# No bitstream from a design that misses timing (audit R6, 2026-10-11).
+set wns [get_property SLACK [get_timing_paths -delay_type max]]
+set whs [get_property SLACK [get_timing_paths -delay_type min]]
+if {$wns eq "" || $wns < 0 || $whs eq "" || $whs < 0} {
+  error "timing not met: setup slack $wns ns, hold slack $whs ns (see hydra_arty_a7_35_tt_timing.rpt)"
+}
 write_bitstream -force hydra_arty_a7_35_tt.bit

@@ -1,0 +1,5 @@
+FAIL ntt-moduli q=3329: ran 31 cases, the model wrote 32 (log: /tmp/ntt_moduli.xjZ4Nh/q3329/log.txt)
+FAIL ntt-moduli q=3329: iverilog failed (log: /tmp/ntt_moduli.WWI5ZH/q3329/log.txt)
+FAIL ntt-moduli q=3329: reference model failed (log: /tmp/ntt_moduli.oOeklf/q3329/log.txt)
+FAIL ntt-moduli q=3329: simulation exited 1 (log: /tmp/ntt_moduli.CvLPn9/q3329/log.txt)
+FAIL ntt-moduli q=3329: sv2v failed (log: /tmp/ntt_moduli.ZjqvM4/q3329/log.txt)

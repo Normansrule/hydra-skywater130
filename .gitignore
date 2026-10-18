@@ -33,3 +33,7 @@ common/tb/padmux_vectors.hex
 __pycache__/
 .pytest_cache/
 *.pyc
+
+# Per-checkout simulation scratch (Makefile SIMTMP)
+/build/
+fpga/build/*/pnr.log

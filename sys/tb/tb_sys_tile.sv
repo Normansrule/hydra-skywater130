@@ -24,6 +24,9 @@ module tb_sys_tile;
   wire  [7:0] uo, uio, uio_oe;
   integer errors = 0;
   always #27.5 clk = ~clk;
+  // A broken design must FAIL here, not hang (ci_selftest, 2026-10-11): about
+  // twenty times the cycles a passing run needs.
+  initial begin repeat (6000000) @(posedge clk); $display("FAIL tb_sys_tile: watchdog"); $fatal(1); end
 
   hydra_sys_tile #(.LAT_FAST(30), .LAT_SLOW(1500)) dut (
     .ui_in(ui), .uo_out(uo), .uio_in(8'h00), .uio_out(uio), .uio_oe(uio_oe),
@@ -77,6 +80,37 @@ module tb_sys_tile;
   logic [2:0] eng, first_eng;
   logic [31:0] margin;
   integer i, moved_at;
+
+  // ---- RTL-02 (SkyWater 130 audit, 2026-10-11) ------------------------------
+  // The register block records a dispatch (STATUS.DISPATCHED, RESULT engine
+  // and tag, the IRQ) at the event it observes. In this system the crossbar
+  // owns the handshake: a dispatch has happened only when the crossbar takes
+  // it. Count both on every cycle; they must be the same events.
+  integer obs_events = 0, xbar_events = 0, obs_early = 0;
+
+  // ---- RTL-04: a multi-byte read is one snapshot -----------------------------
+  // While `sampling` is set, record every distinct value the RESULT register
+  // holds. A read is coherent if what came back is one of them; a torn read
+  // (byte 0 from one dispatch, the rest from the next) is none of them.
+  logic        sampling = 0;
+  logic [47:0] seen_vals [16];
+  integer      n_seen = 0;
+  wire  [47:0] result_now = {dut.u_regs.r_engine, dut.u_regs.r_tag, 1'b0,
+                             dut.u_regs.r_margin, dut.u_regs.r_errtag};
+  always @(posedge clk) if (sampling) begin
+    logic hit; hit = 0;
+    for (int j = 0; j < n_seen; j++) if (seen_vals[j] === result_now) hit = 1;
+    if (!hit && n_seen < 16) begin seen_vals[n_seen] = result_now; n_seen = n_seen + 1; end
+  end
+  always @(posedge clk) if (rst_n) begin
+    if (dut.u_regs.dispatched) obs_events++;
+    if (dut.disp_valid && dut.disp_accept) xbar_events++;
+    if (dut.u_regs.dispatched && !(dut.disp_valid && dut.disp_accept)) begin
+      obs_early++;
+      if (obs_early < 3)
+        $display("FAIL: at %0t the register block recorded a dispatch the crossbar had not taken", $time);
+    end
+  end
 
   initial begin
     repeat (5) @(posedge clk); rst_n = 1;
@@ -163,6 +197,76 @@ module tb_sys_tile;
       errors++;
       $display("FAIL: the decision recovered. If exploration or decay was just added, invert this check and update BUILDOUT.");
     end
+
+    // ---- 5. a dispatch that waits for a busy engine (RTL-02) --------------
+    // Reset clears calibration, so LARGE goes to the TPU again. With the TPU
+    // slow, queue two LARGE jobs behind HOLD and release: the second waits
+    // ~1500 cycles for the busy TPU. Nothing may be recorded as dispatched
+    // until the crossbar actually takes it.
+    rst_n = 0; repeat (5) @(posedge clk); rst_n = 1; repeat (20) @(posedge clk);
+    ui[7:6] = 2'b01;
+    wr(7'h02, 1, 128'h01);             // HOLD
+    wr(7'h01, 16, LARGE); go();
+    wr(7'h01, 16, LARGE); go();
+    wr(7'h03, 1, 128'h02);             // CLEAR_STICKY
+    wr(7'h02, 1, 128'h00);             // release
+    for (int w = 0; w < 4000; w++) begin
+      rd(7'h09, 2, v);
+      if (v[15:0] == 0) break;
+    end
+    ui[7:6] = 2'b00;
+    $display("RTL-02: %0d dispatches recorded by the register block, %0d taken by the crossbar, %0d recorded early",
+             obs_events, xbar_events, obs_early);
+    if (obs_early != 0 || obs_events != xbar_events) begin
+      errors++; $display("FAIL: dispatch observation does not follow the crossbar handshake");
+    end
+
+    // ---- 6. reads while dispatches land on their own (RTL-04) ---------------
+    // Queue jobs behind a busy TPU and read RESULT back to back while they
+    // dispatch without the host. Every 6-byte read must be a value RESULT
+    // actually held at one instant.
+    begin
+      integer reads, torn, changes;
+      rst_n = 0; repeat (5) @(posedge clk); rst_n = 1; repeat (20) @(posedge clk);
+      // Both the TPU and the vector unit slow; LARGE goes to the TPU and SMALL
+      // to the vector unit, with different margins, so consecutive RESULTs
+      // differ in every byte and a torn read cannot look like a real one.
+      ui[7:6] = 2'b11;
+      wr(7'h02, 1, 128'h01);
+      for (int q = 0; q < 6; q++) begin wr(7'h01, 16, (q % 2) ? SMALL : LARGE); go(); end
+      wr(7'h02, 1, 128'h00);
+      reads = 0; torn = 0; changes = 0;
+      for (int w = 0; w < 400; w++) begin
+        n_seen = 0; sampling = 1;
+        rd(7'h06, 6, v);
+        sampling = 0;
+        reads++;
+        if (n_seen > 1) changes++;
+        begin
+          logic ok; ok = 0;
+          for (int j = 0; j < n_seen; j++) if (seen_vals[j] === v[47:0]) ok = 1;
+          if (!ok) begin
+            torn++;
+            if (torn < 3) $display("FAIL: RESULT read %012h, which the register never held during the read", v[47:0]);
+          end
+        end
+        if (dut.obs_tag_busy == 8'h00 && w > 20) break;
+      end
+      ui[7:6] = 2'b00;
+      $display("RTL-04: %0d RESULT reads, %0d of them while RESULT changed, %0d torn", reads, changes, torn);
+      if (changes == 0) begin errors++; $display("FAIL: no read overlapped a dispatch; the test did not test anything"); end
+      if (torn) begin errors++; $display("FAIL: multi-byte reads are not coherent"); end
+    end
+
+    // ---- 7. a host completion is refused here (RTL-08) --------------------
+    // In this system the engines report their own completions. A COMP write
+    // from the host used to be accepted and silently discarded; it must be a
+    // FRAME_ERR so the host learns its completion went nowhere.
+    wr(7'h03, 1, 128'h02);             // CLEAR_STICKY
+    wr(7'h04, 1, 128'h00);             // COMP tag 0
+    rd(7'h05, 2, v);
+    $display("RTL-08: host COMP write -> status %04h", v[15:0]);
+    if (!v[8]) begin errors++; $display("FAIL: a host completion was accepted and discarded without an error"); end
 
     if (errors) begin $display("FAIL tb_sys_tile: %0d errors", errors); $fatal(1); end
     $display("PASS tb_sys_tile");

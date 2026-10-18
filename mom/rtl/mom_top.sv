@@ -159,6 +159,7 @@ module mom_top
   // One shared calibration array with ENG_N parallel read ports. See the
   // header of mom_calibrate.sv for why this is not five instances.
   wire [ENG_N-1:0][7:0] k_cal;
+  wire                  cal_last_dir;    // observability only
 
   mom_calibrate u_cal (
     .clk(clk), .rst_n(rst_n),
@@ -167,7 +168,7 @@ module mom_top
     .upd_valid(cal_valid), .upd_engine(cal_engine),
     .upd_opclass(cal_opclass),
     .upd_t_measured(cal_t_meas), .upd_t_predicted(cal_t_pred),
-    .upd_count(obs_cal_updates), .last_dir()
+    .upd_count(obs_cal_updates), .last_dir(cal_last_dir)
   );
 
   // ===========================================================================
@@ -215,8 +216,8 @@ module mom_top
     assign eval_busy    = 1'b0;
     assign lane_we      = 1'b0;
     assign lane_idx     = 3'd0;
-    assign lane_cost    = '0;
-    assign lane_tpred   = '0;
+    assign lane_cost    = {COST_W{1'b0}};
+    assign lane_tpred   = {COST_W{1'b0}};
     assign lane_valid   = 1'b0;
     assign lane_capable = 1'b0;
 
@@ -227,7 +228,7 @@ module mom_top
     logic [2:0] idx;
     logic       phase;
 
-    wire last = (idx == 3'(ENG_N - 1)) && phase;
+    wire last = ({29'd0, idx} == ENG_N - 1) && phase;
 
     always_ff @(posedge clk or negedge rst_n) begin
       if (!rst_n) begin
@@ -272,8 +273,8 @@ module mom_top
     assign lane_tpred   = s_tpred;
     assign lane_valid   = s_valid;
     assign lane_capable = s_capable;
-    assign cost = '0; assign t_pred = '0; assign cvalid = '0;
-    assign ccapable = '0;
+    assign cost = {ENG_N*COST_W{1'b0}}; assign t_pred = {ENG_N*COST_W{1'b0}};
+    assign cvalid = {ENG_N{1'b0}}; assign ccapable = {ENG_N{1'b0}};
   end
   endgenerate
 
@@ -319,7 +320,7 @@ module mom_top
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-      a_valid <= 1'b0; a_wd <= '0;
+      a_valid <= 1'b0; a_wd <= {WD_W{1'b0}};
     end else if (a_load) begin
       a_valid <= 1'b1;
       a_wd    <= f_wd;
@@ -331,11 +332,11 @@ module mom_top
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
       c_valid    <= 1'b0;
-      cost_q     <= '0;
-      t_pred_q   <= '0;
-      cvalid_q   <= '0;
-      ccapable_q <= '0;
-      c_wd       <= '0;
+      cost_q     <= {ENG_N*COST_W{1'b0}};
+      t_pred_q   <= {ENG_N*COST_W{1'b0}};
+      cvalid_q   <= {ENG_N{1'b0}};
+      ccapable_q <= {ENG_N{1'b0}};
+      c_wd       <= {WD_W{1'b0}};
     end else if (COST_SHARED) begin
       // One engine per two cycles, written straight into these registers.
       if (lane_we) begin
@@ -420,6 +421,12 @@ module mom_top
   // The features stage may move on only when its descriptor has been
   // consumed: one cycle in parallel mode, the end of the sweep in shared.
   assign f_ready     = COST_SHARED ? eval_done : a_adv;
+
+  // Outputs of submodules this top does not use: the log2 of operand traffic
+  // (the cost engines take the linear byte count), the winning cost (the
+  // margin is what is reported) and the direction of the last calibration
+  // step. Named for the linter; removed by synthesis.
+  wire _unused_ok = &{1'b0, f_lg_q, sel_cost, cal_last_dir};
 
 endmodule
 

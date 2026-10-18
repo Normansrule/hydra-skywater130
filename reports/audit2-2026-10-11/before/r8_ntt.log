@@ -1,0 +1,8 @@
+WARNING: /home/claude/hydra-targets/build/sim/hydra_dma_ntt.v:992: $readmemh(mem/tb/dma_ntt_data.hex): Not enough words in the file for the requested range [0:8191].
+FAIL R8: 375 of 512 results corrupted by host writes during the job
+FAIL R8: 64 operand entries overwritten while the engine owned them
+FAIL R8: 0 of 645 host writes during the job were reported refused
+R8: 645 host writes during a 64-group job; results and operands intact
+FAIL tb_hydra_dma_ntt: 3 errors (q=12289)
+Fatal [201720] mem/tb/tb_hydra_dma_ntt.sv:263:74 - tb_hydra_dma_ntt.<unnamed_block>.<unnamed_block>
+/home/claude/hydra-targets/build/sim/hydra_dma_ntt.v:1385: $finish(1) called at 201720 (1s)

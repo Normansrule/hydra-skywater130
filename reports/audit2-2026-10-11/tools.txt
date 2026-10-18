@@ -1,0 +1,7 @@
+iverilog: Icarus Verilog version 12.0 (stable) ()
+sv2v: sv2v v0.0.13
+yosys: Yosys 0.33 (git sha1 2584903a060)
+sby: installed (SymbiYosys, /usr/local/bin/sby)
+python: Python 3.13.16
+cocotb: 2.1.0
+nextpnr-ecp5: NOT INSTALLED here -- no FPGA place-and-route was run for this report

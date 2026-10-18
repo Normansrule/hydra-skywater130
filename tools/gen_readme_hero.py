@@ -2,11 +2,16 @@
 """
 gen_readme_hero.py -- the README's lead figures, drawn from the repository.
 
-  hero.svg               the chip: a floorplan with every block drawn to its
-                         MEASURED cell area (docs/metrics.json), a pad ring,
-                         and one animated dispatch; beside it, the sign-off
-                         facts read from docs/timing.json and the proofs
-                         counted from the .sby files
+  hero.svg               an AREA CHART, not a floorplan: every block drawn to
+                         its synthesized cell area (docs/metrics.json) and one
+                         dispatch shown in its final state; beside it, the
+                         Tiny Tapeout tile's sign-off facts (docs/timing.json),
+                         labelled as the tile's, and the proof configurations
+                         counted from the .sby files. Static since the
+                         SkyWater 130 audit (2026-10-11): a README image cannot
+                         offer a pause control, and a pad ring around separately
+                         synthesized blocks read as a placed chip that does
+                         not exist.
   tile_hero.svg          the same idea for the Tiny Tapeout tile repository
   measure_anim.svg       hardware padding filling a 64-byte block, then the
                          digest extending the measurement register
@@ -68,26 +73,44 @@ def check_readme_numbers():
     """Numbers the READMEs quote in prose must match the latest harden.
     The summary table said 66.7% utilisation for a week after the run that
     measured 67.3% (found 2026-10-08)."""
+    # A number may also be an OLDER run's, if the same line names that run
+    # ("(v2)") and timing.json holds exactly that number for it. History is
+    # then checked too, instead of being exempt: when v3.4 became the latest
+    # run, the v2 tables still said +2.20 ns and 67.3%, which were right for
+    # v2 and must stay right (2026-10-17).
     import re
     _, t, _, _, _ = data()
-    util = f'{t["utilisation"]*100:.1f}%'
-    worst = f'+{min(c[1] for c in t["corners"]):.2f} ns'
+    fmt_u = lambda r: f'{r["utilisation"]*100:.1f}%'
+    fmt_s = lambda r: f'+{min(c[1] for c in r["corners"]):.2f} ns'
+    util, worst = fmt_u(t), fmt_s(t)
+    runs = json.loads((ROOT / "docs/timing.json").read_text())["runs"]
+    older = {r["version"]: r for r in runs[:-1] if r.get("version")}
+
+    def historical(line, value, fmt):
+        return any(re.search(rf"\b{re.escape(v)}\b", line) and fmt(r) == value
+                   for v, r in older.items())
+
     bad = []
-    for f in (ROOT / "README.md", ROOT / "tt/tile/README.md"):
-        txt = f.read_text()
-        for m in re.finditer(r"(\d\d\.\d)%\*{0,2} (?:utilisation|of the 4×4 tile)", txt):
-            if m.group(1) + "%" != util:
-                bad.append(f"{f.relative_to(ROOT)}: says {m.group(1)}% utilisation, latest harden {util}")
-        for m in re.finditer(r"slack \*{0,2}(\+\d+\.\d\d ns)", txt):
-            if m.group(1) != worst:
-                bad.append(f"{f.relative_to(ROOT)}: says slack {m.group(1)}, latest harden {worst}")
+    for f in (ROOT / "README.md", ROOT / "tt/tile/README.md", ROOT / "docs/ENGINEERING_NOTES.md"):
+        for line in f.read_text().splitlines():
+            for m in re.finditer(r"(\d\d\.\d)%\*{0,2} (?:utilisation|of the 4×4 tile)", line):
+                u = m.group(1) + "%"
+                if u != util and not historical(line, u, fmt_u):
+                    bad.append(f"{f.relative_to(ROOT)}: says {u} utilisation, latest harden {util}")
+            for m in re.finditer(r"slack \*{0,2}(\+\d+\.\d\d ns)", line):
+                if m.group(1) != worst and not historical(line, m.group(1), fmt_s):
+                    bad.append(f"{f.relative_to(ROOT)}: says slack {m.group(1)}, latest harden {worst}")
     return bad
 
 
 def data():
     m = json.loads((ROOT / "docs/metrics.json").read_text())
     t = json.loads((ROOT / "docs/timing.json").read_text())["runs"][-1]
-    n_sby = sum(1 for f in ROOT.rglob("*.sby") if f.parent.name == "formal" and ".git" not in f.parts)
+    # proof TASKS make verify runs, not .sby files (SkyWater 130 audit)
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT / "tools"))
+    import gen_site
+    n_sby = len(gen_site.proof_tasks()[0])
     gl = next((v["result"] for v in m["verification"] if "hardened netlist" in v["what"]), None)
     unb = sum(1 for v in m["verification"] if v["result"] == "unbounded")
     return m, t, n_sby, gl, unb
@@ -149,30 +172,16 @@ def hero():
     s.append(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" '
              f'role="img" aria-labelledby="t d">')
     s.append('<title id="t">HYDRA-130</title>')
-    s.append('<desc id="d">A floorplan of the chip with each block drawn to its measured cell area, '
-             'and a work descriptor being routed by the dispatcher to the systolic array. '
-             f'Timing closes at {t["period_ns"]} ns at every corner; design rules, layout versus '
-             'schematic and antenna are clean.</desc>')
+    s.append('<desc id="d">An area chart, not a floorplan: each block drawn to its synthesized standard-cell '
+             'area, with an illustrative dispatch from the dispatcher to the systolic array. '
+             f'Sign-off facts are the Tiny Tapeout tile\'s: {t["period_ns"]} ns at every corner, with '
+             'design rules, layout versus schematic and antenna clean. No full chip has been placed or routed.</desc>')
     s.append(f'''<style>
   .pulse {{ offset-path: path("{{PATH}}"); offset-distance: 100%; opacity: 0; }}
   .sweep {{ opacity: 0; }}
   .route {{ stroke-dashoffset: 0; }}
   .win   {{ opacity: 1; }}
   .tag   {{ opacity: 1; }}
-  @media (prefers-reduced-motion: no-preference) {{
-    .pulse {{ animation: travel 8s linear infinite; }}
-    .sweep {{ animation: sweep 8s linear infinite; }}
-    .s1 {{ animation-delay: 0s; }} .s2 {{ animation-delay: .55s; }}
-    .s3 {{ animation-delay: 1.1s; }} .s4 {{ animation-delay: 1.65s; }}
-    .route {{ animation: draw 8s linear infinite; }}
-    .win   {{ animation: win 8s linear infinite; }}
-    .tag   {{ animation: win 8s linear infinite; }}
-  }}
-  @keyframes travel {{ 0% {{ offset-distance: 0%; opacity: 0 }} 2% {{ opacity: 1 }}
-                       22% {{ offset-distance: 100%; opacity: 1 }} 24%,100% {{ offset-distance: 100%; opacity: 0 }} }}
-  @keyframes sweep  {{ 0%,24% {{ opacity: 0 }} 26% {{ opacity: .85 }} 31% {{ opacity: .85 }} 33%,100% {{ opacity: 0 }} }}
-  @keyframes draw   {{ 0%,52% {{ stroke-dashoffset: 400 }} 62%,90% {{ stroke-dashoffset: 0 }} 96%,100% {{ stroke-dashoffset: 400 }} }}
-  @keyframes win    {{ 0%,60% {{ opacity: 0 }} 65%,90% {{ opacity: 1 }} 96%,100% {{ opacity: 0 }} }}
 </style>''')
     s.append('<defs>'
              f'<pattern id="rows" width="8" height="7" patternUnits="userSpaceOnUse">'
@@ -184,16 +193,7 @@ def hero():
     s.append(f'<rect width="{W}" height="{H}" rx="18" fill="url(#grid)"/>')
 
     # ---- die: seal ring, pads, core ------------------------------------------
-    s.append(f'<rect x="{dx}" y="{dy}" width="{dw}" height="{dh}" rx="6" fill="none" stroke="{PAD}" stroke-opacity=".35" stroke-width="2"/>')
-    pads, pitch = [], 34
-    n = int((dw - 60) // pitch)
-    for i in range(n):
-        p = dx + 30 + i * pitch + (dw - 60 - (n - 1) * pitch) / 2 - 7
-        pads += [(p, dy + 10, 14, 18), (p, dy + dh - 28, 14, 18)]
-        q = dy + 30 + i * pitch + (dh - 60 - (n - 1) * pitch) / 2 - 7
-        pads += [(dx + 10, q, 18, 14), (dx + dw - 28, q, 18, 14)]
-    for (x, y, w, h) in pads:
-        s.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{w}" height="{h}" rx="2" fill="{PAD}" opacity=".85"/>')
+    # No seal ring and no pads: this is an area chart, not a die.
     cx, cy, cw, ch = core
     s.append(f'<rect x="{cx-6}" y="{cy-6}" width="{cw+12}" height="{ch+12}" rx="4" fill="{SUB2}"/>')
 
@@ -229,26 +229,28 @@ def hero():
 
     # ---- the title, and the wire from it into the chip -----------------------
     s.append(f'<text x="56" y="150" style="{FONT};font-size:78px;font-weight:800;letter-spacing:-2px" fill="{TXT}">HYDRA-130</text>')
-    # the underline is a metal-2 wire that runs to a pad and on into the dispatcher
-    pad_y = min((p for p in pads if abs(p[0] - (dx + 10)) < 1), key=lambda p: abs(p[1] + 7 - 176))
-    py = pad_y[1] + 7
-    wire = f"M58,176 H{dx-30} V{py:.1f} H{dx+19} M{dx+28},{py:.1f} H{cx-6} V{ay:.1f} H{ax:.1f}"
-    pulse_path = f"M58,176 H{dx-30} V{py:.1f} H{cx-6} V{ay:.1f} H{ax:.1f}"
+    # the underline runs into the dispatcher's block
+    wire = f"M58,176 H{cx-6} V{ay:.1f} H{ax:.1f}"
+    pulse_path = wire
     s.append(f'<path d="{wire}" fill="none" stroke="{MET2}" stroke-opacity=".75" stroke-width="2.4" stroke-linejoin="round"/>')
-    s.append(f'<circle class="pulse" r="6.5" fill="{TXT}" stroke="{MET2}" stroke-width="3"/>')
 
-    s.append(f'<text x="58" y="222" style="{FONT};font-size:23px" fill="{TXT2}">A dispatcher chip that measures its own engines,</text>')
-    s.append(f'<text x="58" y="252" style="{FONT};font-size:23px" fill="{TXT2}">open source, for SkyWater&#8217;s 130 nm process.</text>')
+    s.append(f'<text x="58" y="222" style="{FONT};font-size:23px" fill="{TXT2}">Adaptive scheduling and accelerator research</text>')
+    s.append(f'<text x="58" y="252" style="{FONT};font-size:23px" fill="{TXT2}">for FPGA and SkyWater&#8217;s 130 nm process.</text>')
 
     # ---- what is established, each in the colour of what it is about ----------
     worst = min(c[1] for c in t["corners"])
     clean = t["drc"] == 0 and t["lvs"] == 0 and t["antenna"] == 0
+    # the run is named from timing.json, never typed here: the hero quoted
+    # "v2" for two weeks after v3.4 signed off (found 2026-10-17)
+    ver = t.get("version") or t["label"].split(",")[0]
+    slew = t.get("slew_violations", 0)
     rows = [
-        (MET1, "Timing", f'{t["period_ns"]} ns, all nine corners, +{worst:.2f} ns'),
-        (PAD,  "Layout", "design rules, LVS and antenna all clean" if clean else "sign-off NOT clean"),
-        (DIFF, "Gate level", f'{gl.replace(" / ", " of ")} tests on the hardened netlist' if gl else "gate-level simulation pending"),
-        (DIFF, "Proofs", f'{n_sby} modules proved, {unb} results unbounded'),
-        (MET2, "Root of trust", "write-only keys, images measured in hardware"),
+        (MET1, "Tile timing", f'{t["period_ns"]} ns, all nine corners, +{worst:.2f} ns ({ver} harden)'),
+        (PAD,  "Tile layout", (f"DRC, LVS, antenna clean; {slew:,} slew warnings" if slew else
+                               f"DRC, LVS, antenna and slew clean ({ver})") if clean else "sign-off NOT clean"),
+        (DIFF, "Gate level", f'{gl.replace(" / ", " of ")} tile tests, hardened netlist' if gl else "gate-level simulation pending"),
+        (DIFF, "Proofs", f'{n_sby} proof tasks, run by make verify'),
+        (MET2, "Security IP", "vault, SHA-256, measurement: simulated only"),
     ]
     y = 330
     for col, k, v in rows:
@@ -257,12 +259,12 @@ def hero():
                  f'<text x="226" y="{y}" style="{FONT};font-size:17px" fill="{TXT2}">{escape(v)}</text>')
         y += 42
     s.append(f'<text x="58" y="{H-54}" style="{FONT};font-size:14px" fill="{TXT2}" opacity=".85">'
-             f'Blocks drawn to measured cell area, {total/1e6:.2f} mm² in all.</text>'
+             f'Area chart, not a floorplan: separately synthesized cell area, {total/1e6:.2f} mm² in all.</text>'
              f'<text x="58" y="{H-32}" style="{FONT};font-size:14px" fill="{TXT2}" opacity=".85">'
-             f'Key vault, mailbox and measurement register are not yet measured.</text>')
+             f'No full chip has been placed or routed. Vault, mailbox and PCR not yet measured.</text>')
     _, _, x, y2, w, h = centre["tpu"]
     s.append(f'<text class="tag" x="{dx+dw/2}" y="{dy+dh+30}" text-anchor="middle" style="{FONT};font-size:15px" fill="{TXT2}">'
-             f'an 8×8×8 matrix multiply goes to the systolic array</text>')
+             f'illustrative: an 8×8×8 matrix multiply goes to the systolic array</text>')
     s.append('</svg>\n')
     svg = "".join(s).replace("{PATH}", pulse_path)
     write("hero.svg", svg, [OUT_MAIN])
@@ -284,23 +286,27 @@ def tile_hero():
          f'<desc id="d">The Tiny Tapeout research tile, {cols} by {rows_n} tiles: a descriptor written over SPI, five engines '
          'costed one after another by a single shared cost engine, and the winner reported on the output pins.</desc>']
     s.append('''<style>
+  /* Static (SkyWater 130 audit, 2026-10-11): a README image cannot offer a
+     pause control, so the lead figures show their final state only. */
   .bit { opacity: 1; } .cost { opacity: 1; } .out { opacity: 1; } .hl { opacity: 0; }
-  @media (prefers-reduced-motion: no-preference) {
-    .bit  { animation: bit 7s linear infinite; }
-    .hl   { animation: hl 7s linear infinite; }
-    .out  { animation: out 7s linear infinite; }
-  }
-  @keyframes bit { 0% { opacity: .15 } 4% { opacity: 1 } 30% { opacity: 1 } 34%,100% { opacity: .15 } }
-  @keyframes hl  { 0%,34% { opacity: 0 } 36% { opacity: 1 } 44% { opacity: 1 } 46%,100% { opacity: 0 } }
-  @keyframes out { 0%,74% { opacity: .15 } 78%,94% { opacity: 1 } 98%,100% { opacity: .15 } }
 </style>''')
     s.append('<defs><pattern id="rows" width="8" height="7" patternUnits="userSpaceOnUse">'
              '<rect width="8" height="3" fill="#ffffff" opacity="0.06"/></pattern></defs>')
     s.append(f'<rect width="{W}" height="{H}" rx="18" fill="{SUB}"/>')
     # the tile grid, cols x rows as info.yaml orders it
-    th = 400
-    tw = th * cols / rows_n * (161 / 111.52)     # one Tiny Tapeout tile is 161 x 111.52 um
-    tx, ty = 1040 - tw, 70
+    # The drawing keeps the tile's aspect ratio and is scaled to fit between
+    # the left-hand text (pin labels need tx >= 605) and the output pin labels
+    # (right edge at most 1090), so a wider tile is drawn smaller, not over
+    # the text.
+    aspect = cols / rows_n * (161 / 111.52)     # one Tiny Tapeout tile is 161 x 111.52 um
+    th = min(400.0, 485.0 / aspect)
+    tw = th * aspect
+    tx, ty = 1090 - tw if tw > 433 else 1040 - tw, 70 + (400 - th) / 2
+    pin_p = (th - 40) / 8                       # pitches scale with the drawing
+    st_p = (th - 40) / 4
+    st_h = min(66, st_p - 20)
+    en_p = (th - 40) / 5
+    en_h = min(50, en_p - 12)
     for i in range(1, cols):
         s.append(f'<line x1="{tx+i*tw/cols:.1f}" y1="{ty}" x2="{tx+i*tw/cols:.1f}" y2="{ty+th}" stroke="#ffffff" stroke-opacity=".06"/>')
     for i in range(1, rows_n):
@@ -309,7 +315,7 @@ def tile_hero():
     # pins: 8 in on the left (three carry SPI), 8 out on the right
     spi = {0: "SCK", 1: "COPI", 2: "CSn"}
     for i in range(8):
-        y = ty + 40 + i * 44
+        y = round(ty + 20 + pin_p / 2 + i * pin_p)
         d = 0.05 * i
         used = i in spi
         s.append(f'<rect class="{"bit" if used else ""}" style="animation-delay:{d:.2f}s" x="{tx-34:.1f}" y="{y-6}" width="22" height="12" rx="2" '
@@ -321,23 +327,25 @@ def tile_hero():
     stages = [("SPI registers", "descriptor, GO, results", MET1), ("Features", "work shape", MET1),
               ("Cost engine", "one, shared", MET1), ("Select", "cheapest + margin", MET1)]
     for i, (a, b, c) in enumerate(stages):
-        x, y = round(tx + 24), ty + 30 + i * 90
-        s.append(f'<rect x="{x}" y="{y}" width="200" height="66" rx="4" fill="{c}" fill-opacity=".18" stroke="{c}" stroke-width="1.3"/>'
-                 f'<rect x="{x}" y="{y}" width="200" height="66" rx="4" fill="url(#rows)"/>'
-                 f'<text x="{x+12}" y="{y+28}" style="{FONT};font-size:16px;font-weight:650" fill="{TXT}">{a}</text>'
-                 f'<text x="{x+12}" y="{y+49}" style="{FONT};font-size:13px" fill="{TXT2}">{b}</text>')
+        x, y = round(tx + 24), round(ty + 20 + i * st_p)
+        h = round(st_h)
+        s.append(f'<rect x="{x}" y="{y}" width="200" height="{h}" rx="4" fill="{c}" fill-opacity=".18" stroke="{c}" stroke-width="1.3"/>'
+                 f'<rect x="{x}" y="{y}" width="200" height="{h}" rx="4" fill="url(#rows)"/>'
+                 f'<text x="{x+12}" y="{y + h/2 - 5:.0f}" style="{FONT};font-size:16px;font-weight:650" fill="{TXT}">{a}</text>'
+                 f'<text x="{x+12}" y="{y + h/2 + 16:.0f}" style="{FONT};font-size:13px" fill="{TXT2}">{b}</text>')
         if i < 3:
-            s.append(f'<path d="M{x+100},{y+66} V{y+90}" stroke="{MET1}" stroke-width="2"/>')
+            s.append(f'<path d="M{x+100},{y+h} V{round(ty + 20 + (i+1) * st_p)}" stroke="{MET1}" stroke-width="2"/>')
     # five engines, costed in turn
     names = ["CPU", "SIMD", "TPU", "NTT", "Crypto"]
     for i, nme in enumerate(names):
-        x, y = round(tx + tw - 134), ty + 30 + i * 70
+        x, y = round(tx + tw - 134), round(ty + 20 + i * en_p)
+        eh = round(en_h)
         win = nme == "TPU"
-        s.append(f'<rect x="{x}" y="{y}" width="110" height="50" rx="4" fill="{DIFF}" fill-opacity="{".30" if win else ".12"}" '
+        s.append(f'<rect x="{x}" y="{y}" width="110" height="{eh}" rx="4" fill="{DIFF}" fill-opacity="{".30" if win else ".12"}" '
                  f'stroke="{DIFF}" stroke-opacity="{1 if win else .55}" stroke-width="{2 if win else 1.2}"/>'
-                 f'<text x="{x+55}" y="{y+31}" text-anchor="middle" style="{FONT};font-size:15px;font-weight:650" fill="{TXT}">{nme}</text>'
-                 f'<rect class="hl" style="animation-delay:{i*0.6:.1f}s" x="{x}" y="{y}" width="110" height="50" rx="4" fill="none" stroke="{TXT}" stroke-width="2.4"/>'
-                 f'<path d="M{round(tx+224)},{ty+30+2*90+33} L{x},{y+25}" stroke="{MET1}" stroke-opacity=".35" stroke-width="1.2"/>')
+                 f'<text x="{x+55}" y="{y + eh/2 + 6:.0f}" text-anchor="middle" style="{FONT};font-size:15px;font-weight:650" fill="{TXT}">{nme}</text>'
+                 f'<rect class="hl" style="animation-delay:{i*0.6:.1f}s" x="{x}" y="{y}" width="110" height="{eh}" rx="4" fill="none" stroke="{TXT}" stroke-width="2.4"/>'
+                 f'<path d="M{round(tx+224)},{round(ty + 20 + 2*st_p + st_h/2)} L{x},{y + eh//2}" stroke="{MET1}" stroke-opacity=".35" stroke-width="1.2"/>')
     # left text
     worst = min(c[1] for c in t["corners"])
     s.append(f'<text x="56" y="132" style="{FONT};font-size:46px;font-weight:800;letter-spacing:-1.2px" fill="{TXT}">tt_um_hydra_mom</text>')
@@ -357,8 +365,10 @@ def tile_hero():
             (MET1, "Timing", f'{t["period_ns"]} ns, every corner (+{worst:.2f} ns)'),
             (PAD,  "Sign-off", "DRC, LVS, antenna clean" if clean else "NOT clean"),
             (PAD,  "Utilisation", f'{t["utilisation"]*100:.1f}% of the tile'),
-            (DIFF, "Gate level", f'{gl.replace(" / ", " of ")} tests on the hardened netlist' if gl else "pending"),
+            (DIFF, "Gate level", f'{gl.replace(" / ", " of ")}, hardened netlist' if gl else "pending"),
         ]
+        if "slew_violations" in t:
+            rows.insert(2, (PAD, "Slew", f'{t["slew_violations"]:,} warnings open' if t["slew_violations"] else "0 warnings"))
     y = 300
     for col, k, v in rows:
         if k:

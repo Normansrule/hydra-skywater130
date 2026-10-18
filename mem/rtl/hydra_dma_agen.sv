@@ -16,6 +16,10 @@
 `default_nettype none
 module hydra_dma_agen #(
   parameter int unsigned AW   = 9,
+  // The result bank may be wider than the operand banks: the butterfly
+  // engine writes eight words per four-lane group (audit R3, 2026-10-11).
+  // Defaults to AW, which every other engine uses.
+  parameter int unsigned CAW  = AW,
   parameter int unsigned CNTW = 16
 ) (
   input  wire             clk,
@@ -23,7 +27,7 @@ module hydra_dma_agen #(
   input  wire             load,          // latch the bases and clear
   input  wire [AW-1:0]    base_a,
   input  wire [AW-1:0]    base_b,
-  input  wire [AW-1:0]    base_c,
+  input  wire [CAW-1:0]   base_c,
   input  wire             step_rd,       // one operand slice consumed
   // Present the NEXT read address this cycle instead of the current one.
   // The bank reads every cycle, so its output register always holds the
@@ -34,11 +38,12 @@ module hydra_dma_agen #(
   input  wire             step_wr,       // one result written
   output logic [AW-1:0]   addr_a,
   output logic [AW-1:0]   addr_b,
-  output logic [AW-1:0]   addr_c,
+  output logic [CAW-1:0]  addr_c,
   output logic [CNTW-1:0] rd_count,
   output logic [CNTW-1:0] wr_count
 );
-  logic [AW-1:0]   ba_q, bb_q, bc_q;
+  logic [AW-1:0]   ba_q, bb_q;
+  logic [CAW-1:0]  bc_q;
   logic [CNTW-1:0] rd_q, wr_q;
 
   always_ff @(posedge clk or negedge rst_n) begin
@@ -55,7 +60,7 @@ module hydra_dma_agen #(
 
   assign addr_a   = ba_q + AW'(rd_q) + AW'(peek);
   assign addr_b   = bb_q + AW'(rd_q) + AW'(peek);
-  assign addr_c   = bc_q + AW'(wr_q);
+  assign addr_c   = bc_q + CAW'(wr_q);
   assign rd_count = rd_q;
   assign wr_count = wr_q;
 endmodule

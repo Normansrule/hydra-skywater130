@@ -1,6 +1,8 @@
 # ULX3S (ECP5-85F): the TT-A tile driven from a PC over the FTDI serial port.
-# 25 MHz oscillator used directly; the tile signs off at 18 MHz on sky130, so
-# timing closure here is a separate question answered by nextpnr.
+# 25 MHz oscillator, divided by the PLL to 12.5 MHz; the UART divisor is
+# generated from that (109 clocks per bit, -0.45% at 115200 -- see
+# scripts/uart_baud.sh). Timing closure is nextpnr's question, and it is
+# asked without --timing-allow-fail.
 core:    hydra_fpga_tt_harness
 module:  hydra_ulx3s_tt
 board:   ulx3s-85f

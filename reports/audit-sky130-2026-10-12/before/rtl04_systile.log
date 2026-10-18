@@ -1,0 +1,6 @@
+RTL-02: 105 dispatches recorded by the register block, 105 taken by the crossbar, 0 recorded early
+FAIL: RESULT read 220000008800, which the register never held during the read
+RTL-04: 22 RESULT reads, 2 of them while RESULT changed, 1 torn
+FAIL: multi-byte reads are not coherent
+RTL-08: host COMP write -> status 9100
+FAIL tb_sys_tile: 1 errors

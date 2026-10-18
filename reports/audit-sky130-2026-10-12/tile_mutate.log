@@ -1,0 +1,20 @@
+baseline: 21 tests, 0 failing
+  KILLED    PARAM_LOCK ignored  by test_reg_param_retune_moves_the_decision
+  KILLED    frame length not checked  by test_reg_torn_frames_change_nothing (+1 more)
+  KILLED    GO accepts a torn descriptor  by test_reg_torn_frames_change_nothing (+2 more)
+  KILLED    HOLD ignored  by test_reg_hold_backpressure
+  KILLED    calibration freeze not wired  by test_reg_completion_calibration_and_fence
+  KILLED    PARAM engine field shifted  by test_reg_param_retune_moves_the_decision (+1 more)
+  KILLED    status byte missing during command  by test_reg_id_and_defaults
+  KILLED    read bytes in wrong order  by test_reg_id_and_defaults (+20 more)
+  KILLED    GO request never retired  by test_one_go_one_dispatch (+12 more)
+  KILLED    clear-sticky leaves frame error  by test_reg_torn_frames_change_nothing
+  KILLED    margin pins linear  by test_reg_margin_pins_are_log_scaled
+  KILLED    SPI shifts LSB first  by test_reg_id_and_defaults (+20 more)
+  KILLED    completion tag range not checked  by test_stale_completion_is_flagged_not_absorbed (+1 more)
+  KILLED    a tag is always free  by test_tag_exhaustion_and_recovery
+  KILLED    WD writable while a GO is pending (audit R7)  by test_reg_wd_write_while_pending_is_refused
+  KILLED    fence indexes past the tags (audit R7)  by test_reg_fence_on_a_tag_that_does_not_exist
+  KILLED    pin summaries show the wrong engine  by test_reg_readback_and_pin_summaries
+=== ALL SIMULATION MUTATIONS KILLED ===
+EXIT 0

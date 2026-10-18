@@ -23,6 +23,12 @@
 //                   one bit per clock while `shift` is high, so a level held
 //                   across a UART round trip would shift hundreds of bits.
 //                   -> 69 uo_out uio_out
+//   4D B Ah Al d3..d0  write one 32-bit word to bank B at address A
+//                   (memory commands exist only when HAS_MEM = 1; else -> EE)
+//                   -> B2 S                    S = 00 written, 01 refused
+//                                              (an engine owned the bank)
+//   52 Ah Al        read one 32-bit word of the result bank
+//                   -> A6 d3 d2 d1 d0          (undefined while a job runs)
 //   anything else   -> EE cmd
 //
 // The tile powers up in the REGISTER personality (DEFAULT_REG = 1) so the PC
@@ -32,13 +38,30 @@
 // SPI timing matches the cocotb driver that test_regs.py verified: mode 0,
 // HALF clocks per half period. HALF defaults to 8, inside the tile's clk/8
 // limit with margin for the pin synchroniser.
+//
+// A SECOND HOST (HAS_JTAG = 1, 2026-10-17)
+//   The same command set also arrives as bytes on the jb_* port, from the
+//   JTAG test port (hydra_fpga_jtag_host). The command's first byte decides
+//   which host owns it: its remaining bytes are taken from that host only,
+//   and the reply goes back to that host only, so the two paths never see
+//   each other's traffic. A byte from the other host while a command is in
+//   progress is dropped, exactly as a UART byte arriving during an SPI frame
+//   always has been. If both start a command on the same clock, the UART
+//   wins and the JTAG byte is dropped; the JTAG host sees no reply and
+//   retries. With HAS_JTAG = 0 the port is ignored and the bridge is the one
+//   every earlier image was built and tested with.
 // =============================================================================
 `default_nettype none
 
 module hydra_fpga_bridge #(
   parameter int CLKS_PER_BIT = 104,
   parameter int HALF         = 8,
-  parameter bit DEFAULT_REG  = 1'b1
+  parameter bit DEFAULT_REG  = 1'b1,
+  // 1 only when a design with scratchpad memory is attached. Without one, the
+  // memory commands are answered EE like any unknown command, rather than
+  // acknowledged as if a word had been stored (SkyWater 130 audit HOST-01).
+  parameter bit HAS_MEM      = 1'b0,
+  parameter bit HAS_JTAG     = 1'b0
 ) (
   input  logic       clk,
   input  logic       rst_n,         // synchronised board reset
@@ -60,6 +83,14 @@ module hydra_fpga_bridge #(
   output logic [31:0] mem_wdata,
   output logic [15:0] mem_raddr,
   input  wire  [31:0] mem_rdata,
+  input  wire         mem_refused,   // the design refused the write (it owned the bank)
+
+  // ---- second host: command bytes from the JTAG test port (HAS_JTAG) -------
+  input  wire         jb_rx_v,       // one command byte, one clock
+  input  wire  [7:0]  jb_rx_d,
+  output logic        jb_tx_v,       // one reply byte, one clock
+  output logic [7:0]  jb_tx_d,
+  input  wire         jb_tx_full,    // the reply queue cannot take a byte
 
   output logic       reg_mode_o
 );
@@ -67,15 +98,19 @@ module hydra_fpga_bridge #(
   // ---------------------------------------------------------------------------
   // UART
   // ---------------------------------------------------------------------------
+  logic       u_rx_v;
+  logic [7:0] u_rx_d;
   logic       rx_v;
   logic [7:0] rx_d;
   logic       tx_start, tx_busy;
   logic [7:0] tx_d;
+  logic       src_j;                 // the command in progress came from JTAG
 
   hydra_fpga_uart_rx #(.CLKS_PER_BIT(CLKS_PER_BIT)) u_rx (
-    .clk(clk), .rst_n(rst_n), .rx_i(uart_rx_i), .valid(rx_v), .data(rx_d));
+    .clk(clk), .rst_n(rst_n), .rx_i(uart_rx_i), .valid(u_rx_v), .data(u_rx_d));
   hydra_fpga_uart_tx #(.CLKS_PER_BIT(CLKS_PER_BIT)) u_tx (
-    .clk(clk), .rst_n(rst_n), .start(tx_start), .data(tx_d), .busy(tx_busy), .tx_o(uart_tx_o));
+    .clk(clk), .rst_n(rst_n), .start(tx_start && !src_j), .data(tx_d), .busy(tx_busy),
+    .tx_o(uart_tx_o));
 
   // ---------------------------------------------------------------------------
   // Bridge state
@@ -98,6 +133,19 @@ module hydra_fpga_bridge #(
   logic [5:0]  rep_len, rep_idx;
   logic [7:0]  rep_q [34];
   logic [4:0]  rst_cnt;
+
+  // The byte stream the command decoder reads. Between commands either host
+  // may start one (UART first); inside a command only the owner is heard.
+  wire j_v     = HAS_JTAG && jb_rx_v;
+  wire in_idle = (st == S_IDLE);
+  assign rx_v = in_idle ? (u_rx_v || j_v) : (src_j ? j_v : u_rx_v);
+  assign rx_d = (in_idle ? !u_rx_v : src_j) ? jb_rx_d : u_rx_d;
+
+  // Replies go back to the owner. The JTAG side has a queue, not a shift
+  // register, so its only back-pressure is "full".
+  wire tx_free = src_j ? !jb_tx_full : !tx_busy;
+  assign jb_tx_v = tx_start && src_j;
+  assign jb_tx_d = tx_d;
 
   // Memory port drive. Address is 16 bits on the wire and the design takes
   // what it needs; the bank is one byte for the same reason -- a wider
@@ -129,7 +177,7 @@ module hydra_fpga_bridge #(
       arg_base <= 6'd1;
       pin_mode <= 1'b0; strap_reg <= DEFAULT_REG; pin_ui <= '0; pin_level <= '0;
       sck <= 1'b0; copi <= 1'b0; csn <= 1'b1;
-      rep_len <= '0; rep_idx <= '0; tx_start <= 1'b0; tx_d <= '0;
+      rep_len <= '0; rep_idx <= '0; tx_start <= 1'b0; tx_d <= '0; src_j <= 1'b0;
       rst_cnt <= 5'd16;
       for (int i = 0; i < 32; i++) buf_q[i] <= '0;
       for (int i = 0; i < 34; i++) rep_q[i] <= '0;
@@ -139,9 +187,10 @@ module hydra_fpga_bridge #(
 
       case (st)
         S_IDLE: if (rx_v) begin
-          cmd <= rx_d;
+          cmd   <= rx_d;
+          src_j <= !u_rx_v;              // UART first if both arrive at once
           if (rx_d == 8'hA5 || rx_d == 8'hC3 || rx_d == 8'h96 || rx_d == 8'h97 ||
-              rx_d == 8'h4D || rx_d == 8'h52) st <= S_ARG;
+              (HAS_MEM && (rx_d == 8'h4D || rx_d == 8'h52))) st <= S_ARG;
           else begin
             rep_q[0] <= 8'hEE; rep_q[1] <= rx_d; rep_len <= 6'd2; rep_idx <= '0;
             st <= S_REPLY;
@@ -221,7 +270,13 @@ module hydra_fpga_bridge #(
           rep_q[0] <= 8'hB2; rep_q[1] <= 8'h00; rep_len <= 6'd2; rep_idx <= '0;
         end
 
-        S_MEM_ACK: st <= S_REPLY;
+        // The second acknowledge byte reports whether the design took the
+        // word: 00 written, 01 refused because an engine owned the bank
+        // (audit R8). The design registers its refusal, so it is valid here.
+        S_MEM_ACK: begin
+          rep_q[1] <= {7'd0, mem_refused};
+          st       <= S_REPLY;
+        end
 
         // The scratchpad registers its read, so the word is valid two
         // cycles after the address is presented; wait_q counts that out
@@ -319,7 +374,7 @@ module hydra_fpga_bridge #(
         end
 
         S_REPLY: begin
-          if (!tx_busy && !tx_start) begin
+          if (tx_free && !tx_start) begin
             if (rep_idx == rep_len) st <= S_IDLE;
             else begin
               tx_d     <= rep_q[rep_idx];

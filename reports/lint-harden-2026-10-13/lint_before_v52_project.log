@@ -1,0 +1,375 @@
+Verilator 5.020 2024-01-01 rev (Debian 5.020-1)
+%Warning-PINCONNECTEMPTY: project.v(v52):806:4: Cell pin connected by name with empty reference: 'last_dir'
+  806 |   .last_dir()
+      |    ^~~~~~~~
+                          ... For warning description see https://verilator.org/warn/PINCONNECTEMPTY?v=5.020
+                          ... Use "/* verilator lint_off PINCONNECTEMPTY */" and lint_on around source to disable this message.
+%Warning-WIDTHEXPAND: project.v(v52):576:8: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  576 |    now <= 1'sb0;
+      |        ^~
+%Warning-WIDTHTRUNC: project.v(v52):606:17: Operator FUNCREF 'sv2v_cast_4_signed' expects 4 bits on the Function Argument, but Function Argument's VARREF 't' generates 32 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  606 |      free_tag = sv2v_cast_4_signed(t);
+      |                 ^~~~~~~~~~~~~~~~~~
+%Warning-WIDTHTRUNC: project.v(v52):615:38: Operator FUNCREF 'sv2v_cast_3' expects 3 bits on the Function Argument, but Function Argument's VARREF 'mom_pkg_ENG_N' generates 32 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  615 |  wire disp_engine_ok = disp_engine < sv2v_cast_3(mom_pkg_ENG_N);
+      |                                      ^~~~~~~~~~~
+%Warning-WIDTHTRUNC: project.v(v52):621:52: Bit extraction of array[3:0] requires 2 bit index, not 4 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  621 |  wire do_comp = (comp_valid && comp_tag_ok) && busy[comp_tag];
+      |                                                    ^
+%Warning-WIDTHTRUNC: project.v(v52):622:56: Bit extraction of array[3:0] requires 2 bit index, not 4 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  622 |  wire stale_comp = comp_valid && (!comp_tag_ok || !busy[comp_tag]);
+      |                                                        ^
+%Warning-WIDTHTRUNC: project.v(v52):641:32: Bit extraction of array[3:0] requires 2 bit index, not 4 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  641 |    wire dec = do_comp && (t_eng[comp_tag] == sv2v_cast_3_signed(e));
+      |                                ^
+%Warning-WIDTHTRUNC: project.v(v52):649:53: Operator FUNCREF 'sv2v_cast_8' expects 8 bits on the Function Argument, but Function Argument's VARREF 'QMAX' generates 32 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  649 |    assign engine_full[e] = queue_depth[e * 8+:8] >= sv2v_cast_8(QMAX);
+      |                                                     ^~~~~~~~~~~
+%Warning-WIDTHEXPAND: project.v(v52):660:17: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  660 |      t_start[t] <= 1'sb0;
+      |                 ^~
+%Warning-WIDTHEXPAND: project.v(v52):661:16: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  661 |      t_pred[t] <= 1'sb0;
+      |                ^~
+%Warning-WIDTHTRUNC: project.v(v52):666:9: Bit extraction of array[3:0] requires 2 bit index, not 4 bits.
+                                                                                                                                : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  666 |     busy[free_tag] <= 1'b1;
+      |         ^
+%Warning-WIDTHTRUNC: project.v(v52):667:10: Bit extraction of array[3:0] requires 2 bit index, not 4 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  667 |     t_eng[free_tag] <= disp_engine;
+      |          ^
+%Warning-WIDTHTRUNC: project.v(v52):668:10: Bit extraction of array[3:0] requires 2 bit index, not 4 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  668 |     t_opc[free_tag] <= disp_opclass;
+      |          ^
+%Warning-WIDTHTRUNC: project.v(v52):669:12: Bit extraction of array[3:0] requires 2 bit index, not 4 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  669 |     t_start[free_tag] <= now;
+      |            ^
+%Warning-WIDTHTRUNC: project.v(v52):670:11: Bit extraction of array[3:0] requires 2 bit index, not 4 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  670 |     t_pred[free_tag] <= disp_t_pred;
+      |           ^
+%Warning-WIDTHTRUNC: project.v(v52):673:9: Bit extraction of array[3:0] requires 2 bit index, not 4 bits.
+                                                                                                                                : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  673 |     busy[comp_tag] <= 1'b0;
+      |         ^
+%Warning-WIDTHTRUNC: project.v(v52):680:23: Bit extraction of array[3:0] requires 2 bit index, not 4 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  680 |    cal_engine <= t_eng[comp_tag];
+      |                       ^
+%Warning-WIDTHTRUNC: project.v(v52):681:24: Bit extraction of array[3:0] requires 2 bit index, not 4 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  681 |    cal_opclass <= t_opc[comp_tag];
+      |                        ^
+%Warning-WIDTHTRUNC: project.v(v52):682:35: Bit extraction of array[3:0] requires 2 bit index, not 4 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  682 |    cal_t_measured <= now - t_start[comp_tag];
+      |                                   ^
+%Warning-WIDTHTRUNC: project.v(v52):683:29: Bit extraction of array[3:0] requires 2 bit index, not 4 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  683 |    cal_t_predicted <= t_pred[comp_tag];
+      |                             ^
+%Warning-WIDTHTRUNC: project.v(v52):685:55: Bit extraction of array[3:0] requires 2 bit index, not 4 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  685 |  assign fence_busy = ({28'd0, fence_tag} < NTAG ? busy[fence_tag] : 1'b0);
+      |                                                       ^
+%Warning-WIDTHTRUNC: project.v(v52):372:42: Operator FUNCREF 'sv2v_cast_4' expects 4 bits on the Function Argument, but Function Argument's VARREF 'NOPC' generates 32 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_cal'
+  372 |    assign rd_k[e * 8+:8] = (rd_opclass < sv2v_cast_4(NOPC) ? k[e][rd_opclass] : mom_pkg_KCAL_UNITY);
+      |                                          ^~~~~~~~~~~
+%Warning-WIDTHTRUNC: project.v(v52):379:36: Operator FUNCREF 'sv2v_cast_3' expects 3 bits on the Function Argument, but Function Argument's VARREF 'mom_pkg_ENG_N' generates 32 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_cal'
+  379 |  wire [7:0] k_cur = ((upd_engine < sv2v_cast_3(mom_pkg_ENG_N)) && (upd_opclass < sv2v_cast_4(NOPC)) ? k[upd_engine][upd_opclass] : mom_pkg_KCAL_UNITY);
+      |                                    ^~~~~~~~~~~
+%Warning-WIDTHTRUNC: project.v(v52):379:82: Operator FUNCREF 'sv2v_cast_4' expects 4 bits on the Function Argument, but Function Argument's VARREF 'NOPC' generates 32 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_cal'
+  379 |  wire [7:0] k_cur = ((upd_engine < sv2v_cast_3(mom_pkg_ENG_N)) && (upd_opclass < sv2v_cast_4(NOPC)) ? k[upd_engine][upd_opclass] : mom_pkg_KCAL_UNITY);
+      |                                                                                  ^~~~~~~~~~~
+%Warning-WIDTHTRUNC: project.v(v52):413:34: Operator FUNCREF 'sv2v_cast_3' expects 3 bits on the Function Argument, but Function Argument's VARREF 'mom_pkg_ENG_N' generates 32 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_cal'
+  413 |  wire upd_idx_ok = (upd_engine < sv2v_cast_3(mom_pkg_ENG_N)) && (upd_opclass < sv2v_cast_4(NOPC));
+      |                                  ^~~~~~~~~~~
+%Warning-WIDTHTRUNC: project.v(v52):413:80: Operator FUNCREF 'sv2v_cast_4' expects 4 bits on the Function Argument, but Function Argument's VARREF 'NOPC' generates 32 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_cal'
+  413 |  wire upd_idx_ok = (upd_engine < sv2v_cast_3(mom_pkg_ENG_N)) && (upd_opclass < sv2v_cast_4(NOPC));
+      |                                                                                ^~~~~~~~~~~
+%Warning-WIDTHEXPAND: project.v(v52):228:35: Operator AND expects 6 bits on the RHS, but RHS's CONST '1'h1' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom.g_shared.u_ce'
+  228 |   mom_pkg_dtype_ok = (mask >> dt) & 1'b1;
+      |                                   ^
+%Warning-WIDTHTRUNC: project.v(v52):228:20: Operator ASSIGN expects 1 bits on the Assign RHS, but Assign RHS's AND generates 6 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.g_shared.u_ce'
+  228 |   mom_pkg_dtype_ok = (mask >> dt) & 1'b1;
+      |                    ^
+%Warning-WIDTHEXPAND: project.v(v52):234:33: Operator AND expects 9 bits on the RHS, but RHS's CONST '1'h1' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom.g_shared.u_ce'
+  234 |   mom_pkg_opc_ok = (mask >> oc) & 1'b1;
+      |                                 ^
+%Warning-WIDTHTRUNC: project.v(v52):234:18: Operator ASSIGN expects 1 bits on the Assign RHS, but Assign RHS's AND generates 9 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.g_shared.u_ce'
+  234 |   mom_pkg_opc_ok = (mask >> oc) & 1'b1;
+      |                  ^
+%Warning-WIDTHTRUNC: project.v(v52):277:62: Operator FUNCREF 'sv2v_cast_7' expects 7 bits on the Function Argument, but Function Argument's VARREF 'mom_pkg_KCAL_SHIFT' generates 32 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.g_shared.u_ce'
+  277 |  wire signed [6:0] cal_sh = $signed({2'b00, tp_e}) - $signed(sv2v_cast_7(mom_pkg_KCAL_SHIFT));
+      |                                                              ^~~~~~~~~~~
+%Warning-WIDTHEXPAND: project.v(v52):293:13: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom.g_shared.u_ce'
+  293 |    t_pred_q <= 1'sb0;
+      |             ^~
+%Warning-WIDTHEXPAND: project.v(v52):294:12: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom.g_shared.u_ce'
+  294 |    e_ops_q <= 1'sb0;
+      |            ^~
+%Warning-WIDTHEXPAND: project.v(v52):295:12: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom.g_shared.u_ce'
+  295 |    e_mem_q <= 1'sb0;
+      |            ^~
+%Warning-WIDTHEXPAND: project.v(v52):298:13: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom.g_shared.u_ce'
+  298 |    lambda_q <= 1'sb0;
+      |             ^~
+%Warning-WIDTHTRUNC: project.v(v52):162:47: Operator FUNCREF 'sv2v_cast_3' expects 3 bits on the Function Argument, but Function Argument's VARREF 'mom_pkg_ENG_N' generates 32 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom.u_prom'
+  162 |   else if ((wr_en && wr_priv) && (wr_engine < sv2v_cast_3(mom_pkg_ENG_N)))
+      |                                               ^~~~~~~~~~~
+%Warning-WIDTHEXPAND: project.v(v52):108:11: Operator ASSIGNDLY expects 128 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom.u_feat'
+  108 |    out_wd <= 1'sb0;
+      |           ^~
+%Warning-WIDTHEXPAND: project.v(v52):941:16: Operator ASSIGNW expects 160 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom'
+  941 |    assign cost = 1'sb0;
+      |                ^
+%Warning-WIDTHEXPAND: project.v(v52):942:18: Operator ASSIGNW expects 160 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom'
+  942 |    assign t_pred = 1'sb0;
+      |                  ^
+%Warning-WIDTHEXPAND: project.v(v52):943:18: Operator ASSIGNW expects 5 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom'
+  943 |    assign cvalid = 1'sb0;
+      |                  ^
+%Warning-WIDTHEXPAND: project.v(v52):944:20: Operator ASSIGNW expects 5 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom'
+  944 |    assign ccapable = 1'sb0;
+      |                    ^
+%Warning-WIDTHEXPAND: project.v(v52):958:9: Operator ASSIGNDLY expects 128 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom'
+  958 |    a_wd <= 1'sb0;
+      |         ^~
+%Warning-WIDTHEXPAND: project.v(v52):969:11: Operator ASSIGNDLY expects 160 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom'
+  969 |    cost_q <= 1'sb0;
+      |           ^~
+%Warning-WIDTHEXPAND: project.v(v52):970:13: Operator ASSIGNDLY expects 160 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom'
+  970 |    t_pred_q <= 1'sb0;
+      |             ^~
+%Warning-WIDTHEXPAND: project.v(v52):971:13: Operator ASSIGNDLY expects 5 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom'
+  971 |    cvalid_q <= 1'sb0;
+      |             ^~
+%Warning-WIDTHEXPAND: project.v(v52):972:15: Operator ASSIGNDLY expects 5 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom'
+  972 |    ccapable_q <= 1'sb0;
+      |               ^~
+%Warning-WIDTHEXPAND: project.v(v52):973:9: Operator ASSIGNDLY expects 128 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_mom'
+  973 |    c_wd <= 1'sb0;
+      |         ^~
+%Warning-WIDTHEXPAND: project.v(v52):1333:9: Operator ASSIGNDLY expects 128 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1333 |    wd_q <= 1'sb0;
+      |         ^~
+%Warning-WIDTHEXPAND: project.v(v52):1347:13: Operator ASSIGNDLY expects 43 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1347 |    csr_data <= 1'sb0;
+      |             ^~
+%Warning-WIDTHEXPAND: project.v(v52):1355:13: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1355 |    r_margin <= 1'sb0;
+      |             ^~
+%Warning-WIDTHEXPAND: project.v(v52):1482:17: Operator FUNCREF 'sv2v_cast_D3020' expects 128 bits on the Function Argument, but Function Argument's VARREF 'ID_VALUE' generates 32 bits.
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1482 |    A_ID: rval = sv2v_cast_D3020(ID_VALUE);
+      |                 ^~~~~~~~~~~~~~~
+%Warning-WIDTHEXPAND: project.v(v52):1484:19: Operator FUNCREF 'sv2v_cast_D3020' expects 128 bits on the Function Argument, but Function Argument's REPLICATE generates 4 bits.
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1484 |    A_CTRL: rval = sv2v_cast_D3020({param_lock_q, cal_reset_q, cal_freeze_q, hold_q});
+      |                   ^~~~~~~~~~~~~~~
+%Warning-WIDTHEXPAND: project.v(v52):1485:21: Operator FUNCREF 'sv2v_cast_D3020' expects 128 bits on the Function Argument, but Function Argument's VARREF 'status_w' generates 16 bits.
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1485 |    A_STATUS: rval = sv2v_cast_D3020(status_w);
+      |                     ^~~~~~~~~~~~~~~
+%Warning-WIDTHEXPAND: project.v(v52):1486:21: Operator FUNCREF 'sv2v_cast_D3020' expects 128 bits on the Function Argument, but Function Argument's REPLICATE generates 48 bits.
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1486 |    A_RESULT: rval = sv2v_cast_D3020({r_engine, r_tag, 1'b0, r_margin, r_errtag});
+      |                     ^~~~~~~~~~~~~~~
+%Warning-WIDTHEXPAND: project.v(v52):1487:21: Operator FUNCREF 'sv2v_cast_D3020' expects 128 bits on the Function Argument, but Function Argument's VARREF 'obs_cal_updates' generates 16 bits.
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1487 |    A_CALUPD: rval = sv2v_cast_D3020(obs_cal_updates);
+      |                     ^~~~~~~~~~~~~~~
+%Warning-WIDTHEXPAND: project.v(v52):1488:19: Operator FUNCREF 'sv2v_cast_D3020' expects 128 bits on the Function Argument, but Function Argument's VARREF 'busy16' generates 16 bits.
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1488 |    A_BUSY: rval = sv2v_cast_D3020(busy16);
+      |                   ^~~~~~~~~~~~~~~
+%Warning-WIDTHEXPAND: project.v(v52):1489:20: Operator FUNCREF 'sv2v_cast_D3020' expects 128 bits on the Function Argument, but Function Argument's VARREF 'fence_q' generates 4 bits.
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1489 |    A_FENCE: rval = sv2v_cast_D3020(fence_q);
+      |                    ^~~~~~~~~~~~~~~
+%Warning-WIDTHEXPAND: project.v(v52):1490:21: Operator FUNCREF 'sv2v_cast_D3020' expects 128 bits on the Function Argument, but Function Argument's VARREF 'global_q' generates 12 bits.
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1490 |    A_GLOBAL: rval = sv2v_cast_D3020(global_q);
+      |                     ^~~~~~~~~~~~~~~
+%Warning-WIDTHTRUNC: project.v(v52):1491:35: Operator FUNCREF 'sv2v_cast_8' expects 8 bits on the Function Argument, but Function Argument's VARREF 'NTAG' generates 32 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1491 |    A_INFO: rval = sv2v_cast_D3020(sv2v_cast_8(NTAG));
+      |                                   ^~~~~~~~~~~
+%Warning-WIDTHEXPAND: project.v(v52):1491:19: Operator FUNCREF 'sv2v_cast_D3020' expects 128 bits on the Function Argument, but Function Argument's FUNCREF 'sv2v_cast_8' generates 8 bits.
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1491 |    A_INFO: rval = sv2v_cast_D3020(sv2v_cast_8(NTAG));
+      |                   ^~~~~~~~~~~~~~~
+%Warning-WIDTHEXPAND: project.v(v52):1492:18: Operator ASSIGN expects 128 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1492 |    default: rval = 1'sb0;
+      |                  ^
+%Warning-WIDTHEXPAND: project.v(v52):1501:35: Operator SUB expects 7 bits on the LHS, but LHS's VARREF 'len' generates 5 bits.
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1501 |  wire [6:0] sh = sv2v_cast_7((len - 5'd1) - k) * 7'd8;
+      |                                   ^
+%Warning-WIDTHEXPAND: project.v(v52):1501:35: Operator SUB expects 7 bits on the RHS, but RHS's CONST '5'h1' generates 5 bits.
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1501 |  wire [6:0] sh = sv2v_cast_7((len - 5'd1) - k) * 7'd8;
+      |                                   ^
+%Warning-WIDTHEXPAND: project.v(v52):1501:43: Operator SUB expects 7 bits on the RHS, but RHS's VARREF 'k' generates 5 bits.
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1501 |  wire [6:0] sh = sv2v_cast_7((len - 5'd1) - k) * 7'd8;
+      |                                           ^
+%Warning-WIDTHEXPAND: project.v(v52):1507:11: Operator ASSIGNDLY expects 40 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1507 |    snap_q <= 1'sb0;
+      |           ^~
+%Warning-WIDTHTRUNC: project.v(v52):1516:32: Bit extraction of var[39:0] requires 6 bit index, not 7 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1516 |    tx_byte = (snap_use ? snap_q[sh+:8] : rval[sh+:8]);
+      |                                ^
+%Warning-WIDTHTRUNC: project.v(v52):1537:32: Operator FUNCREF 'sv2v_cast_4_signed' expects 4 bits on the Function Argument, but Function Argument's ADD generates 32 bits.
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1537 |      mlog = (b >= 14 ? 4'd15 : sv2v_cast_4_signed(b + 1));
+      |                                ^~~~~~~~~~~~~~~~~~
+%Warning-WIDTHEXPAND: project.v(v52):18:11: Operator ASSIGNDLY expects 2 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                                                                                                 : ... note: In instance 'tt_um_hydra_mom.u_rst_sync'
+   18 |    sync_q <= 1'sb0;
+      |           ^~
+%Warning-UNUSEDPARAM: project.v(v52):1607:20: Parameter is not used: 'mom_pkg_WD_W'
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom'
+ 1607 |  localparam [31:0] mom_pkg_WD_W = 128;
+      |                    ^~~~~~~~~~~~
+%Warning-UNUSEDPARAM: project.v(v52):1618:20: Parameter is not used: 'mom_pkg_EPARAM_W'
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom'
+ 1618 |  localparam [31:0] mom_pkg_EPARAM_W = 43;
+      |                    ^~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: project.v(v52):1627:20: Parameter is not used: 'mom_pkg_COST_W'
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom'
+ 1627 |  localparam [31:0] mom_pkg_COST_W = 32;
+      |                    ^~~~~~~~~~~~~~
+%Warning-UNUSEDSIGNAL: project.v(v52):1226:13: Signal is not used: 'disp_valid'
+                                                                                                                                    : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1226 |  input wire disp_valid;
+      |             ^~~~~~~~~~
+%Warning-UNUSEDPARAM: project.v(v52):1224:20: Parameter is not used: 'mom_pkg_WD_W'
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1224 |  localparam [31:0] mom_pkg_WD_W = 128;
+      |                    ^~~~~~~~~~~~
+%Warning-UNUSEDPARAM: project.v(v52):1238:20: Parameter is not used: 'mom_pkg_EPARAM_W'
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1238 |  localparam [31:0] mom_pkg_EPARAM_W = 43;
+      |                    ^~~~~~~~~~~~~~~~
+%Warning-UNUSEDSIGNAL: project.v(v52):1298:13: Bits of signal are not used: 'wbuf'[47:46]
+                                                                                                                                    : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1298 |  reg [47:0] wbuf;
+      |             ^~~~
+%Warning-UNUSEDSIGNAL: project.v(v52):1322:13: Bits of signal are not used: 'w8'[7:4]
+                                                                                                                                    : ... note: In instance 'tt_um_hydra_mom.u_regs'
+ 1322 |  wire [7:0] w8 = wbuf[7:0];
+      |             ^~
+%Warning-UNUSEDPARAM: project.v(v52):741:20: Parameter is not used: 'mom_pkg_EPARAM_W'
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom'
+  741 |  localparam [31:0] mom_pkg_EPARAM_W = 43;
+      |                    ^~~~~~~~~~~~~~~~
+%Warning-UNUSEDSIGNAL: project.v(v52):759:13: Signal is not used: 'f_lg_q'
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_mom'
+  759 |  wire [7:0] f_lg_q;
+      |             ^~~~~~
+%Warning-UNUSEDSIGNAL: project.v(v52):1000:14: Signal is not used: 'sel_cost'
+                                                                                                                                    : ... note: In instance 'tt_um_hydra_mom.u_mom'
+ 1000 |  wire [31:0] sel_cost;
+      |              ^~~~~~~~
+%Warning-UNUSEDPARAM: project.v(v52):140:20: Parameter is not used: 'mom_pkg_EPARAM_W'
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom.u_prom'
+  140 |  localparam [31:0] mom_pkg_EPARAM_W = 43;
+      |                    ^~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: project.v(v52):202:18: Parameter is not used: 'ENGINE_ID'
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom.g_shared.u_ce'
+  202 |  parameter [2:0] ENGINE_ID = 3'd0;
+      |                  ^~~~~~~~~
+%Warning-UNUSEDSIGNAL: project.v(v52):242:13: Signal is not used: 'dbg_lg_p_att'
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_mom.g_shared.u_ce'
+  242 |  wire [3:0] dbg_lg_p_att = lg_p_att;
+      |             ^~~~~~~~~~~~
+%Warning-UNUSEDSIGNAL: project.v(v52):248:14: Signal is not used: 't_setup'
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_mom.g_shared.u_ce'
+  248 |  wire [31:0] t_setup = {20'd0, param[38-:12]};
+      |              ^~~~~~~
+%Warning-UNUSEDSIGNAL: project.v(v52):258:12: Bits of signal are not used: 'lambda_q'[2:0]
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_mom.g_shared.u_ce'
+  258 |  reg [3:0] lambda_q;
+      |            ^~~~~~~~
+%Warning-UNUSEDSIGNAL: project.v(v52):281:20: Bits of signal are not used: 'net_sh_s'[6]
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_mom.g_shared.u_ce'
+  281 |  wire signed [7:0] net_sh_s = ($signed({2'b00, w_sh}) + $signed({5'b00000, lambda_sh[2:0]})) - $signed({4'b0000, e_shift});
+      |                    ^~~~~~~~
+%Warning-UNUSEDSIGNAL: project.v(v52):287:20: Bits of signal are not used: 'mem_sh_s'[6]
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_mom.g_shared.u_ce'
+  287 |  wire signed [7:0] mem_sh_s = $signed({5'b00000, lambda_sh[2:0]}) - $signed({4'b0000, e_shift});
+      |                    ^~~~~~~~
+%Warning-UNUSEDPARAM: project.v(v52):356:20: Parameter is not used: 'mom_pkg_COST_W'
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom.u_cal'
+  356 |  localparam [31:0] mom_pkg_COST_W = 32;
+      |                    ^~~~~~~~~~~~~~
+%Warning-UNUSEDSIGNAL: project.v(v52):380:14: Bits of signal are not used: 't_cal_wide'[5:0]
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_mom.u_cal'
+  380 |  wire [39:0] t_cal_wide = upd_t_predicted * {32'd0, k_cur};
+      |              ^~~~~~~~~~
+%Warning-UNUSEDSIGNAL: project.v(v52):409:13: Signal is not used: 'step'
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_mom.u_cal'
+  409 |  wire [7:0] step = step_of(k_cur);
+      |             ^~~~
+%Warning-UNUSEDPARAM: project.v(v52):471:20: Parameter is not used: 'PW'
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sel'
+  471 |  localparam [31:0] PW = 36;
+      |                    ^~
+%Warning-UNUSEDSIGNAL: project.v(v52):492:14: Bits of signal are not used: 'best'[35]
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sel'
+  492 |  wire [35:0] best = pick(l2, lane[4]);
+      |              ^~~~
+%Warning-UNUSEDSIGNAL: project.v(v52):493:14: Bits of signal are not used: 'snd'[2:0]
+                                                                                                                                   : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sel'
+  493 |  wire [35:0] snd;
+      |              ^~~
+%Warning-UNUSEDPARAM: project.v(v52):556:20: Parameter is not used: 'mom_pkg_COST_W'
+                                                                                                                                  : ... note: In instance 'tt_um_hydra_mom.u_mom.u_sb'
+  556 |  localparam [31:0] mom_pkg_COST_W = 32;
+      |                    ^~~~~~~~~~~~~~
+%Error: Exiting due to 93 warning(s)

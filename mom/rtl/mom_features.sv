@@ -174,7 +174,7 @@ module mom_features
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
       out_valid  <= 1'b0;
-      out_wd     <= '0;
+      out_wd     <= {WD_W{1'b0}};
       out_log2_w <= 8'd0;
       out_log2_q <= 8'd0;
       out_log2_i <= 9'sd0;

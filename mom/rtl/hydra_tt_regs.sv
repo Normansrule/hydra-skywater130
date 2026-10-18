@@ -33,9 +33,15 @@
  * GO then refuses to present it (GO_ERR). A torn descriptor is never
  * dispatched.
  *
- * Reads are byte-indexed from live values. Every value that can change
- * mid-read changes only in response to something the single SPI host does
- * (GO, COMP, HOLD), so a read is consistent unless the host races itself.
+ * Reads of registers up to 6 bytes long are ONE SNAPSHOT: byte 0 goes out
+ * live and, on the same cycle, the rest of the value is captured; bytes 1..5
+ * come from that capture. The old comment said every value changes only at
+ * the host's command, so live bytes were safe. Not so: queued GOs dispatch
+ * after HOLD is released, and in the system tile engines complete on their
+ * own, so RESULT could come back with byte 0 from one dispatch and the margin
+ * from the next (SkyWater 130 audit RTL-04, 2026-10-11; tb_sys_tile section 6
+ * reproduced it). The 16-byte registers are not snapshotted: WD changes only
+ * by host writes, and LASTWD (chip only) should be read with HOLD set.
  *
  * ===========================================================================
  * MAP                         len  access
@@ -46,7 +52,8 @@
  *                                        [1] CAL_FREEZE  [2] CAL_RESET
  *                                        [3] PARAM_LOCK  (sticky to reset)
  *   0x03 ACTION                 1   WO   [0] GO  [1] CLEAR_STICKY
- *   0x04 COMP                   1   WO   [3:0] tag to complete
+ *   0x04 COMP                   1   WO   [3:0] tag to complete (HOST_COMP = 1 only;
+ *                                        FRAME_ERR where engines complete themselves)
  *   0x05 STATUS                 2   RO   see status_w below
  *   0x06 RESULT                 6   RO   {engine[2:0], tag[3:0], 0,
  *                                         margin[31:0], err_tag[7:0]}
@@ -65,7 +72,12 @@
 module hydra_tt_regs
   import mom_pkg::*;
 #(
-  parameter int unsigned NTAG = 8
+  parameter int unsigned NTAG = 8,
+  // 1: the host completes work through COMP (the tile, the pin personality).
+  // 0: engines complete their own work (the system tile), so a COMP write is
+  //    refused with FRAME_ERR rather than accepted and discarded (SkyWater
+  //    130 audit RTL-08, 2026-10-11).
+  parameter bit          HOST_COMP = 1'b1
 ) (
   input  wire        clk,
   input  wire        rst_n,
@@ -84,7 +96,8 @@ module hydra_tt_regs
   input  wire                wd_ready,
   output wire  [WD_W-1:0]    wd,
   input  wire                disp_valid,
-  output wire                disp_accept,
+  output wire                disp_accept,      // = ~HOLD: the host's back-pressure request
+  input  wire                disp_fire,        // a dispatch was actually taken this cycle
   input  wire  [2:0]         disp_engine,
   input  wire  [3:0]         disp_tag,
   input  wire  [WD_W-1:0]    disp_wd,
@@ -122,6 +135,7 @@ module hydra_tt_regs
                          A_BUSY = 7'h09, A_FENCE = 7'h0A, A_PARAM = 7'h0B,
                          A_GLOBAL = 7'h0C, A_INFO = 7'h0D;
 
+  localparam logic [7:0]  NTAG8    = NTAG[7:0];
   localparam logic [31:0] ID_VALUE = 32'h48594D32;
 
   function automatic logic [4:0] reg_len(input logic [6:0] a);
@@ -145,7 +159,7 @@ module hydra_tt_regs
   endfunction
 
   function automatic logic writable(input logic [6:0] a);
-    writable = (a == A_WD) || (a == A_CTRL) || (a == A_ACTION) || (a == A_COMP) ||
+    writable = (a == A_WD) || (a == A_CTRL) || (a == A_ACTION) || (HOST_COMP && a == A_COMP) ||
                (a == A_FENCE) || (a == A_PARAM) || (a == A_GLOBAL);
   endfunction
 
@@ -166,6 +180,10 @@ module hydra_tt_regs
   logic [3:0]      fence_q;
   logic [11:0]     global_q;
   logic            pending_q;
+  // Set when a WD write starts while a GO is pending (audit R7, 2026-10-11):
+  // the descriptor register IS the pending request, so it may not change
+  // until the dispatcher has taken it. The frame is refused, whole.
+  logic            wd_block_q;
 
   logic            s_disp, s_unsupp, s_stale, s_frame, s_goerr;
   logic [2:0]      r_engine;
@@ -174,14 +192,20 @@ module hydra_tt_regs
   logic [7:0]      r_errtag;
   logic [WD_W-1:0] r_lastwd;
 
-  wire dispatched = disp_valid & disp_accept;
+  // A dispatch is recorded when it is actually TAKEN (SkyWater 130 audit
+  // RTL-02, 2026-10-11). This used to be disp_valid & disp_accept, i.e. "valid
+  // and HOLD clear". That is the handshake in the tile, but in the system tile
+  // the crossbar owns it: with HOLD clear and the chosen engine busy, the
+  // register block recorded a dispatch (STATUS.DISPATCHED, RESULT, IRQ) on
+  // every cycle the request waited. The wrapper now says when it fired.
+  wire dispatched = disp_fire;
 
   // ---------------------------------------------------------------------------
   // Commit decode (evaluated on the cs_end cycle)
   // ---------------------------------------------------------------------------
   wire frame_ok   = have_cmd && !cmd_rd && writable(cmd_addr) &&
-                    (n_data == reg_len(cmd_addr));
-  wire frame_bad  = have_cmd && !cmd_rd && !frame_ok;
+                    (n_data == reg_len(cmd_addr)) && !wd_block_q;
+  wire frame_bad  = (have_cmd && !cmd_rd && !frame_ok) || wd_block_q;
   wire commit     = cs_end && frame_ok;
   wire [7:0] w8   = wbuf[7:0];
 
@@ -193,35 +217,41 @@ module hydra_tt_regs
     if (!rst_n) begin
       have_cmd <= 1'b0; cmd_rd <= 1'b0; cmd_addr <= 7'd0;
       n_data <= 5'd0; wbuf <= 48'd0;
-      wd_q <= '0; wd_ok <= 1'b0;
+      wd_q <= {WD_W{1'b0}}; wd_ok <= 1'b0;
       hold_q <= 1'b0; cal_freeze_q <= 1'b0; cal_reset_q <= 1'b0; param_lock_q <= 1'b0;
       fence_q <= 4'd0;
       global_q <= {4'd4, 4'd12, 4'd8};      // v1's tie-offs, bit for bit
-      pending_q <= 1'b0;
+      pending_q <= 1'b0; wd_block_q <= 1'b0;
       comp_valid <= 1'b0; comp_tag <= 4'd0;
-      csr_wr <= 1'b0; csr_engine <= 3'd0; csr_data <= '0;
+      csr_wr <= 1'b0; csr_engine <= 3'd0; csr_data <= {EPARAM_W{1'b0}};
       s_disp <= 1'b0; s_unsupp <= 1'b0; s_stale <= 1'b0; s_frame <= 1'b0; s_goerr <= 1'b0;
-      r_engine <= 3'd0; r_tag <= 4'd0; r_margin <= '0; r_errtag <= 8'd0;
-      r_lastwd <= '0;
+      r_engine <= 3'd0; r_tag <= 4'd0; r_margin <= {COST_W{1'b0}}; r_errtag <= 8'd0;
+      r_lastwd <= {WD_W{1'b0}};
     end else begin
       comp_valid <= 1'b0;
       csr_wr     <= 1'b0;
 
       // ---- frame assembly ---------------------------------------------------
       if (cs_start) begin
-        have_cmd <= 1'b0;
-        n_data   <= 5'd0;
+        have_cmd   <= 1'b0;
+        n_data     <= 5'd0;
+        wd_block_q <= 1'b0;
       end
       if (rx_valid) begin
         if (rx_index == 5'd0) begin
           have_cmd <= 1'b1;
           cmd_rd   <= rx_byte[7];
           cmd_addr <= rx_byte[6:0];
-          if (!rx_byte[7] && rx_byte[6:0] == A_WD) wd_ok <= 1'b0;  // WD is being overwritten
+          if (!rx_byte[7] && rx_byte[6:0] == A_WD) begin
+            if (pending_q) wd_block_q <= 1'b1;   // owned by the pending request: refuse
+            else           wd_ok <= 1'b0;        // WD is being overwritten
+          end
         end else if (have_cmd) begin
           if (n_data != 5'd31) n_data <= n_data + 5'd1;
           if (!cmd_rd) begin
-            if (cmd_addr == A_WD) wd_q <= {wd_q[WD_W-9:0], rx_byte};
+            if (cmd_addr == A_WD) begin
+              if (!wd_block_q) wd_q <= {wd_q[WD_W-9:0], rx_byte};
+            end
             else                  wbuf <= {wbuf[39:0], rx_byte};
           end
         end
@@ -229,7 +259,8 @@ module hydra_tt_regs
 
       // ---- commit -----------------------------------------------------------
       if (cs_end) begin
-        have_cmd <= 1'b0;
+        have_cmd   <= 1'b0;
+        wd_block_q <= 1'b0;
         if (frame_bad) s_frame <= 1'b1;
       end
       if (commit) begin
@@ -322,18 +353,18 @@ module hydra_tt_regs
   logic [WD_W-1:0] rval;
   always_comb begin
     case (cmd_addr)
-      A_ID:     rval = WD_W'(ID_VALUE);
+      A_ID:     rval = {{(WD_W-32){1'b0}}, ID_VALUE};
       A_WD:     rval = wd_q;
-      A_CTRL:   rval = WD_W'({param_lock_q, cal_reset_q, cal_freeze_q, hold_q});
-      A_STATUS: rval = WD_W'(status_w);
-      A_RESULT: rval = WD_W'({r_engine, r_tag, 1'b0, r_margin, r_errtag});
+      A_CTRL:   rval = {{(WD_W-4){1'b0}}, param_lock_q, cal_reset_q, cal_freeze_q, hold_q};
+      A_STATUS: rval = {{(WD_W-16){1'b0}}, status_w};
+      A_RESULT: rval = {{(WD_W-48){1'b0}}, r_engine, r_tag, 1'b0, r_margin, r_errtag};
       A_LASTWD: rval = r_lastwd;
-      A_CALUPD: rval = WD_W'(obs_cal_updates);
-      A_BUSY:   rval = WD_W'(busy16);
-      A_FENCE:  rval = WD_W'(fence_q);
-      A_GLOBAL: rval = WD_W'(global_q);
-      A_INFO:   rval = WD_W'(8'(NTAG));
-      default:  rval = '0;
+      A_CALUPD: rval = {{(WD_W-16){1'b0}}, obs_cal_updates};
+      A_BUSY:   rval = {{(WD_W-16){1'b0}}, busy16};
+      A_FENCE:  rval = {{(WD_W-4){1'b0}}, fence_q};
+      A_GLOBAL: rval = {{(WD_W-12){1'b0}}, global_q};
+      A_INFO:   rval = {{(WD_W-8){1'b0}}, NTAG8};
+      default:  rval = {WD_W{1'b0}};
     endcase
   end
 
@@ -341,16 +372,25 @@ module hydra_tt_regs
   // byte, n_data is still 0, so data byte 0 goes out first.
   wire [4:0] len     = reg_len(cmd_addr);
   wire [4:0] k       = n_data;
-  wire [6:0] sh      = 7'((len - 5'd1 - k)) * 7'd8;
+  // (len - 1 - k) * 8: a byte offset of at most 15 bytes, so the low four
+  // bits of the difference shifted left three. Out of range (k >= len) it is
+  // never used: in_rng gates it.
+  wire [4:0] kofs    = len - 5'd1 - k;
+  wire [6:0] sh      = {kofs[3:0], 3'b000};
   wire       in_rng  = have_cmd && cmd_rd && (k < len);
+
+  // RTL-04 snapshot: 40 bits, enough for bytes 1..5 of the 6-byte RESULT.
+  logic [39:0] snap_q;
+  wire         snap_use = (k != 5'd0) && (len <= 5'd6);
+  always_ff @(posedge clk or negedge rst_n)
+    if (!rst_n)                                snap_q <= 40'd0;
+    else if (tx_load && in_rng && k == 5'd0)   snap_q <= rval[39:0];
 
   always_comb begin
     if (!have_cmd)   tx_byte = status_w[15:8];
-    else if (in_rng) tx_byte = rval[sh +: 8];
+    else if (in_rng) tx_byte = snap_use ? snap_q[sh[5:0] +: 8] : rval[sh +: 8];
     else             tx_byte = 8'h00;
   end
-
-  wire _unused = &{tx_load, 1'b0};
 
   // ---------------------------------------------------------------------------
   // Pin summaries
@@ -366,9 +406,16 @@ module hydra_tt_regs
   always_comb begin
     mlog = 4'd0;
     for (int b = 0; b < COST_W; b++)
-      if (r_margin[b]) mlog = (b >= 14) ? 4'd15 : 4'(b + 1);
+      if (r_margin[b]) mlog = (b >= 14) ? 4'd15 : (b[3:0] + 4'd1);
   end
   assign margin_nib  = mlog;
+
+  // Inputs and bits this block does not need: disp_valid (a dispatch is
+  // recorded on disp_fire, RTL-02), the top two bits of the 6-byte write
+  // buffer (PARAM is 46 bits), the upper half of the action byte, and the top
+  // bit of the byte-offset difference. Named for the linter; synthesis
+  // removes them.
+  wire _unused_ok = &{1'b0, disp_valid, wbuf[47:46], w8[7:4], kofs[4]};
 
 endmodule
 

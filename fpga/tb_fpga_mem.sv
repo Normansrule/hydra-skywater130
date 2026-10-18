@@ -72,6 +72,8 @@ module tb_fpga_mem;
     recv(r0); recv(r1);
     if (r0 !== 8'hB2) begin
       errors++; $display("FAIL: write not acknowledged (%02x)", r0);
+    end else if (r1 !== 8'h00) begin
+      errors++; $display("FAIL: an idle-time write was refused (%02x)", r1);
     end
   endtask
 

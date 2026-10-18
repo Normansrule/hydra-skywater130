@@ -1,0 +1,31 @@
+baseline green: both benches pass, proof passes
+
+KILL  result count ignored: free after the first result  [formal]
+KILL  result count read live from the shared bus, not latched  [formal]
+KILL  zero-length job wraps the counter  [formal]
+KILL  start accepted while draining  [formal]
+KILL  memory latency wait skipped  [simulation]
+KILL  operand straight off the bank, no holding register  [simulation]
+KILL  address advances without a capture (no re-present on stall)  [simulation]
+KILL  capture while the held word is still waiting  [simulation]
+KILL  read pointer never advances  [simulation]
+KILL  write pointer never advances  [simulation]
+KILL  A and B swapped  [simulation]
+KILL  result base ignored  [simulation]
+KILL  TPU streamer started for a descriptor the core refuses (wedges the engine)  [simulation]
+KILL  TPU job past the end of a bank not refused  [simulation]
+KILL  vector-unit streamer started for a descriptor the core refuses  [simulation]
+KILL  vector-unit result pointer only as wide as the operand banks  [simulation]
+KILL  NTT completion reported before the last result is written  [simulation]
+KILL  NTT residue >= q accepted at the load port  [simulation]
+KILL  NTT job past the end of a bank not refused  [simulation]
+KILL  NTT y0 and y1 written in the wrong order  [simulation]
+KILL  NTT result base taken as a word, not a group  [simulation]
+KILL  TPU host load accepted while the engine owns the banks  [simulation]
+KILL  vector-unit host load accepted while the engine owns the banks  [simulation]
+KILL  NTT host load accepted while the engine owns the banks  [simulation]
+KILL  TPU ownership returned at acceptance, not completion  [simulation]
+KILL  writes enabled without a result  [simulation]
+
+26 killed, 0 survived
+EXIT 0

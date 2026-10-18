@@ -39,6 +39,15 @@ jobs:
           set -o pipefail
           make -k verify 2>&1 | tee verify.log
 
+      # The full log is kept whether the run passed or failed (SkyWater 130
+      # audit BUILD-03): a red run must be diagnosable from its artifacts.
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: verify-log
+          path: verify.log
+          if-no-files-found: error
+
       - name: Report what failed
         # Annotations show on the run's summary page and through the API,
         # without opening the log: one per failing make target, plus the
@@ -56,21 +65,45 @@ jobs:
       - name: Place and route the ULX3S build
         run: |
           python3 tools/hydra_bind.py build --plan plans/ulx3s-85f.yaml
-          make -C fpga/build/ulx3s-85f
-          grep -E "Max frequency|utilisation" -A3 fpga/build/ulx3s-85f/*.log || true
+          make -C fpga/build/ulx3s-85f 2>&1 | tee fpga/build/ulx3s-85f/pnr.log
+          grep -E "Max frequency|utilisation" -A3 fpga/build/ulx3s-85f/pnr.log || true
+          cat fpga/build/ulx3s-85f/*.manifest
 
+      # Audit R6 (2026-10-11): a gate is only a gate if it can close. Ask the
+      # same design for a clock it cannot reach; place and route MUST fail.
+      - name: An impossible clock must fail the build
+        run: |
+          cd fpga/build/ulx3s-85f
+          sed 's/--freq 12.5/--freq 400/' Makefile > Makefile.impossible
+          rm -f hydra_ulx3s_tt.config
+          if make -f Makefile.impossible hydra_ulx3s_tt.config > impossible.log 2>&1; then
+            echo "::error title=timing gate::a 400 MHz target placed and routed -- the timing gate does not work"
+            exit 1
+          fi
+          grep -E "Max frequency|FAIL|ERROR" impossible.log | tail -3
+          rm -f hydra_ulx3s_tt.config Makefile.impossible
+
+      # A missing bitstream is a failed build, not an upload warning.
       - uses: actions/upload-artifact@v5
         with:
           name: ulx3s-bitstream
-          path: fpga/build/ulx3s-85f/*.bit
-          if-no-files-found: warn
+          path: |
+            fpga/build/ulx3s-85f/*.bit
+            fpga/build/ulx3s-85f/*.manifest
+            fpga/build/ulx3s-85f/pnr.log
+          if-no-files-found: error
+
+      # Every kind of failure must be able to turn this workflow red: break
+      # the design on purpose, one stage at a time (scripts/ci_selftest.sh).
+      - name: Broken designs make the build fail
+        run: ./scripts/ci_selftest.sh
 
   mutate:
     # Slow (every test is broken on purpose and must fail), so it runs on
     # demand and on the default branch rather than on every pull request.
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v5
         with:

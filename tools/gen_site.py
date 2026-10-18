@@ -5,9 +5,13 @@ REPOSITORY, so neither can drift away from the hardware.
 
 Two rules make this worth having rather than a hand-drawn picture:
 
-  1. Every block in the diagram names a file. The generator checks each one
-     exists and refuses to emit a diagram that shows hardware which is not
-     there. A block diagram nobody can trust is decoration.
+  1. Every block in a diagram names a file AND a module, and the "as built"
+     views are checked against a named build: each module must be
+     instantiated somewhere in that build's own source list, or the
+     generator refuses to draw it (SkyWater 130 audit, 2026-10-11: file
+     existence alone said nothing about what is connected). Blocks that
+     exist but are in no build are shown separately, as a library, and
+     planned work as a roadmap, never as part of a current picture.
 
   2. Every number comes from docs/metrics.json, with its measurement method
      attached. A figure typed into HTML by hand goes stale the first time
@@ -31,68 +35,96 @@ SITE = ROOT / "docs/site/index.html"
 ARCH = ROOT / "docs/ARCHITECTURE.md"
 
 # ---------------------------------------------------------------------------
-# The topology. Each block names the file that implements it; the generator
-# verifies every path before drawing anything.
+# AS BUILT. One named build, its blocks and the connections between them. Each
+# block names (file, module); check_built() requires the module to be
+# instantiated in the build's own sources. host is software, outside the
+# check, and says so.
 # ---------------------------------------------------------------------------
-BLOCKS = [
-    # id,        label,              sub,                       file,                                     column, row
-    ("host",  "Host",            "serial port",            "tools/hydra_host.py",                     0, 1),
-    ("bridge","Bridge",          "UART to pins, memory",   "fpga/rtl/hydra_fpga_bridge.sv",           1, 1),
-    ("spi",   "SPI slave",       "register map",           "mom/rtl/hydra_tt_spi.sv",         2, 0),
-    ("regs",  "Registers",       "the host map",            "mom/rtl/hydra_tt_regs.sv",        2, 1),
-    ("feat",  "Features",        "log2 work, intensity",   "mom/rtl/mom_features.sv",         3, 0),
-    ("cost",  "Cost engine",     "one, walked over five",  "mom/rtl/mom_cost_engine.sv",      3, 1),
-    ("sel",   "Select",          "argmin with margin",     "mom/rtl/mom_select.sv",           3, 2),
-    ("sb",    "Scoreboard",      "tags, queue depth",     "mom/rtl/mom_scoreboard.sv",       4, 0),
-    ("cal",   "Calibrate",       "measured vs predicted",  "mom/rtl/mom_calibrate.sv",        4, 2),
-    ("xbar",  "Crossbar",        "descriptor to engine",   "common/rtl/mom_xbar.sv",                  5, 1),
-    ("tpu",   "TPU",             "4x4 INT8 array",         "engines/tpu/rtl/tpu_top.sv",              6, 0),
-    ("simd",  "SIMD",            "4 x 32-bit lanes",       "engines/simd/rtl/simd_top.sv",            6, 1),
-    ("ntt",   "NTT",             "4 Barrett butterflies",  "engines/ntt/rtl/ntt_top.sv",              6, 2),
-    ("dma",   "Streamer",        "banks to engines",       "mem/rtl/hydra_dma_gemm.sv",               7, 1),
-    ("bank",  "Scratchpad",      "A, B, W, results",       "mem/rtl/hydra_spram.sv",                  8, 1),
-    ("jtag",  "Test port",       "IEEE 1149.1, own clock",  "dbg/rtl/hydra_jtag_tap.sv",               1, 3),
-    ("jbr",   "Crossing",        "toggle handshake",        "dbg/rtl/hydra_jtag_bridge.sv",            2, 3),
-    ("xsec",  "Security ISA",    "Zknh + Xhydrasec",        "isa/rtl/hydra_xsec_unit.sv",              3, 4),
-    ("pcr",   "Measurement",     "extend only, no write",   "sec/rtl/hydra_pcr.sv",                    7, 3),
-    ("sha",   "SHA-256",         "padded in hardware",      "sec/rtl/hydra_sha256_stream.sv",          6, 3),
-    ("mbox",  "Mailbox",         "lock, command, execute",  "sec/rtl/hydra_mailbox.sv",                4, 3),
-    ("kv",    "Key vault",       "write and use, never read","sec/rtl/hydra_key_vault.sv",             5, 3),
+AS_BUILT = {
+    "name": "ecp5-evn-mem",
+    "plan": "plans/ecp5-evn-mem.yaml",
+    "title": "As built: ecp5-evn-mem (scheduler + memory-fed array)",
+    "blocks": [
+        # id,      label,          sub,                         file,                                   module,                 col, row
+        ("host",   "Host",         "PC, Python driver",          "tools/hydra_host.py",                  None,                   0, 1),
+        ("bridge", "Bridge",       "UART to pins, memory",       "fpga/rtl/hydra_fpga_bridge.sv",        "hydra_fpga_bridge",    1, 1),
+        ("spi",    "SPI slave",    "register map",               "mom/rtl/hydra_tt_spi.sv",              "hydra_tt_spi",         2, 0),
+        ("regs",   "Registers",    "the host map",               "mom/rtl/hydra_tt_regs.sv",             "hydra_tt_regs",        2, 1),
+        ("feat",   "Features",     "log2 work, intensity",       "mom/rtl/mom_features.sv",              "mom_features",         3, 0),
+        ("cost",   "Cost engine",  "one, walked over five",      "mom/rtl/mom_cost_engine.sv",           "mom_cost_engine",      3, 1),
+        ("sel",    "Select",       "argmin with margin",         "mom/rtl/mom_select.sv",                "mom_select",           4, 1),
+        ("sb",     "Scoreboard",   "tags, queue depth",          "mom/rtl/mom_scoreboard.sv",            "mom_scoreboard",       4, 0),
+        ("cal",    "Calibrate",    "measured vs predicted",      "mom/rtl/mom_calibrate.sv",             "mom_calibrate",        3, 2),
+        ("xbar",   "Crossbar",     "descriptor to engine",       "common/rtl/mom_xbar.sv",               "mom_xbar",             5, 1),
+        ("tpu",    "TPU, from memory", "4x4 INT8 array",         "sys/rtl/hydra_engine_tpu_dma.sv",      "hydra_engine_tpu_dma", 6, 0),
+        ("models", "Latency models", "CPU, SIMD, NTT, crypto",   "sys/rtl/hydra_sys_tile.sv",            "hydra_sys_tile",       6, 2),
+        ("dma",    "Streamer",     "banks to the array",         "mem/rtl/hydra_dma_gemm.sv",            "hydra_dma_gemm",       7, 0),
+        ("bank",   "Scratchpad",   "A, B, results",              "mem/rtl/hydra_spram.sv",               "hydra_spram",          7, 1),
+    ],
+    "edges": [
+        # (from, to, label[, via row]): an edge with a via row is drawn
+        # orthogonally along that empty row instead of through other blocks.
+        ("host", "bridge", "bytes"), ("bridge", "spi", "pins"), ("bridge", "bank", "load, read", 3),
+        ("spi", "regs", ""), ("regs", "feat", "descriptor"), ("feat", "cost", ""),
+        ("cost", "sel", "5 costs"), ("sb", "cost", "queue"), ("sel", "xbar", "engine"),
+        ("xbar", "sb", "tag, done"), ("xbar", "tpu", "job"), ("xbar", "models", "job"),
+        ("bank", "dma", ""), ("dma", "tpu", "operands"),
+        ("sb", "cal", ""), ("cal", "cost", "k"),
+    ],
+}
+
+# The Tiny Tapeout tile: the scheduler and nothing else.
+TILE_BUILT = {
+    "name": "tt_um_hydra_mom",
+    "sources_dir": "tt/tile/src",
+    "title": "As built: the Tiny Tapeout tile (scheduler only)",
+    "blocks": [
+        ("pins",   "Pins",         "SPI on ui/uo",               "tt/tile/src/tt_um_hydra_mom.sv",       None,                   0, 2),
+        ("spi",    "SPI slave",    "mode 0",                     "tt/tile/src/rtl/hydra_tt_spi.sv",      "hydra_tt_spi",         1, 2),
+        ("regs",   "Registers",    "the host map",               "tt/tile/src/rtl/hydra_tt_regs.sv",     "hydra_tt_regs",        2, 2),
+        ("feat",   "Features",     "log2 work, intensity",       "tt/tile/src/rtl/mom_features.sv",      "mom_features",         3, 1),
+        ("cost",   "Cost engine",  "one, walked over five",      "tt/tile/src/rtl/mom_cost_engine.sv",   "mom_cost_engine",      3, 2),
+        ("sel",    "Select",       "argmin with margin",         "tt/tile/src/rtl/mom_select.sv",        "mom_select",           4, 2),
+        ("sb",     "Scoreboard",   "4 tags",                     "tt/tile/src/rtl/mom_scoreboard.sv",    "mom_scoreboard",       4, 1),
+        ("cal",    "Calibrate",    "host-reported completions",  "tt/tile/src/rtl/mom_calibrate.sv",     "mom_calibrate",        3, 3),
+    ],
+    "edges": [
+        ("pins", "spi", ""), ("spi", "regs", ""), ("regs", "feat", "descriptor"),
+        ("feat", "cost", ""), ("cost", "sel", "5 costs"), ("sb", "cost", "queue"),
+        ("sel", "regs", "decision", 4), ("regs", "sb", "COMP", 0), ("sb", "cal", ""),
+        ("cal", "cost", "k"),
+    ],
+}
+
+# IP LIBRARY. Blocks that exist and have their own checks, whether or not any
+# build connects them. Listed, not wired: no edges are drawn between them.
+LIBRARY = [
+    # label,           what,                               file,                                  make target
+    ("TPU array",      "4x4 INT8 systolic array",          "engines/tpu/rtl/tpu_top.sv",          "tpu"),
+    ("Vector unit",    "4 x 32-bit lanes (not a GPU)",     "engines/simd/rtl/simd_top.sv",        "simd"),
+    ("NTT",            "4 Barrett butterflies, 3 moduli",  "engines/ntt/rtl/ntt_top.sv",          "ntt-moduli"),
+    ("Vector unit, from memory", "streamer and banks",     "sys/rtl/hydra_engine_simd_dma.sv",    "dma-simd"),
+    ("NTT, from memory", "memory format v1",               "sys/rtl/hydra_engine_ntt_dma.sv",     "dma-ntt"),
+    ("Test port",      "IEEE 1149.1 TAP, own clock",       "dbg/rtl/hydra_jtag_tap.sv",           "jtag"),
+    ("Clock crossing", "test port into the register map",  "dbg/rtl/hydra_jtag_bridge.sv",        "jtag-bridge"),
+    ("Key vault",      "write and use, never read back",   "sec/rtl/hydra_key_vault.sv",          "keyvault"),
+    ("Mailbox",        "lock, command, execute",           "sec/rtl/hydra_mailbox.sv",            "mailbox"),
+    ("SHA-256",        "padded in hardware",               "sec/rtl/hydra_sha256_stream.sv",      "sha256-stream"),
+    ("Measurement",    "extend-only register",             "sec/rtl/hydra_pcr.sv",                "pcr"),
+    ("Security ISA",   "Zknh + Xhydrasec unit",            "isa/rtl/hydra_xsec_unit.sv",          "xsec"),
+    ("Pad multiplexer", "OpenFrame pad ownership",         "common/rtl/hydra_padmux.sv",          "padmux"),
 ]
 
-EDGES = [
-    ("host", "bridge", "bytes"),
-    ("bridge", "spi", "pins"),
-    ("bridge", "bank", "load"),
-    ("spi", "regs", ""),
-    ("regs", "feat", "descriptor"),
-    ("feat", "cost", ""),
-    ("cost", "sel", "5 costs"),
-    ("sb", "cost", "queue"),
-    ("sel", "xbar", "engine"),
-    ("sb", "xbar", "tag"),
-    ("xbar", "tpu", ""),
-    ("xbar", "simd", ""),
-    ("xbar", "ntt", ""),
-    ("tpu", "cal", "done"),
-    ("cal", "cost", "k"),
-    ("dma", "tpu", "operands"),
-    ("dma", "simd", ""),
-    ("dma", "ntt", ""),
-    ("bank", "dma", ""),
-    ("jtag", "jbr", "TCK"),
-    ("jbr", "regs", "second way in"),
-    ("regs", "mbox", "commands"),
-    ("mbox", "kv", "by slot"),
-    ("mbox", "sha", "measure"),
-    ("sha", "pcr", "extend"),
-    ("xsec", "kv", "by slot"),
-    ("xsec", "pcr", "extend, read"),
-    ("regs", "kv", "slots"),
-    ("kv", "xbar", "key by slot"),
+# ROADMAP. Not built. Each names the document that specifies it.
+ROADMAP = [
+    ("CPU",            "Sixfold RV64, needs a program-load port",  "docs/architecture/heterogeneous-system.md"),
+    ("GPU",            "Pixelstorm SIMT, sixth dispatch slot",     "docs/architecture/heterogeneous-system.md"),
+    ("FHE profile",    "BFV via pinned OpenFHE, leveled",          "docs/security/fhe-profile.md"),
+    ("SE boundary",    "authenticated, zeroised, access-checked",  "docs/security/se-contract.md"),
+    ("Mode transition", "QUIESCE, DRAIN, ZEROIZE, INSTALL",        "docs/security/mode-transition.md"),
 ]
 
-COLW, ROWH, BW, BH = 168, 104, 132, 58
+COLW, ROWH, BW, BH = 196, 104, 132, 58
 PAD_X, PAD_Y = 40, 40
 
 
@@ -114,17 +146,53 @@ ENGINE_EVIDENCE = {
 BOARD_PLANS = "plans/{plan}.yaml"
 
 
+def _sources(build):
+    """The build's own source list: the plan's, or every .sv under the tile."""
+    if "plan" in build:
+        import yaml
+        plan = yaml.safe_load((ROOT / build["plan"]).read_text())
+        return [ROOT / f for f in plan["sources"]]
+    return sorted((ROOT / build["sources_dir"]).rglob("*.sv"))
+
+
+def instantiated(module, sources):
+    """True if some source file instantiates `module` (not merely defines it)."""
+    import re
+    pat = re.compile(r"(?m)^\s*" + re.escape(module) + r"\s*(#\s*\(|[A-Za-z_]\w*\s*\()")
+    return any(pat.search(f.read_text()) for f in sources)
+
+
+def check_built(build):
+    problems = []
+    srcs = _sources(build)
+    for bid, label, _, f, mod, _, _ in build["blocks"]:
+        if not (ROOT / f).exists():
+            problems.append(f"{build['name']}: block '{label}' names a missing file: {f}")
+        elif mod is not None and not instantiated(mod, srcs):
+            problems.append(f"{build['name']}: block '{label}' ({mod}) is not instantiated in that build")
+    ids = {b[0] for b in build["blocks"]}
+    for e in build["edges"]:
+        a, b = e[0], e[1]
+        if a not in ids or b not in ids:
+            problems.append(f"{build['name']}: edge {a} -> {b} names a block not in the build")
+    return problems
+
+
 def check_files():
     """Refuse to publish claims the repository does not back up."""
-    problems = []
-
-    for _, _, _, f, _, _ in BLOCKS:
-        if not (ROOT / f).exists():
-            problems.append(f"block names a missing file: {f}")
-
-    m = json.loads((ROOT / "docs/metrics.json").read_text())
+    problems = check_built(AS_BUILT) + check_built(TILE_BUILT)
     makefile = (ROOT / "Makefile").read_text()
 
+    for label, _, f, target in LIBRARY:
+        if not (ROOT / f).exists():
+            problems.append(f"library block '{label}' names a missing file: {f}")
+        if f"\n{target}:" not in makefile:
+            problems.append(f"library block '{label}' has no '{target}' target")
+    for label, _, doc in ROADMAP:
+        if not (ROOT / doc).exists():
+            problems.append(f"roadmap item '{label}' names a missing specification: {doc}")
+
+    m = json.loads((ROOT / "docs/metrics.json").read_text())
     for e in m["engines"]:
         rtl, target = ENGINE_EVIDENCE.get(e["name"], (None, None))
         if rtl is None:
@@ -136,6 +204,10 @@ def check_files():
             problems.append(
                 f"engine '{e['name']}' has no '{target}' target: the page would"
                 f" advertise hardware nothing in the suite checks")
+    for v in m["verification"]:
+        t = v.get("target")
+        if not t or f"\n{t}:" not in makefile:
+            problems.append(f"verification '{v['what']}' names no make target that exists ({t!r})")
 
     for b in m["boards"]:
         plan = ROOT / BOARD_PLANS.format(plan=b["plan"])
@@ -153,32 +225,44 @@ def pos(col, row):
     return PAD_X + col * COLW, PAD_Y + row * ROWH
 
 
-def svg_diagram():
-    w = PAD_X * 2 + (max(c for *_, c, _ in BLOCKS)) * COLW + BW
-    h = PAD_Y * 2 + (max(r for *_, r in BLOCKS)) * ROWH + BH
-    at = {b[0]: pos(b[4], b[5]) for b in BLOCKS}
+def svg_graph(build):
+    blocks, edges = build["blocks"], build["edges"]
+    rows = [b[6] for b in blocks] + [e[3] for e in edges if len(e) > 3]
+    w = PAD_X * 2 + (max(b[5] for b in blocks)) * COLW + BW
+    h = PAD_Y * 2 + max(rows) * ROWH + BH
+    at = {b[0]: pos(b[5], b[6]) for b in blocks}
 
     out = [f'<svg class="diagram" viewBox="0 0 {w} {h}" '
            f'xmlns="http://www.w3.org/2000/svg" role="img" '
-           f'aria-label="HYDRA-130 block diagram">',
+           f'aria-label="{build["title"]}. The same blocks and connections are listed as text below the figure.">',
            '<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" '
            'markerWidth="6" markerHeight="6" orient="auto-start-reverse">'
            '<path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/></marker></defs>']
 
-    for a, b, label in EDGES:
+    for e in edges:
+        a, b, label = e[:3]
         ax, ay = at[a]
         bx, by = at[b]
         x1, y1 = ax + BW / 2, ay + BH / 2
         x2, y2 = bx + BW / 2, by + BH / 2
         mx = (x1 + x2) / 2
-        path = f"M {x1} {y1} C {mx} {y1}, {mx} {y2}, {x2} {y2}"
+        if len(e) > 3:
+            # orthogonal, along an empty row: leave and enter through the
+            # box edge that faces that row
+            yv = PAD_Y + e[3] * ROWH + BH / 2
+            ys = ay + BH if yv > ay else ay
+            ye = by + BH if yv > by else by
+            path = f"M {x1} {ys} V {yv} H {x2} V {ye}"
+            ly = yv - 6
+        else:
+            path = f"M {x1} {y1} C {mx} {y1}, {mx} {y2}, {x2} {y2}"
+            ly = (y1 + y2) / 2 - 6
         out.append(f'<path class="edge" data-a="{a}" data-b="{b}" d="{path}" '
                    f'marker-end="url(#ah)"/>')
         if label:
-            out.append(f'<text class="edge-label" x="{mx}" y="{(y1 + y2) / 2 - 6}">'
-                       f'{label}</text>')
+            out.append(f'<text class="edge-label" x="{mx}" y="{ly}">{label}</text>')
 
-    for bid, label, sub, path, col, row in BLOCKS:
+    for bid, label, sub, path, _, col, row in blocks:
         x, y = pos(col, row)
         out.append(
             f'<g class="node" data-id="{bid}" tabindex="0">'
@@ -191,14 +275,56 @@ def svg_diagram():
     return "\n".join(out)
 
 
-def mermaid():
+def svg_diagram():
+    """The README's architecture figure: the as-built memory image."""
+    return svg_graph(AS_BUILT)
+
+
+def text_alt(build):
+    """The figure as text: every block with its file, every connection."""
+    names = {b[0]: b[1] for b in build["blocks"]}
+    rows = "".join(f"<li><b>{label}</b> ({sub}) — <code>{f}</code></li>"
+                   for _, label, sub, f, _, _, _ in build["blocks"])
+    conns = "".join(f"<li>{names[e[0]]} → {names[e[1]]}{': ' + e[2] if e[2] else ''}</li>"
+                    for e in build["edges"])
+    return (f"<details><summary>{build['title']}, as text</summary>"
+            f"<h3>Blocks</h3><ul>{rows}</ul><h3>Connections</h3><ul>{conns}</ul></details>")
+
+
+def mermaid(build, dashed=False):
     lines = ["flowchart LR"]
-    for bid, label, sub, path, _, _ in BLOCKS:
+    for bid, label, sub, path, _, _, _ in build["blocks"]:
         lines.append(f'  {bid}["{label}<br/><small>{sub}</small>"]')
-    for a, b, label in EDGES:
-        arrow = f"-- {label} -->" if label else "-->"
+    for e in build["edges"]:
+        a, b, label = e[:3]
+        arrow = (f"-. {label} .->" if label else "-.->") if dashed else (f"-- {label} -->" if label else "-->")
         lines.append(f"  {a} {arrow} {b}")
     return "\n".join(lines)
+
+
+def proof_tasks():
+    """Proof and cover tasks that `make verify` actually runs, read from the
+    Makefile: the verify prerequisites, their recipes, and every `sby -f
+    <file> <task>` in them. Counting .sby files (the old rule) counted
+    configurations, some with several tasks and some covers, not proofs."""
+    import re
+    mk = (ROOT / "Makefile").read_text()
+    verify = re.search(r"(?m)^verify:([^\n]*)", mk).group(1).split()
+    recipes, cur = {}, None
+    for line in mk.splitlines():
+        m = re.match(r"^([A-Za-z0-9_.-]+):", line)
+        if m:
+            cur = m.group(1); recipes.setdefault(cur, [])
+        elif line.startswith("\t") and cur:
+            recipes[cur].append(line)
+    tasks = set()
+    for t in verify:
+        for line in recipes.get(t, []):
+            for f, task in re.findall(r"sby -f (\S+\.sby) (\w+)", line):
+                tasks.add((f, task))
+    proofs = sorted(x for x in tasks if x[1] != "cover")
+    covers = sorted(x for x in tasks if x[1] == "cover")
+    return proofs, covers
 
 
 def svg_area(m):
@@ -284,23 +410,34 @@ def svg_verify(m):
 
 def html(m):
     eng_rows = "".join(
-        f"<tr><th>{e['name']}</th><td>{e['what']}</td>"
+        f"<tr><th scope='row'>{e['name']}</th><td>{e['what']}</td>"
         f"<td class='num'>{format(e['cells'], ',') if e['cells'] else '<span class=\"todo\">not measured</span>'}</td>"
         f"<td class='num'>{format(e['um2'], ',') + ' µm²' if e['um2'] else '<span class=\"todo\">not measured</span>'}</td>"
         f"<td>{e['results']}</td><td>{e['mutations']}</td></tr>"
         for e in m["engines"])
 
     board_rows = "".join(
-        f"<tr><th>{b['plan']}</th><td>{b['what']}</td>"
+        f"<tr><th scope='row'>{b['plan']}</th><td>{b['what']}</td>"
         f"<td class='num'>{b['luts']:,}</td><td class='num'>{b['ffs']:,}</td>"
         f"<td class='num'>{b['mult']}</td><td class='num'>{b['fmax']} MHz</td></tr>"
         for b in m["boards"])
 
     ver_rows = "".join(
-        f"<tr><th>{v['what']}</th><td class='num'>{v['result']}</td>"
-        f"<td><span class='kind'>{v['kind']}</span></td></tr>"
+        f"<tr><th scope='row'>{v['what']}</th><td class='num'>{v['result']}</td>"
+        f"<td><span class='kind'>{v['kind']}</span></td><td><code>make {v['target']}</code></td></tr>"
         for v in m["verification"])
 
+    lib_rows = "".join(
+        f"<tr><th scope='row'>{label}</th><td>{what}</td><td><code>{f}</code></td>"
+        f"<td><code>make {t}</code></td><td><span class='status st-lib'>LIBRARY</span></td></tr>"
+        for label, what, f, t in LIBRARY)
+
+    road_rows = "".join(
+        f"<tr><th scope='row'>{label}</th><td>{what}</td><td><code>{doc}</code></td>"
+        f"<td><span class='status st-planned'>PLANNED</span></td></tr>"
+        for label, what, doc in ROADMAP)
+
+    proofs, covers = proof_tasks()
     pending = "".join(f"<li>{p}</li>" for p in m["pending"])
 
     t = m["tile"]
@@ -312,7 +449,7 @@ def html(m):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>HYDRA-130 — a dispatcher that measures its own engines</title>
+<title>HYDRA-130 — adaptive scheduling and accelerator research</title>
 <style>
   :root {{
     box-sizing: border-box;
@@ -371,7 +508,6 @@ def html(m):
   .n-label {{ font: 600 14px ui-sans-serif, system-ui, sans-serif; }}
   .n-sub {{ font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; fill: var(--dim); }}
   .node:hover rect, .node:focus rect {{ stroke: var(--accent); stroke-width: 2.5; }}
-  .node:focus {{ outline: none; }}
   .edge {{ fill: none; stroke: var(--line); stroke-width: 1.6; }}
   .edge-label {{ font: 10.5px ui-monospace, SFMono-Regular, Menlo, monospace;
                  fill: var(--dim); text-anchor: middle; }}
@@ -405,118 +541,170 @@ def html(m):
   .kind-col li {{ color: var(--dim); font-size: 13.5px; margin: 5px 0; }}
   footer {{ color: var(--dim); font-size: 13px; margin-top: 64px;
             border-top: 1px solid var(--line); padding-top: 18px; }}
+  .skip {{ position: absolute; left: -9999px; top: 8px; background: var(--panel);
+           color: var(--ink); padding: 8px 14px; border-radius: 8px; z-index: 9; }}
+  .skip:focus {{ left: 12px; }}
+  nav.toc {{ display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 18px 0 0; font-size: 14px; }}
+  nav.toc a {{ color: var(--accent); }}
+  a:focus-visible, .node:focus-visible, summary:focus-visible {{
+    outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 4px; }}
+  .node:focus-visible rect {{ stroke: var(--accent); stroke-width: 3; }}
+  .status {{ display: inline-block; font: 700 11px/1 ui-monospace, monospace; letter-spacing: .08em;
+             border: 1px solid currentColor; border-radius: 999px; padding: 3px 8px; }}
+  .st-built {{ color: var(--accent); }} .st-planned {{ color: var(--warn); }} .st-lib {{ color: var(--dim); }}
+  .callout {{ border-left: 3px solid var(--warn); background: var(--panel); padding: 12px 16px;
+              border-radius: 0 10px 10px 0; max-width: 78ch; }}
+  details {{ margin-top: 10px; }}
+  details h3 {{ font-size: 14px; margin: 12px 0 4px; }}
+  details li {{ color: var(--dim); font-size: 13.5px; }}
+  @media (max-width: 640px) {{ .wrap {{ padding: 0 16px 64px; }} header {{ padding-top: 40px; }} }}
+  @media print {{
+    :root {{ --bg: #fff; --panel: #fff; --ink: #000; --dim: #333; --line: #bbb; --accent: #0d5f58; --warn: #7a520c; }}
+    .skip, nav.toc {{ display: none; }}
+    .panel {{ overflow: visible; break-inside: avoid; }}
+    .diagram, .bars, .sweep {{ min-width: 0; }}
+    details {{ display: block; }} details > * {{ display: block; }}
+    a {{ color: #000; }}
+  }}
 </style>
 </head>
 <body>
+<a class="skip" href="#main">Skip to content</a>
 <div class="wrap">
 
 <header>
-  <div class="tag">SkyWater sky130 · Tiny Tapeout · ECP5</div>
+  <div class="tag">FPGA · SkyWater sky130 · Tiny Tapeout</div>
   <h1>HYDRA-130</h1>
-  <p class="lede">A dispatcher that predicts how long each engine would take,
-  sends the work to the cheapest one, then measures what actually happened and
-  corrects its own model. Three arithmetic engines, a scratchpad, and a host
-  link — verified against independent models, proved where proof is cheaper
-  than testing, and honest about what has not been built yet.</p>
+  <p class="lede">Adaptive hardware scheduling and accelerator research. A
+  dispatcher predicts how long each engine would take a piece of work, sends
+  it to the cheapest, measures what happened and corrects its own model.
+  What runs depends on the build: each view below names one.</p>
+  <nav class="toc" aria-label="Sections">
+    <a href="#built">As built</a><a href="#tile">The tile</a><a href="#library">IP library</a>
+    <a href="#roadmap">Roadmap</a><a href="#area">Area</a><a href="#boards">Board images</a>
+    <a href="#verify">Verification</a><a href="#pending">Not done</a>
+  </nav>
 </header>
 
-<h2>How it fits together</h2>
-<div class="panel">
-{svg_diagram()}
-</div>
-<p class="scroll-note">Every block names the file that implements it — hover
-to see the path. The diagram is generated from the repository and the
-generator refuses to draw a block whose file is missing.</p>
+<main id="main">
+<p class="callout"><b>Status.</b> Not a complete or board-qualified CPU/GPU/TPU
+system. No image has run on a physical board. No CPU or GPU is integrated, and
+fully homomorphic encryption and sequestered execution are specifications,
+refused by the host driver. The Tiny Tapeout tile is the scheduler alone. See
+<code>docs/verification/capability-matrix.md</code>.</p>
 
-<h2>Where the silicon goes</h2>
+<h2 id="built">{AS_BUILT['title']}</h2>
+<div class="panel">
+{svg_graph(AS_BUILT)}
+</div>
+{text_alt(AS_BUILT)}
+<p class="scroll-note"><span class="status st-built">AS BUILT</span> Every block
+here is instantiated in that build's own source list
+(<code>{AS_BUILT['plan']}</code>); the generator checks it and refuses to draw a
+block that is not. The CPU, vector, NTT and crypto slots in this build are
+latency models. Wide figure: scroll sideways, or read the text version.</p>
+
+<h2 id="tile">{TILE_BUILT['title']}</h2>
+<div class="panel">
+{svg_graph(TILE_BUILT)}
+</div>
+{text_alt(TILE_BUILT)}
+
+<h2 id="library">IP library: built and checked, not all connected</h2>
+<div class="panel"><table>
+<thead><tr><th scope="col">Block</th><th scope="col">What</th><th scope="col">File</th>
+<th scope="col">Check</th><th scope="col">Status</th></tr></thead>
+<tbody>{lib_rows}</tbody>
+</table></div>
+<p class="scroll-note">These exist and pass their own checks. Being listed
+here says nothing about being wired into a build; the as-built views above
+are the only claims of connection.</p>
+
+<h2 id="roadmap">Roadmap: specified, not built</h2>
+<div class="panel"><table>
+<thead><tr><th scope="col">Item</th><th scope="col">What</th><th scope="col">Specification</th>
+<th scope="col">Status</th></tr></thead>
+<tbody>{road_rows}</tbody>
+</table></div>
+
+<h2 id="area">Where the tile's cells go</h2>
 <div class="panel">
 {svg_area(m)}
 </div>
-<p class="scroll-note">To scale. Five copies of the cost engine were the
-largest thing on the tile, which is what drove the redesign below.</p>
+<p class="scroll-note">Synthesized standard-cell area per block ({t['method']}).
+{t['caveat']} An area chart, not a placed floorplan.</p>
 
 <h2>One cost engine doing the work of five</h2>
 <div class="panel">
 {svg_sweep()}
 </div>
-
-<h2>What the numbers say</h2>
-<div class="cards">
-  <div class="card"><div class="k">{t['shared_um2']:,}</div>
-    <div class="v">µm² of standard cells in the tile, down {pct}% from
-    {t['parallel_um2']:,} by walking one cost engine over five parameter rows
-    instead of building five</div></div>
-  <div class="card"><div class="k">44</div>
-    <div class="v">deliberate faults injected across four mutation suites,
-    all caught or proven equivalent</div></div>
-  <div class="card"><div class="k">8</div>
-    <div class="v">modules whose contracts are proved by k-induction, not
-    sampled by tests</div></div>
-  <div class="card"><div class="k">1,608</div>
-    <div class="v">arithmetic results checked against models written from the
-    contract, not from the code</div></div>
-</div>
+<p class="scroll-note">{t['shared_um2']:,} µm² of cells with one shared cost
+engine, {pct}% less than {t['parallel_um2']:,} µm² with five (same synthesis
+method). The cycle structure is the real one (<code>mom/rtl/mom_top.sv</code>).</p>
 
 <h2>Engines</h2>
 <div class="panel"><table>
-<thead><tr><th>Engine</th><th>What it is</th><th>Cells</th><th>Area</th>
-<th>Checked against a model</th><th>Mutation testing</th></tr></thead>
+<thead><tr><th scope="col">Engine</th><th scope="col">What it is</th><th scope="col">Cells</th>
+<th scope="col">Area</th><th scope="col">Checked against a model</th><th scope="col">Mutation testing</th></tr></thead>
 <tbody>{eng_rows}</tbody>
 </table></div>
-<p class="scroll-note">{t['method']}. {t['caveat']}</p>
 
-<h2>Board images</h2>
+<h2 id="boards">Board images</h2>
 <div class="panel"><table>
-<thead><tr><th>Plan</th><th>What it carries</th><th>LUT4</th><th>Flops</th>
-<th>Multipliers</th><th>Fmax</th></tr></thead>
+<thead><tr><th scope="col">Plan</th><th scope="col">What it carries</th><th scope="col">LUT4</th>
+<th scope="col">Flops</th><th scope="col">Multipliers</th><th scope="col">Fmax</th></tr></thead>
 <tbody>{board_rows}</tbody>
 </table></div>
-<p class="scroll-note">Lattice ECP5 evaluation board, place and route by
-nextpnr. All pass timing at the 12&nbsp;MHz operating clock.</p>
+<p class="scroll-note">nextpnr place-and-route figures as recorded in
+<code>docs/metrics.json</code>, from an earlier run whose revision was not
+recorded; they predate later RTL changes. Lattice ECP5 evaluation board. None
+of these images has been run on a board.</p>
 
-<h2>How it is verified</h2>
+<h2 id="verify">How it is verified</h2>
 <div class="panel"><table>
-<thead><tr><th>Check</th><th>Scale</th><th>Kind</th></tr></thead>
+<thead><tr><th scope="col">Check</th><th scope="col">Scale</th><th scope="col">Kind</th>
+<th scope="col">Run with</th></tr></thead>
 <tbody>{ver_rows}</tbody>
 </table></div>
-<p>Each engine is compared against a model written from its contract rather
-than from its code, so a misreading of the specification shows up as a
-disagreement instead of being copied into both. Where a property is cheaper
-to prove than to sample — a port contract, a completion that must fire once —
-it is proved. Mutation testing then asks the only question that matters about
-a test suite: if the design were broken, would anything fail?</p>
+<p><code>make verify</code> runs {len(proofs)} proof tasks and {len(covers)}
+cover tasks, read from the Makefile by this generator, and fails if any of
+them fails. A proof establishes its named property under its stated
+assumptions, nothing wider. Results quoted in the table are from the run
+archived in <code>reports/</code>; this page does not run anything.</p>
 
 <h2>What kind of evidence</h2>
 {svg_verify(m)}
-<p class="scroll-note">"Tested" spans everything from one happy path to an
-exhaustive proof, so the checks are grouped by what they actually establish.</p>
 
-<h2>What has not been done</h2>
+<h2 id="pending">What has not been done</h2>
 <ul class="warn">{pending}</ul>
+</main>
 
 <footer>
-  Generated by <code>tools/gen_site.py</code> from <code>docs/metrics.json</code>
-  and the module tree. Run <code>make site-check</code> to prove this page still
-  matches the repository.
+  Generated by <code>tools/gen_site.py</code> from <code>docs/metrics.json</code>,
+  the build plans and the module tree. <code>make site-check</code> regenerates
+  it into a scratch directory and fails if the committed page differs.
 </footer>
 
 </div>
 <script>
   // Highlight a block and the wires touching it. No library, no build step:
   // the page has to open from disk years from now without fetching anything.
-  const edges = [...document.querySelectorAll('.edge')];
-  for (const n of document.querySelectorAll('.node')) {{
-    const id = n.dataset.id;
-    const on = () => edges.forEach(e => {{
-      if (e.dataset.a === id || e.dataset.b === id) {{
-        e.style.stroke = 'var(--accent)'; e.style.strokeWidth = '2.6';
-      }}
-    }});
-    const off = () => edges.forEach(e => {{ e.style.stroke = ''; e.style.strokeWidth = ''; }});
-    n.addEventListener('mouseenter', on);
-    n.addEventListener('mouseleave', off);
-    n.addEventListener('focus', on);
-    n.addEventListener('blur', off);
+  // Everything the script adds is also in the text versions above.
+  for (const svg of document.querySelectorAll('svg.diagram')) {{
+    const edges = [...svg.querySelectorAll('.edge')];
+    for (const n of svg.querySelectorAll('.node')) {{
+      const id = n.dataset.id;
+      const on = () => edges.forEach(e => {{
+        if (e.dataset.a === id || e.dataset.b === id) {{
+          e.style.stroke = 'var(--accent)'; e.style.strokeWidth = '2.6';
+        }}
+      }});
+      const off = () => edges.forEach(e => {{ e.style.stroke = ''; e.style.strokeWidth = ''; }});
+      n.addEventListener('mouseenter', on);
+      n.addEventListener('mouseleave', off);
+      n.addEventListener('focus', on);
+      n.addEventListener('blur', off);
+    }}
   }}
 </script>
 </body>
@@ -525,34 +713,67 @@ exhaustive proof, so the checks are grouped by what they actually establish.</p>
 
 
 def check_proof_count(m):
-    """The page states how many modules carry formal proofs. That number
-    said 10 while the repository held 14 .sby files (found 2026-10-07): a
-    hand-kept count drifts the moment a proof is added. Count the files and
-    refuse to write a page that disagrees."""
-    n = sum(1 for f in ROOT.rglob("*.sby")
-            if f.parent.name == "formal" and ".git" not in f.parts)
+    """The page and metrics.json must agree with the Makefile on how many
+    proof tasks make verify runs. A hand-kept count drifts the moment a proof
+    is added (it said 10 while there were 14 proof files, 2026-10-07), and
+    counting .sby files counted configurations, not proofs (SkyWater 130
+    audit, 2026-10-11)."""
+    proofs, _ = proof_tasks()
     for v in m["verification"]:
-        if v["what"] == "formal proofs" and v["result"] != f"{n} modules":
-            raise SystemExit(f"gen_site: metrics.json says formal proofs '{v['result']}', "
-                             f"but the repository has {n} .sby files -- update docs/metrics.json")
+        if v["what"] == "formal proof tasks run by make verify" and v["result"] != f"{len(proofs)} tasks":
+            raise SystemExit(f"gen_site: metrics.json says '{v['result']}', but make verify runs "
+                             f"{len(proofs)} proof tasks -- update docs/metrics.json")
+
+
+def architecture_md():
+    def table(build):
+        return "".join(f"| {label} | `{f}` | `{mod or '(software)'}` |\n"
+                       for _, label, _, f, mod, _, _ in build["blocks"])
+    return (
+        "# HYDRA-130 architecture\n\n"
+        "Generated by `tools/gen_site.py`; `make site-check` proves it still matches the\n"
+        "repository. Three views, kept apart on purpose (SkyWater 130 audit, 2026-10-11):\n"
+        "what one named build contains, what exists as checked IP, and what is planned.\n\n"
+        f"## {AS_BUILT['title']}\n\n"
+        f"Every module below is instantiated in `{AS_BUILT['plan']}`'s own source list; the\n"
+        "generator checks it. The CPU, vector, NTT and crypto slots are latency models.\n\n"
+        "```mermaid\n" + mermaid(AS_BUILT) + "\n```\n\n"
+        "| block | file | module |\n|---|---|---|\n" + table(AS_BUILT) + "\n"
+        f"## {TILE_BUILT['title']}\n\n"
+        "```mermaid\n" + mermaid(TILE_BUILT) + "\n```\n\n"
+        "| block | file | module |\n|---|---|---|\n" + table(TILE_BUILT) + "\n"
+        "## IP library: built and checked, not all connected\n\n"
+        "| block | what | file | check |\n|---|---|---|---|\n" +
+        "".join(f"| {l} | {w} | `{f}` | `make {t}` |\n" for l, w, f, t in LIBRARY) + "\n"
+        "## Roadmap: specified, not built\n\n"
+        "| item | what | specification |\n|---|---|---|\n" +
+        "".join(f"| {l} | {w} | [{d}]({pathlib.Path(d).relative_to('docs')}) |\n" for l, w, d in ROADMAP))
+
+
+def render(m):
+    return html(m), architecture_md()
 
 
 def main():
     check_files()
     m = json.loads((ROOT / "docs/metrics.json").read_text())
     check_proof_count(m)
+    page, arch = render(m)
+    if "--check" in sys.argv:
+        # Compare without touching the tree (SkyWater 130 audit BUILD-03).
+        stale = [str(p.relative_to(ROOT)) for p, txt in ((SITE, page), (ARCH, arch))
+                 if not p.exists() or p.read_text() != txt]
+        if stale:
+            print("site: OUT OF DATE -- run make site and commit: " + ", ".join(stale))
+            sys.exit(1)
+        print("site: page and architecture match the repository")
+        return
     SITE.parent.mkdir(parents=True, exist_ok=True)
-    SITE.write_text(html(m))
-    ARCH.write_text(
-        "# HYDRA-130 architecture\n\n"
-        "Generated by `tools/gen_site.py`; run `make site-check` to prove it\n"
-        "still matches the repository. Every block below names a file, and the\n"
-        "generator fails if one of those files is missing.\n\n"
-        "```mermaid\n" + mermaid() + "\n```\n\n"
-        "| block | file |\n|---|---|\n" +
-        "".join(f"| {label} | `{path}` |\n" for _, label, _, path, _, _ in BLOCKS))
+    SITE.write_text(page)
+    ARCH.write_text(arch)
     print(f"gen_site: wrote {SITE.relative_to(ROOT)} and {ARCH.relative_to(ROOT)} "
-          f"({len(BLOCKS)} blocks, {len(EDGES)} edges, all files present)")
+          f"({len(AS_BUILT['blocks'])} as-built blocks checked against {AS_BUILT['plan']}, "
+          f"{len(TILE_BUILT['blocks'])} tile blocks, {len(LIBRARY)} library, {len(ROADMAP)} planned)")
 
 
 if __name__ == "__main__":

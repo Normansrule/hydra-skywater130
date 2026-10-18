@@ -55,19 +55,25 @@ module hydra_sys_tile
   parameter int unsigned NENG = 5,
   parameter int unsigned LAT_FAST = 30,
   parameter int unsigned LAT_SLOW = 2000,
-  // Engine 2 is the TPU. With REAL_TPU set it is the systolic array from
-  // engines/tpu -- real arithmetic, real timing, synthetic operands. With it
-  // clear, engine 2 is a latency model like the others, which is what the
-  // calibration demonstration needs (the model's latency is switchable; the
-  // array's is whatever the work costs).
-  parameter bit          REAL_TPU = 1'b0,
-  // Engine 1 is the vector unit. Same arrangement as the TPU: real
-  // hardware with a pattern generator for operands.
-  parameter bit          REAL_SIMD = 1'b0,
-  // With this set, engine 2 is the array fed from a scratchpad instead of
-  // from a pattern generator: the host puts the operands in memory and the
-  // descriptor says where they are. Mutually exclusive with REAL_TPU.
-  parameter bit          TPU_FROM_MEM = 1'b0
+  // ONE PERSONALITY PER ENGINE (audit R1, 2026-10-11). Each engine's ready,
+  // done and done-tag come from exactly one source, chosen here. Until then
+  // this was three overlapping flags (REAL_TPU, TPU_FROM_MEM, REAL_SIMD), and
+  // the selector for engine 2 looked only at REAL_TPU: with TPU_FROM_MEM the
+  // scheduler took its completions from the LATENCY MODEL, retiring jobs
+  // ~44 cycles in while the array was still computing
+  // (sys/tb/tb_sys_tile_mem.sv shows it).
+  //
+  // Engine 2, the TPU:
+  //   0 MODEL    a latency model: no arithmetic, switchable latency (the
+  //              calibration demonstration)
+  //   1 PATTERN  the systolic array, operands from a pattern generator
+  //   2 MEMORY   the systolic array, operands and results in scratchpads
+  // Engine 1, the vector unit:
+  //   0 MODEL    a latency model
+  //   1 PATTERN  the vector unit, operands from a pattern generator
+  // Any other value stops elaboration.
+  parameter int unsigned TPU_ENGINE  = 0,
+  parameter int unsigned SIMD_ENGINE = 0
 ) (
   input  wire [7:0] ui_in,
   output wire [7:0] uo_out,
@@ -93,10 +99,21 @@ module hydra_sys_tile
   input  wire [15:0] mem_addr,
   input  wire [31:0] mem_wdata,
   input  wire [15:0] mem_raddr,
-  output wire [31:0] mem_rdata
+  output wire [31:0] mem_rdata,
+  output wire        mem_refused     // pulses: the last write was refused (engine owned the banks)
 );
 
   wire _unused = &{ena, uio_in, ui_in[5:4], ui_in[3], 1'b0};
+
+  localparam int unsigned TPU_MODEL = 0, TPU_PATTERN = 1, TPU_MEMORY = 2;
+  localparam int unsigned SIMD_MODEL = 0, SIMD_PATTERN = 1;
+  localparam bit REAL_TPU     = (TPU_ENGINE == TPU_PATTERN);
+  localparam bit TPU_FROM_MEM = (TPU_ENGINE == TPU_MEMORY);
+  localparam bit REAL_SIMD    = (SIMD_ENGINE == SIMD_PATTERN);
+  generate   // an unknown personality must not quietly become the model
+    if (TPU_ENGINE > TPU_MEMORY)   begin : g_bad_tpu_engine  hydra_sys_tile_unknown_TPU_ENGINE  u_bad (); end
+    if (SIMD_ENGINE > SIMD_PATTERN) begin : g_bad_simd_engine hydra_sys_tile_unknown_SIMD_ENGINE u_bad (); end
+  endgenerate
 
   // ---------------------------------------------------------------------------
   // Host interface: the same SPI target and register map as the tile.
@@ -134,13 +151,15 @@ module hydra_sys_tile
   wire                r_irq, r_disp_sticky, regs_accept, r_comp_valid;
   wire [3:0]          r_comp_tag;
 
-  hydra_tt_regs #(.NTAG(NTAG)) u_regs (
+  hydra_tt_regs #(.NTAG(NTAG), .HOST_COMP(1'b0)) u_regs (   // engines complete themselves
     .clk(clk), .rst_n(rst_n),
     .cs_start(cs_start), .cs_end(cs_end), .rx_valid(rx_valid),
     .rx_byte(rx_byte), .rx_index(rx_index), .tx_load(tx_load), .tx_byte(tx_byte),
     .wd_valid(wd_valid), .wd_ready(wd_ready), .wd(wd),
-    // The register block OBSERVES the dispatch; the crossbar accepts it.
+    // The register block OBSERVES the dispatch; the crossbar accepts it, so
+    // the crossbar's handshake is what it records (RTL-02).
     .disp_valid(disp_valid), .disp_accept(regs_accept),
+    .disp_fire(disp_valid & disp_accept),
     .disp_engine(disp_engine), .disp_tag(disp_tag), .disp_wd(disp_wd),
     .comp_valid(r_comp_valid), .comp_tag(r_comp_tag),
     .fence_tag(r_fence_tag), .fence_busy(fence_busy),
@@ -230,15 +249,16 @@ module hydra_sys_tile
         .eng_tag(eng_tag[2*4 +: 4]),
         .eng_done(memtpu_done), .eng_done_tag(memtpu_done_tag),
         .ld_we(mem_we), .ld_bank(mem_bank), .ld_addr(mem_addr[9:0]),
-        .ld_data(mem_wdata),
+        .ld_data(mem_wdata), .ld_refused(mem_refused),
         .c_raddr(mem_raddr[9:0]), .c_rdata(mem_rdata),
-        .tiles_done(memtpu_tiles), .last_status());
+        .tiles_done(memtpu_tiles), .job_status());
     end else begin : g_no_mem_tpu
       assign memtpu_ready = 1'b0;
       assign memtpu_done = 1'b0;
       assign memtpu_done_tag = 4'd0;
       assign memtpu_tiles = 16'd0;
       assign mem_rdata = 32'd0;
+      assign mem_refused = 1'b0;
     end
   endgenerate
 
@@ -310,15 +330,16 @@ module hydra_sys_tile
         end
       end
 
-      // Engine 2 is either the array or the model, never both driving.
+      // Each engine's handshake comes from its one personality, all three
+      // signals from the same source.
       if (e == 1) begin : g_eng1_sel
         assign eng_ready_raw[e]       = REAL_SIMD ? simd_ready    : (cnt == 0);
         assign eng_done[e]            = REAL_SIMD ? simd_done     : done_q;
         assign eng_done_tag[e*4 +: 4] = REAL_SIMD ? simd_done_tag : held;
       end else if (e == 2) begin : g_eng2_sel
-        assign eng_ready_raw[e]       = REAL_TPU ? tpu_ready    : (cnt == 0);
-        assign eng_done[e]            = REAL_TPU ? tpu_done     : done_q;
-        assign eng_done_tag[e*4 +: 4] = REAL_TPU ? tpu_done_tag : held;
+        assign eng_ready_raw[e]       = TPU_FROM_MEM ? memtpu_ready    : REAL_TPU ? tpu_ready    : (cnt == 0);
+        assign eng_done[e]            = TPU_FROM_MEM ? memtpu_done     : REAL_TPU ? tpu_done     : done_q;
+        assign eng_done_tag[e*4 +: 4] = TPU_FROM_MEM ? memtpu_done_tag : REAL_TPU ? tpu_done_tag : held;
       end else begin : g_eng_model
         assign eng_ready_raw[e]       = (cnt == 0);
         assign eng_done[e]            = done_q;

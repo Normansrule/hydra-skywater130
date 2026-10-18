@@ -37,13 +37,26 @@ OPC_GEMM, DT_INT8, LAT_BALANCED, PWR_BALANCED = 3, 0, 1, 1
 
 def descriptor(op_class=OPC_GEMM, dtype=DT_INT8, lat=LAT_BALANCED, pwr=PWR_BALANCED,
                m=8, n=8, k=8, nbytes=192, src_loc=0, tag=0):
-    """work_desc_t, first field most significant (mom_pkg.sv)."""
-    fields = [(op_class, 4), (dtype, 3), (lat, 2), (pwr, 2), (m, 16), (n, 16),
-              (k, 16), (nbytes, 24), (src_loc, 2), (tag, 8), (0, 35)]
+    """work_desc_t, first field most significant (mom_pkg.sv).
+
+    Every field is checked before packing (SkyWater 130 audit HOST-01,
+    2026-10-11). Packing used to mask each value to its width, so a negative
+    or oversized argument silently became a different, legal descriptor.
+    """
+    named = [("op_class", op_class, 4, 9), ("dtype", dtype, 3, 6), ("lat", lat, 2, 4),
+             ("pwr", pwr, 2, 4), ("m", m, 16, None), ("n", n, 16, None), ("k", k, 16, None),
+             ("nbytes", nbytes, 24, None), ("src_loc", src_loc, 2, None), ("tag", tag, 8, None)]
+    for name, v, w, limit in named:
+        if not isinstance(v, int) or isinstance(v, bool):
+            raise TypeError(f"descriptor field {name} must be an int, got {v!r}")
+        top = (1 << w) if limit is None else limit
+        if not 0 <= v < top:
+            raise ValueError(f"descriptor field {name}={v} is outside 0..{top - 1}")
+    fields = [(v, w) for _, v, w, _ in named] + [(0, 35)]
     assert sum(w for _, w in fields) == 128
     d = 0
     for v, w in fields:
-        d = (d << w) | (v & ((1 << w) - 1))
+        d = (d << w) | v
     return d
 
 
@@ -112,6 +125,51 @@ class SerialTransport:
         return r[1], r[2]
 
 
+# ------------------------------------------------- security mode and policy
+# Two independent choices (second audit, section 9). Neither has bits in the
+# version-1 descriptor, and they are not squeezed into its reserved field:
+# this host check is the whole of the enforcement until a versioned
+# descriptor and hardware context checks exist. What it guarantees is the
+# one property that matters before then: a job asking for a protection or an
+# engine this build cannot honour is REFUSED, never quietly run in plaintext
+# on whatever engine the cost model prefers.
+#
+# docs/verification/capability-matrix.md is the evidence for every entry.
+SECURITY_MODES = ("PUBLIC_DEBUG", "FHE", "SE")
+ENGINE_POLICIES = ("AUTO", "CPU", "GPU", "TPU")
+ABI_VERSION = 1
+
+# (mode, policy) pairs this build supports. Everything else is UNSUPPORTED.
+SUPPORTED = {("PUBLIC_DEBUG", "AUTO")}
+
+
+class Unsupported(Exception):
+    """A job asked for a mode or engine this build cannot honour."""
+    def __init__(self, mode, policy, reason):
+        super().__init__(f"UNSUPPORTED: security_mode={mode} engine_policy={policy}: {reason}")
+        self.mode, self.policy, self.reason = mode, policy, reason
+
+
+def check_job(security_mode="PUBLIC_DEBUG", engine_policy="AUTO"):
+    """Raise Unsupported unless this build can run the job as asked."""
+    if security_mode not in SECURITY_MODES:
+        raise ValueError(f"unknown security_mode {security_mode!r}")
+    if engine_policy not in ENGINE_POLICIES:
+        raise ValueError(f"unknown engine_policy {engine_policy!r}")
+    if (security_mode, engine_policy) in SUPPORTED:
+        return
+    if security_mode == "FHE":
+        reason = "no FHE profile is implemented (docs/security/fhe-profile.md)"
+    elif security_mode == "SE":
+        reason = "no sequestered-execution boundary is implemented (docs/security/se-contract.md)"
+    elif engine_policy == "GPU":
+        reason = "no GPU is integrated; the SIMD unit is not a GPU"
+    else:
+        reason = (f"descriptor ABI v{ABI_VERSION} has no engine-selection field; "
+                  "the dispatcher chooses, so a forced engine cannot be guaranteed")
+    raise Unsupported(security_mode, engine_policy, reason)
+
+
 class Tile:
     def __init__(self, t):
         self.t = t
@@ -133,7 +191,8 @@ class Tile:
         return dict(engine=(v >> 45) & 7, tag=(v >> 41) & 0xF,
                     margin=(v >> 8) & 0xFFFFFFFF, err_tag=v & 0xFF)
 
-    def dispatch(self, desc):
+    def dispatch(self, desc, security_mode="PUBLIC_DEBUG", engine_policy="AUTO"):
+        check_job(security_mode, engine_policy)     # refuse before touching the board
         self.write(A_WD, desc)
         self.write(A_ACTION, 0x01)
         st = self.status()
@@ -256,13 +315,18 @@ if __name__ == "__main__":
 # Scratchpad access (bridge commands 'M' and 'R')
 # ---------------------------------------------------------------------------
 def mem_write(port, bank, addr, data):
-    """Write one 32-bit word into an operand bank. Returns True on ack."""
+    """Write one 32-bit word into an operand bank.
+
+    Returns True only when the board acknowledged AND took the word. The
+    second reply byte is 01 when the design refused it because an engine
+    owned the bank (a job was running): wait for the job, then write again.
+    """
     frame = bytes([0x4D, bank & 3, (addr >> 8) & 0xFF, addr & 0xFF,
                    (data >> 24) & 0xFF, (data >> 16) & 0xFF,
                    (data >> 8) & 0xFF, data & 0xFF])
     port.write(frame)
     r = port.read(2)
-    return len(r) == 2 and r[0] == 0xB2
+    return len(r) == 2 and r[0] == 0xB2 and r[1] == 0x00
 
 
 def mem_read(port, addr):
@@ -296,9 +360,9 @@ def load_gemm(port, a, b, base=0):
         acol = [a[i][t] if i < m else 0 for i in range(4)]
         brow = [b[t][j] if j < n else 0 for j in range(4)]
         if not mem_write(port, 0, base + t, pack_lanes(acol)):
-            raise RuntimeError(f"A bank write at {base + t} was not acknowledged")
+            raise RuntimeError(f"A bank write at {base + t} was not acknowledged or was refused")
         if not mem_write(port, 1, base + t, pack_lanes(brow)):
-            raise RuntimeError(f"B bank write at {base + t} was not acknowledged")
+            raise RuntimeError(f"B bank write at {base + t} was not acknowledged or was refused")
     return m, n, k
 
 

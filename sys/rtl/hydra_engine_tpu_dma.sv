@@ -39,13 +39,14 @@ module hydra_engine_tpu_dma
   input  wire [1:0]        ld_bank,
   input  wire [AW-1:0]     ld_addr,
   input  wire [31:0]       ld_data,
+  output logic             ld_refused,      // pulses: a load the engine owned the banks for
 
   // result readback, for a host or a bench
   input  wire [AW-1:0]     c_raddr,
   output logic [31:0]      c_rdata,
 
   output logic [15:0]      tiles_done,
-  output tpu_status_e      last_status
+  output logic [2:0]       job_status       // the core's four, or 4 = past a bank's end
 );
   // ---- descriptor: dimensions and the three bank addresses ---------------
   wire [KW-1:0] wd_m = eng_wd[116:101];
@@ -58,34 +59,69 @@ module hydra_engine_tpu_dma
   // The engine's ready alone is not enough: the streamer can still be
   // draining the previous job's results for a cycle or two after the
   // engine reports idle.
+  //
+  // Audit R3 follow-up (2026-10-11): the streamer used to start for EVERY
+  // accepted descriptor. One the core refuses -- a 5-row tile, say -- never
+  // has its operands taken, so the streamer waited for ever and the engine
+  // never became ready again: one bad descriptor from the host wedged the
+  // array until reset. Now the core's own acceptance test is mirrored here
+  // and the streamer starts only for a job the core will run. A job whose
+  // operands or results would run past the end of a bank is refused before
+  // anything is read or written (job_status = 4). The core's done is held
+  // until the streamer has written every result, so done means "in memory".
+  wire [KW-1:0] wd_n = eng_wd[100:85];
+  wire core_will_run = (eng_wd[127:124] == 4'd3) && (eng_wd[123:121] == 3'd0) &&
+                       (wd_m != '0) && (wd_n != '0) && (wd_k != '0) &&
+                       (wd_m <= KW'(N)) && (wd_n <= KW'(N));
+  wire in_range = ({1'b0, KW'(base_a)} + {1'b0, wd_k} <= (KW+1)'(DEPTH)) &&
+                  ({1'b0, KW'(base_b)} + {1'b0, wd_k} <= (KW+1)'(DEPTH)) &&
+                  ({1'b0, KW'(base_c)} + (KW+1)'(N*N) <= (KW+1)'(DEPTH));
+
   wire dma_busy;
   wire core_ready;
-  assign eng_ready = core_ready && !dma_busy;
-  wire accept = eng_valid && eng_ready;
+  logic done_pend_q, rej_pend_q;
+  logic [TAGW-1:0] pend_tag_q;
+  assign eng_ready = core_ready && !dma_busy && !done_pend_q && !rej_pend_q;
+  wire accept  = eng_valid && eng_ready;
+  wire refuse  = accept && core_will_run && !in_range;
+  wire to_core = accept && !refuse;
+  wire run_job = to_core && core_will_run;
 
   // ---- banks --------------------------------------------------------------
   wire [AW-1:0] dma_a_addr, dma_b_addr, dma_c_addr;
   wire [31:0]   a_rdata, b_rdata, c_wdata;
   wire          c_we;
 
-  // The loader and the streamer take turns: loads only happen between jobs,
-  // which the bench and the bridge both honour, and the engine is idle then.
-  wire [AW-1:0] a_addr = (ld_we && ld_bank == 2'd0) ? ld_addr : dma_a_addr;
-  wire [AW-1:0] b_addr = (ld_we && ld_bank == 2'd1) ? ld_addr : dma_b_addr;
-  wire [AW-1:0] c_addr = (ld_we && ld_bank == 2'd2) ? ld_addr :
-                         c_we                       ? dma_c_addr : c_raddr;
+  // Bank ownership (audit R8, 2026-10-11). This used to rely on the host
+  // loading only between jobs; a load during a job took the bank port from
+  // the streamer and overrode the engine's own result write. Now the engine
+  // owns every bank from the cycle it accepts a job until it reports the
+  // completion, and a host write in that window is refused and reported.
+  // Host reads of C during a job return undefined data (the engine has the
+  // port); they cannot change anything.
+  wire host_owns = eng_ready && !accept;
+  wire a_ld_we   = ld_we && host_owns && (ld_bank == 2'd0);
+  wire b_ld_we   = ld_we && host_owns && (ld_bank == 2'd1);
+  wire c_ld_we   = ld_we && host_owns && (ld_bank == 2'd2);
+  always_ff @(posedge clk or negedge rst_n)
+    if (!rst_n) ld_refused <= 1'b0;
+    else        ld_refused <= ld_we && !host_owns;
+
+  wire [AW-1:0] a_addr = a_ld_we ? ld_addr : dma_a_addr;
+  wire [AW-1:0] b_addr = b_ld_we ? ld_addr : dma_b_addr;
+  wire [AW-1:0] c_addr = c_ld_we ? ld_addr : c_we ? dma_c_addr : c_raddr;
 
   hydra_spram #(.DW(32), .DEPTH(DEPTH), .AW(AW)) u_a (
-    .clk(clk), .we(ld_we && ld_bank == 2'd0), .addr(a_addr),
+    .clk(clk), .we(a_ld_we), .addr(a_addr),
     .wdata(ld_data), .rdata(a_rdata));
 
   hydra_spram #(.DW(32), .DEPTH(DEPTH), .AW(AW)) u_b (
-    .clk(clk), .we(ld_we && ld_bank == 2'd1), .addr(b_addr),
+    .clk(clk), .we(b_ld_we), .addr(b_addr),
     .wdata(ld_data), .rdata(b_rdata));
 
   hydra_spram #(.DW(32), .DEPTH(DEPTH), .AW(AW)) u_c (
-    .clk(clk), .we(c_we || (ld_we && ld_bank == 2'd2)), .addr(c_addr),
-    .wdata((ld_we && ld_bank == 2'd2) ? ld_data : c_wdata), .rdata(c_rdata));
+    .clk(clk), .we(c_we || c_ld_we), .addr(c_addr),
+    .wdata(c_ld_we ? ld_data : c_wdata), .rdata(c_rdata));
 
   // ---- streamer -----------------------------------------------------------
   wire                 op_valid, op_ready;
@@ -95,7 +131,7 @@ module hydra_engine_tpu_dma
 
   hydra_dma_gemm #(.AW(AW), .DW(32), .CNTW(KW)) u_dma (
     .clk(clk), .rst_n(rst_n),
-    .start(accept), .base_a(base_a), .base_b(base_b), .base_c(base_c),
+    .start(run_job), .base_a(base_a), .base_b(base_b), .base_c(base_c),
     .k_slices(wd_k), .n_results(KW'(N*N)), .busy(dma_busy),
     .a_addr(dma_a_addr), .a_rdata(a_rdata),
     .b_addr(dma_b_addr), .b_rdata(b_rdata),
@@ -117,20 +153,39 @@ module hydra_engine_tpu_dma
     end
   end
 
+  wire            core_done;
+  wire [TAGW-1:0] core_done_tag;
+  tpu_status_e    core_status;
   tpu_top #(.N(N), .WD_W(WD_W), .TAGW(TAGW)) u_tpu (
     .clk(clk), .rst_n(rst_n),
-    .eng_valid(accept), .eng_ready(core_ready), .eng_wd(eng_wd),
-    .eng_tag(eng_tag), .eng_done(eng_done), .eng_done_tag(eng_done_tag),
+    .eng_valid(to_core), .eng_ready(core_ready), .eng_wd(eng_wd),
+    .eng_tag(eng_tag), .eng_done(core_done), .eng_done_tag(core_done_tag),
     .op_ready(op_ready), .op_valid(op_valid),
     .op_a(op_a_lane), .op_b(op_b_lane),
     .res_valid(res_valid), .res_data(res_data), .res_last(res_last),
-    .status(last_status));
+    .status(core_status));
 
+  wire commit_ok = done_pend_q && !dma_busy && !res_valid;
   always_ff @(posedge clk or negedge rst_n) begin
-    if (!rst_n)        tiles_done <= '0;
-    else if (eng_done) tiles_done <= tiles_done + 16'd1;
+    if (!rst_n) begin
+      done_pend_q <= 1'b0; rej_pend_q <= 1'b0; pend_tag_q <= '0;
+      eng_done <= 1'b0; eng_done_tag <= '0; job_status <= 3'd0; tiles_done <= '0;
+    end else begin
+      eng_done <= 1'b0;
+      if (core_done) begin
+        done_pend_q <= 1'b1; pend_tag_q <= core_done_tag; job_status <= {1'b0, core_status};
+      end
+      if (refuse) begin
+        rej_pend_q <= 1'b1; pend_tag_q <= eng_tag; job_status <= 3'd4;
+      end
+      if (commit_ok || rej_pend_q) begin
+        eng_done <= 1'b1; eng_done_tag <= pend_tag_q;
+        done_pend_q <= 1'b0; rej_pend_q <= 1'b0;
+        tiles_done <= tiles_done + 16'd1;
+      end
+    end
   end
 
-  wire _unused = &{res_last, wd_m, 1'b0};
+  wire _unused = &{res_last, 1'b0};
 endmodule
 `default_nettype wire

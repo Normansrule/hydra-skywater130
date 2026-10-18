@@ -7,31 +7,49 @@
  * ===========================================================================
  * THREE OPERAND STREAMS
  * ===========================================================================
- * This is the engine the streamer's third port was built for. A butterfly
- * needs a, b AND the twiddle factor w, all for the same group, all in the
- * same cycle. The array and the vector unit need two streams and leave that
- * port unconnected; here all three are used, on one shared read pointer,
- * because every stream advances together by construction.
+ * A butterfly needs a, b AND the twiddle factor w, all for the same group,
+ * all in the same cycle. The streamer's third port carries w, on the one
+ * shared read pointer, because every stream advances together.
  *
  * ===========================================================================
- * BANK LAYOUT
+ * MEMORY FORMAT v1 (2026-10-11, audit R2/R3)
  * ===========================================================================
- * A group is four residues of 14 bits. They are stored one per 16-bit slot,
- * so a group is 64 bits and a host word carries two lanes:
+ * One residue per 32-bit host word, at every modulus. The first format put
+ * residues in 16-bit slots, two per word: right only at q = 12289 (14 bits).
+ * At q = 3329 (12 bits) the upper result landed two bits low; at
+ * q = 8380417 (23 bits) a residue did not fit its slot at all. The end-to-end
+ * test only ever ran at 12289. A 32-bit slot fits every modulus the engine
+ * supports (QW <= 23) with nothing derived per width but the residue check.
  *
- *   host word 2g+0 -> lanes 0,1 of group g   (lane 0 in bits [13:0])
- *   host word 2g+1 -> lanes 2,3 of group g
+ * Units, all explicit:
+ *   group          NLANE = 4 butterflies, side by side
+ *   descriptor     base_a, base_b, base_c are GROUP indices (wd[3 +: AW],
+ *                  wd[13 +: AW], wd[23 +: AW]); twiddles share base_a
+ *   A, B, W banks  host word  group*4 + lane       one residue, bits [QW-1:0]
+ *   C bank         host word  group*8 + 2*lane + 0  y0 of that butterfly
+ *                             group*8 + 2*lane + 1  y1
+ *   load / read    ld_addr and c_raddr are HOST WORD addresses
  *
- * Padding to 16 bits rather than packing 14 wastes two bits per lane and
- * makes the host's job arithmetic instead of bit-shuffling. At four lanes
- * that is one byte per group, which is not worth a loader that can cross
- * word boundaries.
+ * Checked at this boundary, so the arithmetic never sees them:
+ *   * a residue >= q, or any bit above QW, is refused: not written, and
+ *     ld_refused pulses (the butterfly cannot tell an unreduced input from a
+ *     reduced one, so the result would be silently wrong);
+ *   * a load address past a bank's end is refused the same way;
+ *   * a load while the engine owns the banks (from acceptance until the
+ *     completion is reported) is refused the same way (audit R8);
+ *   * a job whose operands or results would run past the end of a bank is
+ *     refused before it starts: no operand is read, no result written, the
+ *     tag completes with job_status = JS_BAD_RANGE, and the engine is free
+ *     for the next job.
  *
- * Residues are NOT range-checked on the way in. A value >= q entering the
- * butterfly produces a result that is wrong rather than merely unreduced,
- * and the engine cannot tell the difference. dma_ntt_model.py only generates
- * values below q, and tb_hydra_dma_ntt checks every result is a reduced
- * residue, which catches a bank loaded with garbage.
+ * ===========================================================================
+ * DONE MEANS THE RESULTS ARE IN MEMORY
+ * ===========================================================================
+ * The butterfly core finishes while the last group's eight words are still
+ * being serialised into the C bank. Its done is held here until the streamer
+ * reports every result written (hydra_dma_gemm proves it stays busy until
+ * then) and the serialiser is empty. Only then does the tag complete, so a
+ * host that reads the results the cycle after completion reads final values.
  */
 `default_nettype none
 
@@ -41,8 +59,8 @@ module hydra_engine_ntt_dma
   parameter int unsigned N     = NLANE,
   parameter int unsigned WD_W  = 128,
   parameter int unsigned TAGW  = 4,
-  parameter int unsigned AW    = 8,        // bank entries (groups)
-  parameter int unsigned DEPTH = 256
+  parameter int unsigned AW    = 8,        // group index width
+  parameter int unsigned DEPTH = 256       // groups per bank
 ) (
   input  wire              clk,
   input  wire              rst_n,
@@ -54,158 +72,205 @@ module hydra_engine_ntt_dma
   output logic             eng_done,
   output logic [TAGW-1:0]  eng_done_tag,
 
-  // host load port: 32-bit words, bank 0 = A, 1 = B, 2 = W, 3 = results
+  // host load port: bank 0 = A, 1 = B, 2 = W, 3 = C (results)
   input  wire              ld_we,
   input  wire [1:0]        ld_bank,
-  input  wire [AW:0]       ld_addr,        // one extra bit: two words per group
+  input  wire [AW+$clog2(2*N)-1:0] ld_addr,   // host word address
   input  wire [31:0]       ld_data,
+  output logic             ld_refused,      // pulses: a load was not written
 
-  input  wire [AW+1:0]     c_raddr,
+  input  wire [AW+$clog2(2*N)-1:0] c_raddr,   // host word address in C
   output logic [31:0]      c_rdata,
 
   output logic [15:0]      jobs_done,
-  output ntt_status_e      last_status
+  output logic [2:0]       job_status       // see JS_* below
 );
-  localparam int unsigned SLOT = 16;        // one residue per 16-bit slot
-  localparam int unsigned GW   = N * SLOT;  // 64 bits: one group
+  localparam int unsigned SLOT = 32;                 // one residue per host word
+  localparam int unsigned LW   = $clog2(N);          // lane select bits
+  localparam int unsigned RPG  = 2 * N;              // result words per group
+  localparam int unsigned RW   = $clog2(RPG);
+  localparam int unsigned CAW  = AW + RW;            // C bank, in host words
+  localparam int unsigned GW   = N * SLOT;           // one operand group
+
+  // job_status: the core's four, plus the range refusal made here
+  localparam logic [2:0] JS_OK = 3'd0, JS_BAD_OPCLASS = 3'd1, JS_BAD_DTYPE = 3'd2,
+                         JS_BAD_DIMS = 3'd3, JS_BAD_RANGE = 3'd4;
+
+  // The descriptor's base fields are ten bits.
+  initial if (AW > 10) $error("hydra_engine_ntt_dma: AW %0d exceeds the 10-bit base fields", AW);
 
   // ---- descriptor ---------------------------------------------------------
-  wire [3:0]      wd_opclass = eng_wd[127:124];
-  wire [CNTW-1:0] wd_m       = eng_wd[116:101];
-  wire [AW-1:0]   base_a     = eng_wd[3  +: AW];
-  wire [AW-1:0]   base_b     = eng_wd[13 +: AW];
-  wire [AW-1:0]   base_c     = eng_wd[23 +: AW];
-  // The twiddles share the A base: a transform stage reads one twiddle per
-  // pair group, and keeping a fourth base out of the reserved bits leaves
-  // room there for whatever the direct memory access engine needs later.
-  wire [CNTW-1:0] groups     = wd_m >> $clog2(N);
+  wire [CNTW-1:0] wd_m    = eng_wd[116:101];
+  wire [AW-1:0]   base_a  = eng_wd[3  +: AW];
+  wire [AW-1:0]   base_b  = eng_wd[13 +: AW];
+  wire [AW-1:0]   base_c  = eng_wd[23 +: AW];
+  wire [CNTW-1:0] groups  = wd_m >> LW;
+  // The core's own acceptance test (ntt_top / ntt_ctrl), mirrored so the
+  // streamer starts only for a job the core will run. A job the core
+  // refuses -- wrong class, wrong type, a partial group -- goes to the core
+  // alone, which reports why; started anyway, the streamer would wait for
+  // the core to take operands forever.
+  wire core_will_run = (eng_wd[127:124] == 4'd6) && (eng_wd[123:121] == 3'd5) &&
+                       (wd_m[LW-1:0] == '0) && (wd_m != '0);
 
-  wire dma_busy;
-  wire core_ready;
-  assign eng_ready = core_ready && !dma_busy;
-  wire accept = eng_valid && eng_ready;
+  // Every bank access of the job stays inside its bank. Widened by one bit
+  // so the sum cannot wrap.
+  function automatic logic fits(input logic [AW-1:0] base, input logic [CNTW-1:0] n);
+    return ({1'b0, CNTW'(base)} + {1'b0, n}) <= (CNTW+1)'(DEPTH);
+  endfunction
+  wire in_range = fits(base_a, groups) && fits(base_b, groups) && fits(base_c, groups);
 
-  // ---- banks: two host words make one group entry -------------------------
-  wire [AW-1:0] ld_entry = ld_addr[AW:1];
-  wire          ld_half  = ld_addr[0];
+  // ---- who owns the engine port ---------------------------------------------
+  wire dma_busy, core_ready;
+  logic ser_busy;
+  logic done_pend_q, rej_pend_q;            // a completion waiting to be reported
+  logic [TAGW-1:0] pend_tag_q;
+  assign eng_ready = core_ready && !dma_busy && !ser_busy && !done_pend_q && !rej_pend_q;
+  wire accept  = eng_valid && eng_ready;
+  wire refuse   = accept && core_will_run && !in_range;  // neither starts
+  wire to_core  = accept && !refuse;                       // the core decides
+  wire run_job  = to_core && core_will_run;                // and the streamer runs
 
-  wire [AW-1:0] dma_a_addr, dma_b_addr, dma_w_addr, dma_c_addr;
+  // ---- operand banks: one 32-bit lane memory per lane -----------------------
+  wire [AW-1:0] ld_entry = ld_addr[LW +: AW];
+  wire [LW-1:0] ld_lane  = ld_addr[LW-1:0];
+  wire          ld_hi_ok = (ld_addr >> (AW + LW)) == '0;   // inside A/B/W
+  wire          res_ok   = (ld_data >> QW) == '0 && ld_data[QW-1:0] < QW'(Q);
+  wire          op_ld_ok = ld_hi_ok && (32'(ld_entry) < DEPTH) && res_ok;
+  // Bank ownership (audit R8, 2026-10-11): from acceptance until the
+  // completion is reported the engine owns every bank. A host write in that
+  // window used to take the port from the streamer and override the
+  // serialiser's result writes; now it is refused and reported like any
+  // other bad load.
+  wire          host_owns = eng_ready && !accept;
+
+  wire [AW-1:0] dma_a_addr, dma_b_addr, dma_w_addr;
+  wire [CAW-1:0] dma_c_addr;
   wire [GW-1:0] a_rdata, b_rdata, w_rdata;
   wire [31:0]   c_wdata;
   wire          c_we;
 
-  genvar h;
+  genvar l;
   generate
-    for (h = 0; h < 2; h++) begin : g_half
-      // Half h holds lanes 2h and 2h+1, written by host word 2g+h.
-      wire sel = ld_we && (ld_half == h[0]);
+    for (l = 0; l < N; l++) begin : g_lane
+      wire sel  = ld_we && host_owns && op_ld_ok && (ld_lane == LW'(l));
       wire a_we = sel && (ld_bank == 2'd0);
       wire b_we = sel && (ld_bank == 2'd1);
       wire w_we = sel && (ld_bank == 2'd2);
-
-      hydra_spram #(.DW(2*SLOT), .DEPTH(DEPTH), .AW(AW)) u_a (
+      hydra_spram #(.DW(SLOT), .DEPTH(DEPTH), .AW(AW)) u_a (
         .clk(clk), .we(a_we), .addr(a_we ? ld_entry : dma_a_addr),
-        .wdata(ld_data), .rdata(a_rdata[h*2*SLOT +: 2*SLOT]));
-
-      hydra_spram #(.DW(2*SLOT), .DEPTH(DEPTH), .AW(AW)) u_b (
+        .wdata(ld_data), .rdata(a_rdata[l*SLOT +: SLOT]));
+      hydra_spram #(.DW(SLOT), .DEPTH(DEPTH), .AW(AW)) u_b (
         .clk(clk), .we(b_we), .addr(b_we ? ld_entry : dma_b_addr),
-        .wdata(ld_data), .rdata(b_rdata[h*2*SLOT +: 2*SLOT]));
-
-      hydra_spram #(.DW(2*SLOT), .DEPTH(DEPTH), .AW(AW)) u_w (
+        .wdata(ld_data), .rdata(b_rdata[l*SLOT +: SLOT]));
+      hydra_spram #(.DW(SLOT), .DEPTH(DEPTH), .AW(AW)) u_w (
         .clk(clk), .we(w_we), .addr(w_we ? ld_entry : dma_w_addr),
-        .wdata(ld_data), .rdata(w_rdata[h*2*SLOT +: 2*SLOT]));
+        .wdata(ld_data), .rdata(w_rdata[l*SLOT +: SLOT]));
     end
   endgenerate
 
-  // Results: a butterfly produces two residues, packed into one 32-bit word
-  // (y0 low, y1 high) so the host reads one word per butterfly.
-  wire          c_ld_we = ld_we && (ld_bank == 2'd3);
-  wire [AW+1:0] c_addr  = c_ld_we ? ld_addr[AW+1:0] :
-                          c_we    ? {2'b00, dma_c_addr} : c_raddr;
-
-  hydra_spram #(.DW(32), .DEPTH(DEPTH*4), .AW(AW+2)) u_c (
+  // ---- result bank, in host words --------------------------------------------
+  // The host may preload C (a known pattern, to see what a job did not
+  // write); that is any word, not a residue, so only the address is checked.
+  wire c_ld_ok = 32'(ld_addr) < DEPTH * RPG;
+  wire c_ld_we = ld_we && host_owns && (ld_bank == 2'd3) && c_ld_ok;
+  wire [CAW-1:0] c_addr = c_ld_we ? CAW'(ld_addr) : c_we ? dma_c_addr : CAW'(c_raddr);
+  hydra_spram #(.DW(32), .DEPTH(DEPTH * RPG), .AW(CAW)) u_c (
     .clk(clk), .we(c_we || c_ld_we), .addr(c_addr),
     .wdata(c_ld_we ? ld_data : c_wdata), .rdata(c_rdata));
 
-  // ---- streamer -----------------------------------------------------------
-  wire          op_valid, op_ready;
-  // The engine hands back N pairs at once and the result port carries one
-  // word per cycle, so a group takes N cycles to leave. ntt_ctrl has no
-  // back-pressure input -- it was written for an engine port that consumes
-  // results as fast as they appear -- so the stall is applied here, at the
-  // one place that knows about the serialiser. Without it the engine
-  // swallows a group every cycle and three quarters of the results are
-  // overwritten before they reach memory.
-  wire          ser_stall;
-  wire [GW-1:0] op_a, op_b, op_w;
-  wire          res_valid;
+  always_ff @(posedge clk or negedge rst_n)
+    if (!rst_n) ld_refused <= 1'b0;
+    else        ld_refused <= ld_we && (!host_owns || ((ld_bank == 2'd3) ? !c_ld_ok : !op_ld_ok));
+
+  // ---- streamer --------------------------------------------------------------
+  wire            op_valid, op_ready, ser_stall, res_valid;
+  wire [GW-1:0]   op_a, op_b, op_w;
   wire [N*QW-1:0] res_y0, res_y1;
+  wire [CNTW-1:0] n_results = groups * CNTW'(RPG);
 
-  // One result word per butterfly: N per group.
-  wire [CNTW-1:0] n_results = groups * CNTW'(N);
-
-  hydra_dma_gemm #(.AW(AW), .DW(GW), .CNTW(CNTW)) u_dma (
+  hydra_dma_gemm #(.AW(AW), .CAW(CAW), .DW(GW), .CNTW(CNTW)) u_dma (
     .clk(clk), .rst_n(rst_n),
-    .start(accept), .base_a(base_a), .base_b(base_b), .base_c(base_c),
+    .start(run_job), .base_a(base_a), .base_b(base_b),
+    .base_c(CAW'({base_c, {RW{1'b0}}})),          // group index -> host word
     .k_slices(groups), .n_results(n_results), .busy(dma_busy),
     .a_addr(dma_a_addr), .a_rdata(a_rdata),
     .b_addr(dma_b_addr), .b_rdata(b_rdata),
     .w_addr(dma_w_addr), .w_rdata(w_rdata), .op_w(op_w),
     .c_addr(dma_c_addr), .c_we(c_we), .c_wdata(c_wdata),
     .op_valid(op_valid), .op_ready(op_ready), .op_a(op_a), .op_b(op_b),
-    .res_valid(res_serial), .res_data(res_word));
+    .res_valid(ser_busy), .res_data(res_word));
 
-  // The butterfly engine hands back N pairs at once; the streamer writes one
-  // word per cycle, so the pairs are serialised here.
-  logic [$clog2(N+1)-1:0] ser_idx;
-  logic                   ser_busy;
-  logic [N*QW-1:0]        ser_y0, ser_y1;
-
+  // ---- serialiser: 4 butterflies -> 8 words, y0 then y1 per lane --------------
+  logic [RW-1:0]   ser_idx;
+  logic [N*QW-1:0] ser_y0, ser_y1;
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
       ser_idx <= '0; ser_busy <= 1'b0; ser_y0 <= '0; ser_y1 <= '0;
     end else if (res_valid && !ser_busy) begin
       ser_y0 <= res_y0; ser_y1 <= res_y1; ser_idx <= '0; ser_busy <= 1'b1;
     end else if (ser_busy) begin
-      if (ser_idx == ($clog2(N+1))'(N - 1)) ser_busy <= 1'b0;
-      else                                   ser_idx <= ser_idx + 1'b1;
+      if (ser_idx == RW'(RPG - 1)) ser_busy <= 1'b0;
+      ser_idx <= ser_idx + 1'b1;
     end
   end
-
-  wire        res_serial = ser_busy;
-  wire [31:0] res_word   = {2'b00, ser_y1[ser_idx*QW +: QW],
-                            2'b00, ser_y0[ser_idx*QW +: QW]};
+  wire [LW-1:0] ser_lane = ser_idx[RW-1:1];
+  wire [31:0]   res_word = ser_idx[0] ? 32'(ser_y1[ser_lane*QW +: QW])
+                                      : 32'(ser_y0[ser_lane*QW +: QW]);
 
   wire eng_op_ready;
   assign ser_stall = ser_busy || res_valid;
   assign op_ready  = eng_op_ready && !ser_stall;
 
-  // ---- the engine ----------------------------------------------------------
-  // Lane residues are the low QW bits of each 16-bit slot.
+  // ---- the engine --------------------------------------------------------------
   logic [N*QW-1:0] lane_a, lane_b, lane_w;
-  always_comb begin
-    for (int l = 0; l < N; l++) begin
-      lane_a[l*QW +: QW] = op_a[l*SLOT +: QW];
-      lane_b[l*QW +: QW] = op_b[l*SLOT +: QW];
-      lane_w[l*QW +: QW] = op_w[l*SLOT +: QW];
+  always_comb
+    for (int k = 0; k < N; k++) begin
+      lane_a[k*QW +: QW] = op_a[k*SLOT +: QW];
+      lane_b[k*QW +: QW] = op_b[k*SLOT +: QW];
+      lane_w[k*QW +: QW] = op_w[k*SLOT +: QW];
     end
-  end
 
+  wire             core_done;
+  wire [TAGW-1:0]  core_done_tag;
+  ntt_status_e     core_status;
   ntt_top #(.N(N), .WD_W(WD_W), .TAGW(TAGW)) u_ntt (
     .clk(clk), .rst_n(rst_n),
-    .eng_valid(accept), .eng_ready(core_ready), .eng_wd(eng_wd),
-    .eng_tag(eng_tag), .eng_done(eng_done), .eng_done_tag(eng_done_tag),
+    .eng_valid(to_core), .eng_ready(core_ready), .eng_wd(eng_wd),
+    .eng_tag(eng_tag), .eng_done(core_done), .eng_done_tag(core_done_tag),
     .op_ready(eng_op_ready), .op_valid(op_valid && !ser_stall),
     .op_a(lane_a), .op_b(lane_b), .op_w(lane_w),
     .res_valid(res_valid), .res_y0(res_y0), .res_y1(res_y1),
-    .status(last_status));
+    .status(core_status));
 
+  // ---- completion: after the last result word is in the C bank -----------------
+  wire commit_ok = done_pend_q && !dma_busy && !ser_busy && !res_valid;
   always_ff @(posedge clk or negedge rst_n) begin
-    if (!rst_n)        jobs_done <= '0;
-    else if (eng_done) jobs_done <= jobs_done + 16'd1;
+    if (!rst_n) begin
+      done_pend_q <= 1'b0; rej_pend_q <= 1'b0; pend_tag_q <= '0;
+      eng_done <= 1'b0; eng_done_tag <= '0; job_status <= JS_OK; jobs_done <= '0;
+    end else begin
+      eng_done <= 1'b0;
+      if (core_done) begin
+        done_pend_q <= 1'b1; pend_tag_q <= core_done_tag;
+        job_status  <= {1'b0, core_status};
+      end
+      if (refuse) begin
+        rej_pend_q <= 1'b1; pend_tag_q <= eng_tag; job_status <= JS_BAD_RANGE;
+      end
+      if (commit_ok || rej_pend_q) begin
+        eng_done <= 1'b1; eng_done_tag <= pend_tag_q;
+        done_pend_q <= 1'b0; rej_pend_q <= 1'b0;
+        jobs_done <= jobs_done + 16'd1;
+      end
+    end
   end
 
-  wire _unused = &{wd_opclass, 1'b0};
+`ifdef FORMAL
+  // The completion is never reported while a result is still on its way.
+  always_ff @(posedge clk) if (rst_n && eng_done && !$past(rej_pend_q))
+    assert (!$past(dma_busy) && !$past(ser_busy));
+`endif
 endmodule
 
 `default_nettype wire

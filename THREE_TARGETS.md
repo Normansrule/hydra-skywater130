@@ -9,9 +9,9 @@ experiment, the sky130 chip goes all out.
 
 | | what it is | status |
 |---|---|---|
-| **TT-A v3, research tile** | the Mathematical Operation MUX (MOM) alone, cut to the cost model, calibration and an SPI register map; 3x4 tiles | built, 18 tests; harden pending (v2, 4x4, signed off) |
-| **sky130 full chip** | CPU (Sixfold), GPU (Pixelstorm), TPU, SIMD, NTT and the root of trust behind the full MOM (`mom/`), on a padframe of its own | TPU, SIMD, NTT, root of trust built; CPU and GPU next |
-| **FPGA** | the same RTL on any board, driven from a PC | built for three boards, placed and routed on ECP5 |
+| **TT-A v3, research tile** | the Mathematical Operation MUX (MOM) alone, cut to the cost model, calibration and an SPI register map; 4x4 tiles (3x4 did not route) | v3.2 built, 21 tests, lint clean; needs a new harden (v2 at 4x4 is the last signed-off harden) |
+| **sky130 full chip** | goal: CPU (Sixfold), GPU (Pixelstorm), TPU, SIMD, NTT and the root of trust behind the full MOM (`mom/`), on a padframe of its own | TPU, SIMD, NTT and root-of-trust blocks built and simulated on their own; the OpenFrame top wires in only the dispatcher and pads so far; CPU and GPU not integrated; never hardened. See `docs/verification/capability-matrix.md` |
+| **FPGA** | the same RTL on any board, driven from a PC | generated for five boards; place and route reported by tools and CI, **no physical-board run yet** |
 
 ---
 

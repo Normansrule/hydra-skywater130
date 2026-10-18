@@ -18,7 +18,6 @@
     "caveat": "Synthesis estimate. NOT comparable with a LibreLane harden number.",
     "research_um2": 113939,
     "research_cells": 11964,
-    "harden_pending": "v2 (4×4)",
     "research_note": "v3 research tile: register map only, 4 tags, no descriptor readback. Same yosys + abc method as shared_um2."
   },
   "engines": [
@@ -142,127 +141,198 @@
   ],
   "verification": [
     {
-      "what": "tile suite (research tile, register map)",
-      "result": "18 / 18",
-      "kind": "simulation"
+      "what": "tile suite (research tile v3.1, register map)",
+      "result": "21 / 21",
+      "kind": "simulation",
+      "target": "tile"
     },
     {
-      "what": "tile suite on the hardened netlist",
-      "result": "v3 pending; v2 17 / 17",
-      "kind": "gate level"
+      "what": "tile suite on the hardened netlist (v3.4, 2026-10-17)",
+      "result": "21 / 21",
+      "kind": "gate level",
+      "target": "tile-gl"
     },
     {
       "what": "v2 legacy is v1, pin for pin",
       "result": "400k cycles",
-      "kind": "differential"
+      "kind": "differential",
+      "target": "diff"
     },
     {
       "what": "shared cost engine decides as parallel",
       "result": "121 decisions",
-      "kind": "equivalence"
+      "kind": "differential",
+      "target": "cost-mux"
     },
     {
-      "what": "engines against independent models",
-      "result": "1608 results",
-      "kind": "simulation"
+      "what": "cost and calibration arithmetic vs exact products",
+      "result": "41,076 products, within 1/256",
+      "kind": "outside reference",
+      "target": "cost-cal"
+    },
+    {
+      "what": "TPU array against an independent model",
+      "result": "640 results",
+      "kind": "simulation",
+      "target": "tpu"
+    },
+    {
+      "what": "vector unit against an independent model",
+      "result": "572 results",
+      "kind": "simulation",
+      "target": "simd"
+    },
+    {
+      "what": "NTT butterflies at three moduli, core and memory path",
+      "result": "1,184 butterflies, 6,888 words",
+      "kind": "simulation",
+      "target": "ntt-moduli"
+    },
+    {
+      "what": "memory-fed engines: results, refusals, bank ownership",
+      "result": "3 engines",
+      "kind": "simulation",
+      "target": "dma"
+    },
+    {
+      "what": "dispatcher with the memory-fed array, completion at commit",
+      "result": "2 back-to-back jobs",
+      "kind": "simulation",
+      "target": "systile-mem"
+    },
+    {
+      "what": "dispatch recorded only on the real handshake; coherent reads",
+      "result": "every cycle checked",
+      "kind": "simulation",
+      "target": "systile"
     },
     {
       "what": "whole path over the serial port",
       "result": "16 results",
-      "kind": "end to end"
+      "kind": "end to end",
+      "target": "memboard"
     },
     {
-      "what": "mutation suites",
-      "result": "44 killed",
-      "kind": "fault injection"
+      "what": "serial divisor vs an independently timed host",
+      "result": "9 images, -2% to +2%",
+      "kind": "outside reference",
+      "target": "uart-baud"
+    },
+    {
+      "what": "memory-path mutations",
+      "result": "26 of 26 caught",
+      "kind": "fault injection",
+      "target": "dma-mutate"
+    },
+    {
+      "what": "dispatcher audit-fix mutations",
+      "result": "8 of 8 caught",
+      "kind": "fault injection",
+      "target": "mom-mutate"
+    },
+    {
+      "what": "formal proof tasks run by make verify",
+      "result": "20 tasks",
+      "kind": "k-induction",
+      "target": "verify"
     },
     {
       "what": "key vault: no key bit on the host port",
       "result": "unbounded",
-      "kind": "non-interference"
-    },
-    {
-      "what": "formal proofs",
-      "result": "15 modules",
-      "kind": "k-induction"
+      "kind": "non-interference",
+      "target": "keyvault"
     },
     {
       "what": "five TMS-high clocks reach reset from any state",
       "result": "all 16 states",
-      "kind": "exhaustive"
+      "kind": "exhaustive",
+      "target": "jtag"
     },
     {
       "what": "test port clock crossing, unrelated clocks",
       "result": "47 transfers",
-      "kind": "simulation"
+      "kind": "simulation",
+      "target": "jtag-bridge"
     },
     {
       "what": "mailbox: two requesters never both hold the lock",
       "result": "unbounded",
-      "kind": "induction"
+      "kind": "induction",
+      "target": "mailbox"
     },
     {
       "what": "measurement register changes only by extending",
       "result": "unbounded",
-      "kind": "induction"
+      "kind": "induction",
+      "target": "pcr"
     },
     {
       "what": "extend chain step by step vs hashlib",
       "result": "6 extends",
-      "kind": "outside reference"
+      "kind": "outside reference",
+      "target": "pcr"
     },
     {
       "what": "SHA-256 padded in hardware vs hashlib",
       "result": "140 lengths",
-      "kind": "outside reference"
+      "kind": "outside reference",
+      "target": "sha256-stream"
     },
     {
       "what": "padding: marker, zeros, length of exactly the bytes sent",
       "result": "unbounded",
-      "kind": "k-induction"
+      "kind": "k-induction",
+      "target": "sha256-stream"
     },
     {
       "what": "image bytes to PCR, digest and chain vs hashlib",
       "result": "7 images",
-      "kind": "outside reference"
+      "kind": "outside reference",
+      "target": "measure"
     },
     {
       "what": "measurement: PCR moves only as an extend finishes; no software path during it",
       "result": "unbounded",
-      "kind": "k-induction"
+      "kind": "k-induction",
+      "target": "measure"
     },
     {
       "what": "bring-up image: sweep, mirror, pattern, serial",
       "result": "28 checks",
-      "kind": "simulation"
+      "kind": "simulation",
+      "target": "selftest"
     },
     {
       "what": "security instructions: Zknh and Xhydrasec",
       "result": "231 vectors",
-      "kind": "simulation"
+      "kind": "simulation",
+      "target": "xsec"
     },
     {
       "what": "key writes need machine mode and trap elsewhere",
       "result": "all operands",
-      "kind": "induction"
+      "kind": "induction",
+      "target": "xsec"
     },
     {
       "what": "no instruction moves key bits into a register",
       "result": "unbounded",
-      "kind": "non-interference"
+      "kind": "non-interference",
+      "target": "xsec"
     },
     {
       "what": "Basys 3 bring-up: display, 16 LEDs, 5 buttons, reset",
       "result": "9 checks",
-      "kind": "simulation"
+      "kind": "simulation",
+      "target": "basys3-selftest"
     }
   ],
   "pending": [
-    "The v3 research tile (3x4, 113,939 um^2 by synthesis) has not been hardened. Its utilisation is an estimate (about 70%) from v2's LibreLane-to-yosys ratio; if placement or routing fails, tiles goes back to 4x4.",
-    "5,039 slew and 20 capacitance warnings on the signed-off v2 tile. Not sign-off failures; tools/slew_report.py names the overloaded drivers. Re-read them on the v3 harden.",
+    "v3.4 at 4x4 hardened clean on 2026-10-17 (make harden, first rung): DRC, LVS, antenna 0, setup +11.142 ns and hold +0.107 ns worst corner, 51.7%, 21/21 gate level; all nine corners are in docs/timing.json.",
+    "Slew: 5,039 on v2; 3,665 on v3.2 (50% margins, clkdlybuf4s25_1 fanout buffers); 4,197 on v3.4 at the slow corner (worst -1.551 ns) and 635 at typical (worst -0.633 ns), plus 30 capacitance. The worst nets are now buf_1 fanout buffers driving 10 to 13 loads. FIRST_TRY.md requires 0. v3.5 (2026-10-17) also excluded buf_1 and clkbuf_1: the resizer then used the dlygate4sd3_1 delay gate for every fanout buffer; slew 3,298 and capacitance 8, but setup failed by 2.403 ns, so it was rejected.",
     "The butterfly engine's area at q=8380417 (ML-DSA) is not yet measured: its 46-bit products make it the slowest of the three to synthesise. q=12289 and q=3329 are measured.",
     "Never run on hardware. The bring-up image is built and simulated; docs/FPGA_BRINGUP.md is the procedure, and LED polarity is still an assumption until a board confirms it.",
-    "Full SkyWater chip never hardened: no LibreLane run of the OpenFrame chip has completed, so it has no gate-level netlist, timing sign-off, DRC or LVS result. (The Tiny Tapeout tile HAS: sign-off clean on 2026-10-05.)",
+    "Full SkyWater chip never hardened: no LibreLane run of the OpenFrame chip has completed, so it has no gate-level netlist, timing sign-off, DRC or LVS result. (The Tiny Tapeout tile HAS: v3.4 sign-off clean on 2026-10-17.)",
     "Two board images (ecp5-evn-sys, ecp5-evn-tpu) predate the content-hash rebuild rule, so their provenance is unknown until each is rebuilt once; `make -C fpga/build/<board> provenance` then says whether a bitstream matches the current sources.",
     "No boundary scan: there are no scan cells at the pads, so SAMPLE, PRELOAD and EXTEST are absent and the chip is not boundary-scan testable.",
     "The test port cannot reach registers if the system clock is dead: the bridge waits and reports busy. Reading with the system clock stopped would mean running the register file on the probe's clock.",

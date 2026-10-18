@@ -1,0 +1,372 @@
+site: page and architecture match the repository
+readme-check: lead figures current; utilisation and slack match the latest harden
+python3 tools/tt_ready.py
+
+CHECKED HERE
+  ok    info.yaml project.title set
+  ok    info.yaml project.author set
+  ok    info.yaml project.description set
+  ok    info.yaml project.top_module set
+  ok    info.yaml project.tiles set
+  ok    info.yaml project.language set
+  ok    info.yaml project.clock_hz set
+  ok    info.yaml project.source_files set
+  ok    tile size 4x4 is a valid size
+  ok    pinout: all 24 pins described
+  ok    top module tt_um_hydra_mom is defined in the submitted source
+  ok    no power-up initialisation beyond the converter's own helper
+  ok    src/config.json parses; CLOCK_PERIOD 66 ns
+  ok    src/config.json uses current LibreLane variable names
+  ok    clock_hz 15151515 agrees with CLOCK_PERIOD 66 ns
+  ok    docs/info.md has a 'how it works' section
+  ok    docs/info.md has a 'how to test' section
+  ok    no known-stale claims in info.yaml or docs/info.md
+  ok    src/project.v is exactly what regen.sh produces from the sources
+  warn  info.yaml discord is empty -- optional, but it is how the shuttle team reaches you if something breaks
+
+FINGERPRINT  src/project.v sha256 c18b1873e0d9b804
+  Harden ONLY a checkout whose src/project.v has this hash. A run on
+  2026-09-29 hardened the old tile from a second checkout by mistake;
+  ./scripts/sync-tile.sh copies this tile across and checks the hash.
+
+NOT CHECKED -- only hardening can establish these
+  --    placement fits the tile at the declared size
+  --    routing completes with no overflow
+  --    setup and hold timing at every corner, at clock_hz
+  --    design rule check (Magic and KLayout) is clean
+  --    layout versus schematic matches
+  --    antenna violations
+  --    gate-level simulation of the hardened netlist
+
+Run those with the GitHub Action on push, or locally with ./tt/tt_tool.py --harden (see docs/FIRST_TRY.md).
+
+tt_ready: nothing wrong that can be seen before hardening (fast checks; --full also synthesises and runs the tests)
+PASS rst-sync-copy: tile copy identical to the verified common/rtl original
+PASS tile-shared: 9 dispatcher modules identical in chip and tile
+SIMTMP=./build/sim ./tools/lint/lint.sh
+  clean  tile (tt_um_hydra_mom)
+  clean  openframe (openframe_project_wrapper)
+PASS lint: tile netlist and OpenFrame chip are Verilator -Wall clean
+sv2v fpga/rtl/hydra_fpga_uart.sv fpga/rtl/hydra_fpga_selftest.sv \
+  fpga/rtl/hydra_basys3_selftest.sv > ./build/sim/hydra_b3.v
+iverilog -g2012 -o ./build/sim/hydra_b3 ./build/sim/hydra_b3.v fpga/tb_basys3_selftest.sv
+PASS tb_basys3_selftest: 9 checks -- banner, hex display, upper mirror, 4 buttons, reset, core
+gen_basys3_xdc: 55 constraint lines for ports ['RsRx', 'RsTx', 'an', 'btnC', 'btnD', 'btnL', 'btnR', 'btnU', 'clk', 'dp', 'led', 'seg', 'sw']
+cd tt && sv2v --define=HYDRA_COST_SHARED="1'b1" ../mom/rtl/*.sv tb/tb_cost_trace.sv \
+  > ./build/sim/ct_s.v && iverilog -g2012 -o ./build/sim/ct_s ./build/sim/ct_s.v && \
+  ./scripts/runsim.sh --expect '^END' --tail 0 -- vvp -n ./build/sim/ct_s && vvp -n ./build/sim/ct_s | grep -E '^(D|U|END)' > ./build/sim/ct_s.txt
+cd tt && sv2v --define=HYDRA_COST_SHARED="1'b0" ../mom/rtl/*.sv tb/tb_cost_trace.sv \
+  > ./build/sim/ct_p.v && iverilog -g2012 -o ./build/sim/ct_p ./build/sim/ct_p.v && \
+  ./scripts/runsim.sh --expect '^END' --tail 0 -- vvp -n ./build/sim/ct_p && vvp -n ./build/sim/ct_p | grep -E '^(D|U|END)' > ./build/sim/ct_p.txt
+PASS cost-mux: 121 decisions identical to the parallel build
+sv2v mom/rtl/mom_pkg.sv mom/rtl/mom_cost_engine.sv mom/rtl/mom_calibrate.sv \
+  tt/tb/tb_cost_cal.sv > ./build/sim/hydra_cost_cal.v
+iverilog -g2012 -o ./build/sim/hydra_cost_cal ./build/sim/hydra_cost_cal.v
+./scripts/runsim.sh --show '^(PASS|FAIL|MODEL)' -- vvp -n ./build/sim/hydra_cost_cal
+MODEL-01: 41076 calibrated predictions within 1/256 of the exact product
+MODEL-02: k=68, t_pred=4042322161 (calibrated about 2^32), measured 1024 -> k=64
+PASS tb_cost_cal: 41076 cost products within 1/256 of exact; calibration compares without wrapping and ignores out-of-range updates
+cd sec && sv2v --define=FORMAL -E Assert rtl/hydra_key_vault.sv \
+  formal/key_vault_ni.sv > formal/key_vault_sv2v.v
+cd sec/formal && sby -f key_vault.sby prove | tail -1
+SBY  4:36:33 [key_vault_prove] DONE (PASS, rc=0)
+cd sec/formal && sby -f key_vault.sby ni | tail -1
+SBY  4:36:34 [key_vault_ni] DONE (PASS, rc=0)
+cd sec/formal && sby -f key_vault.sby ni_full | tail -1
+SBY  4:37:03 [key_vault_ni_full] DONE (PASS, rc=0)
+cd sec/formal && sby -f key_vault.sby cover | tail -1
+SBY  4:37:04 [key_vault_cover] DONE (PASS, rc=0)
+sv2v sec/rtl/hydra_mailbox.sv sec/tb/tb_mailbox.sv > ./build/sim/hydra_mbox.v
+iverilog -g2012 -o ./build/sim/hydra_mbox ./build/sim/hydra_mbox.v
+PASS tb_mailbox: 12 checks, lock contention and protocol enforcement exact
+cd sec && sv2v --define=FORMAL -E Assert rtl/hydra_mailbox.sv > formal/mailbox_sv2v.v
+cd sec/formal && sby -f mailbox.sby prove | tail -1
+SBY  4:37:05 [mailbox_prove] DONE (PASS, rc=0)
+cd sec/formal && sby -f mailbox.sby cover | tail -1
+SBY  4:37:06 [mailbox_cover] DONE (PASS, rc=0)
+python3 sec/tb/sha256_model.py > /dev/null
+sv2v sec/rtl/hydra_sha256.sv sec/tb/tb_sha256.sv > ./build/sim/hydra_sha.v
+iverilog -g2012 -o ./build/sim/hydra_sha ./build/sim/hydra_sha.v
+PASS tb_sha256: 7 messages, digests identical to hashlib
+python3 sec/tb/sha256_stream_model.py > /dev/null
+sv2v sec/rtl/hydra_sha256.sv sec/rtl/hydra_sha256_stream.sv sec/tb/tb_sha256_stream.sv > ./build/sim/hydra_sha_stream.v
+iverilog -g2012 -o ./build/sim/hydra_sha_stream ./build/sim/hydra_sha_stream.v
+PASS tb_sha256_stream: 140 messages (0-130 bytes and boundaries to 1000) identical to hashlib; protocol errors rejected
+cd sec && sv2v --define=FORMAL -E Assert rtl/hydra_sha256_stream.sv > formal/sha256_stream_sv2v.v
+cd sec/formal && sby -f sha256_stream.sby prove | tail -1
+SBY  4:37:13 [sha256_stream_prove] DONE (PASS, rc=0)
+cd sec/formal && sby -f sha256_stream.sby blocks | tail -1
+SBY  4:38:18 [sha256_stream_blocks] DONE (PASS, rc=0)
+cd sec/formal && sby -f sha256_stream.sby cover | tail -1
+SBY  4:38:43 [sha256_stream_cover] DONE (PASS, rc=0)
+python3 sec/tb/measure_model.py > /dev/null
+sv2v sec/rtl/hydra_sha256.sv sec/rtl/hydra_sha256_stream.sv \
+  sec/rtl/hydra_measure.sv sec/tb/tb_measure.sv > ./build/sim/hydra_measure.v
+iverilog -g2012 -o ./build/sim/hydra_measure ./build/sim/hydra_measure.v
+PASS tb_measure: 7 images (0 to 1000 bytes) measured into the PCR, identical to hashlib; start refused while recording (7 checks)
+cd sec && sv2v --define=FORMAL -E Assert rtl/hydra_sha256_stream.sv rtl/hydra_measure.sv > formal/measure_sv2v.v
+cd sec/formal && sby -f measure.sby prove | tail -1
+SBY  4:38:49 [measure_prove] DONE (PASS, rc=0)
+cd sec/formal && sby -f measure.sby cover | tail -1
+SBY  4:39:43 [measure_cover] DONE (PASS, rc=0)
+python3 sec/tb/pcr_model.py > /dev/null
+sv2v sec/rtl/hydra_sha256.sv sec/rtl/hydra_pcr.sv sec/tb/tb_pcr.sv > ./build/sim/hydra_pcr.v
+iverilog -g2012 -o ./build/sim/hydra_pcr ./build/sim/hydra_pcr.v
+PASS tb_pcr: 6 extend_count, chain identical to hashlib, reset clears
+cd sec && sv2v --define=FORMAL -E Assert rtl/hydra_sha256.sv rtl/hydra_pcr.sv > formal/pcr_sv2v.v
+cd sec/formal && sby -f pcr.sby prove | tail -1
+SBY  4:39:45 [pcr_prove] DONE (PASS, rc=0)
+sv2v fpga/rtl/hydra_fpga_uart.sv fpga/rtl/hydra_fpga_selftest.sv > ./build/sim/hydra_selftest.v
+iverilog -g2012 -o ./build/sim/hydra_selftest ./build/sim/hydra_selftest.v fpga/tb_fpga_selftest.sv
+PASS tb_fpga_selftest: 28 checks -- sweep, mirror, pattern, banner, echo, report
+python3 isa/tb/xsec_model.py > /dev/null
+sv2v isa/rtl/hydra_xsec_unit.sv > ./build/sim/hydra_xsec.v
+iverilog -g2012 -o ./build/sim/hydra_xsec ./build/sim/hydra_xsec.v isa/tb/tb_xsec_unit.sv
+PASS tb_xsec_unit: 231 vectors exact -- Zknh, constant-time compare, privilege traps
+cd isa && sv2v --define=FORMAL -E Assert rtl/hydra_xsec_unit.sv \
+  ../sec/rtl/hydra_key_vault.sv formal/xsec_ni.sv > formal/xsec_sv2v.v
+cd isa/formal && sby -f xsec.sby priv | tail -1
+SBY  4:39:46 [xsec_priv] DONE (PASS, rc=0)
+cd isa/formal && sby -f xsec.sby ni | tail -1
+SBY  4:39:46 [xsec_ni] DONE (PASS, rc=0)
+cd isa/formal && sby -f xsec.sby ni_full | tail -1
+SBY  4:40:09 [xsec_ni_full] DONE (PASS, rc=0)
+python3 dbg/tb/jtag_model.py > /dev/null
+sv2v dbg/rtl/hydra_jtag_tap.sv dbg/tb/tb_jtag_tap.sv > ./build/sim/hydra_jtag.v
+iverilog -g2012 -o ./build/sim/hydra_jtag ./build/sim/hydra_jtag.v
+PASS tb_jtag_tap: 132 TCK edges bit-exact against the standard's model, 2 user updates
+cd dbg && sv2v --define=FORMAL -E Assert rtl/hydra_jtag_tap.sv > formal/jtag_tap_sv2v.v
+cd dbg/formal && sby -f jtag_tap.sby prove | tail -1
+SBY  4:40:09 [jtag_tap_prove] DONE (PASS, rc=0)
+cd dbg/formal && sby -f jtag_tap.sby cover | tail -1
+SBY  4:40:09 [jtag_tap_cover] DONE (PASS, rc=0)
+sv2v dbg/rtl/hydra_jtag_bridge.sv dbg/tb/tb_jtag_bridge.sv > ./build/sim/hydra_jbr.v
+iverilog -g2012 -o ./build/sim/hydra_jbr ./build/sim/hydra_jbr.v
+PASS tb_jtag_bridge: 47 transfers across unrelated clocks, 22 checks exact
+cdc_check: PASS -- 2 two-flop synchronisers correct, payload crosses unsynchronised as designed
+cd common/tb && python3 padmux_model.py padmux_vectors.hex 20000 1 && \
+  iverilog -g2012 -o ./build/sim/tb_padmux ../rtl/hydra_padmux.sv tb_hydra_padmux.sv && \
+  ./scripts/runsim.sh --tail 1 -- vvp -n ./build/sim/tb_padmux
+padmux_model: 20000 vectors, 6620 cycles locked -> padmux_vectors.hex
+tb_hydra_padmux.sv:71: $finish called at 200000000 (1ps)
+cd common/formal && sby -f hydra_padmux.sby prove | tail -1 && \
+  sby -f hydra_rst_sync.sby prove | tail -1
+SBY  4:40:12 [hydra_padmux_prove] DONE (PASS, rc=0)
+SBY  4:40:12 [hydra_rst_sync_prove] DONE (PASS, rc=0)
+cd tt/formal && sby -f hydra_tt_spi.sby prove | tail -1
+SBY  4:40:13 [hydra_tt_spi_prove] DONE (PASS, rc=0)
+cd common/tb && python3 xbar_model.py xbar_vectors.hex 20000 179 && \
+  iverilog -g2012 -o ./build/sim/hydra_xbar ../rtl/mom_xbar.sv tb_mom_xbar.sv && \
+  ./scripts/runsim.sh --tail 1 -- vvp -n ./build/sim/hydra_xbar
+xbar_model: 20000 vectors -> xbar_vectors.hex; {'fwd': 3787, 'comp': 3707, 'bad': 3307, 'unk': 860, 'allbusy': 0}
+tb_mom_xbar.sv:66: $finish called at 200000000 (1ps)
+cd common/formal && sby -f mom_xbar.sby prove | tail -1
+SBY  4:40:14 [mom_xbar_prove] DONE (PASS, rc=0)
+iverilog -g2012 -o ./build/sim/hydra_xbar_bound common/rtl/mom_xbar.sv common/tb/tb_mom_xbar_bound.sv
+./scripts/runsim.sh --show '^(PASS|FAIL)' -- vvp -n ./build/sim/hydra_xbar_bound
+PASS tb_mom_xbar_bound: engines 0..7 at NENG = 1, 5, 7, 8: every legal one taken, every other flagged
+python3 engines/tpu/tb/tpu_model.py 4
+tpu_model: 40 cases, 766 slices, 640 results, N=4
+sv2v engines/tpu/rtl/*.sv engines/tpu/tb/tb_tpu.sv > ./build/sim/hydra_tpu.v
+iverilog -g2012 -o ./build/sim/hydra_tpu ./build/sim/hydra_tpu.v
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+./scripts/runsim.sh --tail 2 -- vvp -n ./build/sim/hydra_tpu
+PASS tb_tpu: 40 cases, 640 results exact against the model
+./build/sim/hydra_tpu.v:859: $finish called at 31560 (1s)
+cd engines/tpu && sv2v --define=FORMAL -E Assert rtl/tpu_pkg.sv rtl/tpu_ctrl.sv \
+  > formal/tpu_ctrl_sv2v.v && cd formal && sby -f tpu_ctrl.sby prove | tail -1
+SBY  4:40:15 [tpu_ctrl_prove] DONE (PASS, rc=0)
+python3 engines/simd/tb/simd_model.py 4
+simd_model: 48 cases, 219 groups, 572 results
+sv2v engines/simd/rtl/*.sv engines/simd/tb/tb_simd.sv > ./build/sim/hydra_simd.v
+iverilog -g2012 -o ./build/sim/hydra_simd ./build/sim/hydra_simd.v
+./scripts/runsim.sh --tail 2 -- vvp -n ./build/sim/hydra_simd
+PASS tb_simd: 48 cases, 572 results exact against the model
+./build/sim/hydra_simd.v:842: $finish called at 13400 (1s)
+cd engines/simd && sv2v --define=FORMAL -E Assert rtl/simd_pkg.sv rtl/simd_ctrl.sv \
+  > formal/simd_ctrl_sv2v.v && cd formal && sby -f simd_ctrl.sby prove | tail -1
+SBY  4:40:16 [simd_ctrl_prove] DONE (PASS, rc=0)
+python3 engines/ntt/tb/ntt_model.py 4
+ntt_model: q=12289 QW=14 BSH=28 BM=21843, 32 cases, 99 groups, 396 butterflies, Barrett bound held on all of them
+sv2v engines/ntt/rtl/*.sv engines/ntt/tb/tb_ntt.sv > ./build/sim/hydra_ntt.v
+iverilog -g2012 -o ./build/sim/hydra_ntt ./build/sim/hydra_ntt.v
+./scripts/runsim.sh --tail 2 -- vvp -n ./build/sim/hydra_ntt
+PASS tb_ntt: 32 cases, 396 butterflies exact against the model
+./build/sim/hydra_ntt.v:637: $finish called at 3700 (1s)
+cd engines/ntt && sv2v --define=FORMAL -E Assert rtl/ntt_pkg.sv rtl/ntt_ctrl.sv \
+  > formal/ntt_ctrl_sv2v.v && cd formal && sby -f ntt_ctrl.sby prove | tail -1
+SBY  4:40:17 [ntt_ctrl_prove] DONE (PASS, rc=0)
+./scripts/ntt_moduli.sh
+PASS ntt-moduli q=12289    32 cases, 396 butterflies exact against the model
+PASS ntt-moduli q=12289    memory path: 9 jobs run and 3 refused as they should be, 2320 result words exact from the cycle of completion; load and range checks hold
+PASS ntt-moduli q=3329     32 cases, 348 butterflies exact against the model
+PASS ntt-moduli q=3329     memory path: 9 jobs run and 3 refused as they should be, 2280 result words exact from the cycle of completion; load and range checks hold
+PASS ntt-moduli q=8380417  32 cases, 440 butterflies exact against the model
+PASS ntt-moduli q=8380417  memory path: 9 jobs run and 3 refused as they should be, 2288 result words exact from the cycle of completion; load and range checks hold
+python3 mem/tb/dma_model.py 6
+dma_model: 6 jobs, 36 slices, 96 results
+sv2v engines/tpu/rtl/*.sv mem/rtl/*.sv sys/rtl/hydra_engine_tpu_dma.sv \
+  mem/tb/tb_hydra_dma.sv > ./build/sim/hydra_dma.v
+iverilog -g2012 -o ./build/sim/hydra_dma ./build/sim/hydra_dma.v
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+./scripts/runsim.sh --tail 2 -- vvp -n ./build/sim/hydra_dma
+PASS tb_hydra_dma: 9 jobs, 96 results read back from memory exactly
+./build/sim/hydra_dma.v:1465: $finish called at 15580 (1s)
+cd mem && sv2v --define=FORMAL -E Assert rtl/hydra_dma_agen.sv rtl/hydra_dma_gemm.sv \
+  > formal/hydra_dma_sv2v.v && cd formal && sby -f hydra_dma_gemm.sby prove | tail -1
+SBY  4:40:20 [hydra_dma_gemm_prove] DONE (PASS, rc=0)
+python3 mem/tb/dma_simd_model.py 8 > /dev/null
+sv2v engines/simd/rtl/*.sv mem/rtl/*.sv sys/rtl/hydra_engine_simd_dma.sv \
+  mem/tb/tb_hydra_dma_simd.sv > ./build/sim/hydra_dma_simd.v
+iverilog -g2012 -o ./build/sim/hydra_dma_simd ./build/sim/hydra_dma_simd.v
+./scripts/runsim.sh --tail 2 -- vvp -n ./build/sim/hydra_dma_simd
+PASS tb_hydra_dma_simd: 11 jobs, 58 results read back from memory exactly
+./build/sim/hydra_dma_simd.v:1435: $finish called at 19950 (1s)
+python3 mem/tb/dma_ntt_model.py > /dev/null
+sv2v engines/ntt/rtl/*.sv mem/rtl/*.sv sys/rtl/hydra_engine_ntt_dma.sv \
+  mem/tb/tb_hydra_dma_ntt.sv > ./build/sim/hydra_dma_ntt.v
+iverilog -g2012 -o ./build/sim/hydra_dma_ntt ./build/sim/hydra_dma_ntt.v
+./scripts/runsim.sh --show 'PASS|FAIL' -- vvp -n ./build/sim/hydra_dma_ntt
+PASS tb_hydra_dma_ntt: q=12289, 9 jobs run and 3 refused as they should be, 2320 result words exact from the cycle of completion; load and range checks hold
+python3 mem/tb/dma_model.py 6 > /dev/null
+sv2v mom/rtl/*.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv \
+  engines/simd/rtl/*.sv mem/rtl/*.sv sys/rtl/hydra_engine_tpu.sv \
+  sys/rtl/hydra_engine_simd.sv sys/rtl/hydra_engine_tpu_dma.sv \
+  sys/rtl/hydra_sys_tile.sv fpga/rtl/hydra_fpga_uart.sv \
+  fpga/rtl/hydra_fpga_bridge.sv fpga/rtl/hydra_fpga_mem_harness.sv \
+  fpga/tb_fpga_mem.sv > ./build/sim/hydra_memboard.v
+iverilog -g2012 -o ./build/sim/hydra_memboard ./build/sim/hydra_memboard.v
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+./scripts/runsim.sh --tail 2 -- vvp -n ./build/sim/hydra_memboard
+PASS tb_fpga_mem: matrices in over the serial port, 16 results out, all correct
+./build/sim/hydra_memboard.v:4644: $finish called at 164535 (1s)
+sv2v mom/rtl/mom_pkg.sv mom/rtl/mom_features.sv \
+  mom/rtl/mom_param_rom.sv mom/rtl/mom_cost_engine.sv \
+  mom/rtl/mom_calibrate.sv mom/rtl/mom_select.sv \
+  mom/rtl/mom_scoreboard.sv mom/rtl/mom_top.sv \
+  common/rtl/mom_xbar.sv tt/tb/tb_mom_system.sv > ./build/sim/hydra_sys.v
+iverilog -g2012 -o ./build/sim/hydra_sys ./build/sim/hydra_sys.v
+./scripts/runsim.sh --tail 4 -- vvp -n ./build/sim/hydra_sys
+calibration moved the decision after 33 dispatches: engine 2 -> 1
+calibration updates seen by the MOM: 75
+PASS tb_mom_system
+./build/sim/hydra_sys.v:1505: $finish called at 1718444 (1s)
+sv2v mom/rtl/*.sv common/rtl/mom_xbar.sv \
+  sys/rtl/hydra_sys_tile.sv sys/tb/tb_sys_tile.sv > ./build/sim/hydra_systile.v
+iverilog -g2012 -o ./build/sim/hydra_systile ./build/sim/hydra_systile.v
+./scripts/runsim.sh --tail 5 -- vvp -n ./build/sim/hydra_systile
+RTL-02: 105 dispatches recorded by the register block, 105 taken by the crossbar, 0 recorded early
+RTL-04: 22 RESULT reads, 2 of them while RESULT changed, 0 torn
+RTL-08: host COMP write -> status 9100
+PASS tb_sys_tile
+./build/sim/hydra_systile.v:2517: $finish called at 16996812 (1s)
+python3 sys/tb/tpu_pattern_model.py 4 > /dev/null
+sv2v mom/rtl/*.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv \
+  sys/rtl/hydra_engine_tpu.sv sys/rtl/hydra_sys_tile.sv \
+  sys/tb/tb_sys_tile_tpu.sv > ./build/sim/hydra_systile_tpu.v
+iverilog -g2012 -o ./build/sim/hydra_systile_tpu ./build/sim/hydra_systile_tpu.v
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+./scripts/runsim.sh --tail 4 -- vvp -n ./build/sim/hydra_systile_tpu
+5 GEMMs through the register map: every checksum matches the model
+back-pressure held, 6 tiles completed
+PASS tb_sys_tile_tpu
+./build/sim/hydra_systile_tpu.v:3008: $finish called at 961212 (1s)
+sv2v mom/rtl/*.sv common/rtl/hydra_rst_sync.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv \
+  engines/simd/rtl/*.sv mem/rtl/*.sv sys/rtl/hydra_engine_tpu.sv sys/rtl/hydra_engine_simd.sv \
+  sys/rtl/hydra_engine_tpu_dma.sv sys/rtl/hydra_sys_tile.sv sys/tb/tb_sys_tile_mem.sv > ./build/sim/hydra_systile_mem.v
+iverilog -g2012 -o ./build/sim/hydra_systile_mem ./build/sim/hydra_systile_mem.v
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+./scripts/runsim.sh --show '^(PASS|FAIL|job)' -- vvp -n ./build/sim/hydra_systile_mem
+job A (tag 0) retired at 358428 with all 16 results already in memory
+job B (tag 0) retired at 362516 with all 16 results already in memory
+PASS tb_sys_tile_mem: 2 back-to-back jobs (k=300, k=40), every completion the array's own, results in memory at retirement
+python3 sys/tb/simd_pattern_model.py > /dev/null
+python3 sys/tb/tpu_pattern_model.py 4 > /dev/null
+sv2v mom/rtl/*.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv \
+  engines/simd/rtl/*.sv sys/rtl/hydra_engine_tpu.sv sys/rtl/hydra_engine_simd.sv \
+  sys/rtl/hydra_sys_tile.sv sys/tb/tb_sys_tile_two.sv > ./build/sim/hydra_two.v
+iverilog -g2012 -o ./build/sim/hydra_two ./build/sim/hydra_two.v
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+warning: verinum::as_long() truncated 66 bits to 63, returns 9223372036854775807
+./scripts/runsim.sh --tail 3 -- vvp -n ./build/sim/hydra_two
+5 vector jobs: every checksum matches its model, and the GEMMs still went to the array
+PASS tb_sys_tile_two: the dispatcher routed between two real engines
+./build/sim/hydra_two.v:3646: $finish called at 1638812 (1s)
+# Regenerate to a TEMPORARY file and compare, rather than overwriting
+# project.v and asking git whether it changed. The git form failed for
+# any uncommitted work -- including work that was perfectly consistent --
+# and it passed trivially when the target had just rewritten the file it
+# was about to check. What matters is that the project.v in the tree
+# matches its sources, which is what this compares.
+cd tt/tile/test && rm -rf sim_build && make -s 2>&1 | grep -E "TESTS=|FAIL"
+                                                        ** TESTS=21 PASS=21 FAIL=0 SKIP=0                                 119912892.02          77.84    1540498.98  **
+cd tt && sv2v --define=HYDRA_COST_SHARED="1'b0" \
+  ../mom/rtl/*.sv ../mom/hydra_mom_pins.sv ../common/rtl/hydra_rst_sync.sv rtl/tt_um_hydra_mom_v1.sv \
+  > ./build/sim/hydra_diff.v && \
+  iverilog -g2012 -o ./build/sim/hydra_diff ./build/sim/hydra_diff.v tb/tb_v1_v2_diff.sv && \
+  ./scripts/runsim.sh --tail 2 -- vvp -n ./build/sim/hydra_diff
+PASS tb_v1_v2_diff
+tb/tb_v1_v2_diff.sv:100: $finish called at 22000000000 (1ps)
+cd fpga && sv2v ../mom/rtl/*.sv ../mom/hydra_mom_pins.sv ../common/rtl/hydra_rst_sync.sv \
+  rtl/hydra_fpga_uart.sv rtl/hydra_fpga_bridge.sv \
+  rtl/hydra_fpga_tt_harness.sv > ./build/sim/hydra_harness.v && \
+  iverilog -g2012 -o ./build/sim/hydra_harness ./build/sim/hydra_harness.v tb_fpga_harness.sv && \
+  ./scripts/runsim.sh --tail 2 -- vvp -n ./build/sim/hydra_harness
+PASS tb_fpga_harness
+tb_fpga_harness.sv:165: $finish called at 5649150000 (1ps)
+sv2v mom/rtl/*.sv mom/hydra_mom_pins.sv common/rtl/hydra_rst_sync.sv \
+  common/rtl/hydra_padmux.sv \
+  sky130/rtl/hydra_openframe_top.sv > ./build/sim/hydra_of.v
+iverilog -g2012 -o ./build/sim/hydra_of ./build/sim/hydra_of.v sky130/tb/tb_openframe.sv
+./scripts/runsim.sh --tail 2 -- vvp -n ./build/sim/hydra_of
+PASS tb_openframe
+sky130/tb/tb_openframe.sv:131: $finish called at 53872500 (1ps)
+python3 -m pytest tools/test_pllcalc.py tools/test_hydra_host.py -q
+.......................................                                  [100%]
+39 passed in 0.41s
+python3 tools/import_boards.py check
+boards: 11 files match their vendor sources
+arty-a7-35: generated files match the plan and the RTL
+ecp5-evn: generated files match the plan and the RTL
+ecp5-evn: generated files match the plan and the RTL
+ecp5-evn: generated files match the plan and the RTL
+ecp5-evn: generated files match the plan and the RTL
+ecp5-evn: generated files match the plan and the RTL
+ecp5-evn: generated files match the plan and the RTL
+tangnano20k: generated files match the plan and the RTL
+ulx3s-85f: generated files match the plan and the RTL
+./scripts/uart_baud.sh
+PASS uart-baud: arty-a7-35             25 MHz / 217 clocks per bit, host -2% / 0 / +2%
+PASS uart-baud: ecp5-evn-mem           12 MHz / 104 clocks per bit, host -2% / 0 / +2%
+PASS uart-baud: ecp5-evn-selftest      12 MHz / 104 clocks per bit, host -2% / 0 / +2%
+PASS uart-baud: ecp5-evn-sys           12 MHz / 104 clocks per bit, host -2% / 0 / +2%
+PASS uart-baud: ecp5-evn-tpu           12 MHz / 104 clocks per bit, host -2% / 0 / +2%
+PASS uart-baud: ecp5-evn-two           12 MHz / 104 clocks per bit, host -2% / 0 / +2%
+PASS uart-baud: ecp5-evn               12 MHz / 104 clocks per bit, host -2% / 0 / +2%
+PASS uart-baud: tangnano20k            27 MHz / 234 clocks per bit, host -2% / 0 / +2%
+PASS uart-baud: ulx3s-85f            12.5 MHz / 109 clocks per bit, host -2% / 0 / +2%
+python3 tools/gen_isa_doc.py --check
+docs/ISA.md matches the RTL
+python3 tools/isa/gen_cpu_isa.py --check
+docs/ISA_CPU.md matches the decoder
+python3 tools/isa/gen_gpu_isa.py --check
+docs/ISA_GPU.md matches gpu_pkg.sv
+=== all checks passed ===
+EXIT 0

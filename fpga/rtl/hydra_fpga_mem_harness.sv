@@ -31,16 +31,20 @@ module hydra_fpga_mem_harness #(
   logic [1:0]  mem_bank;
   logic [15:0] mem_addr, mem_raddr;
   logic [31:0] mem_wdata, mem_rdata;
+  logic        mem_refused;
   logic [31:0] checksum, simd_checksum;
   logic [15:0] tiles, simd_jobs;
 
   hydra_fpga_bridge #(.CLKS_PER_BIT(CLKS_PER_BIT), .HALF(HALF),
-                      .DEFAULT_REG(1'b1)) u_bridge (
+                      .DEFAULT_REG(1'b1), .HAS_MEM(1'b1)) u_bridge (
     .clk(clk), .rst_n(rst_n), .uart_rx_i(uart_rx_i), .uart_tx_o(uart_tx_o),
     .ui_in(ui_in), .uo_out(uo_out), .uio_out(uio_out),
     .tile_rst_n(tile_rst_n),
     .mem_we(mem_we), .mem_bank(mem_bank), .mem_addr(mem_addr),
     .mem_wdata(mem_wdata), .mem_raddr(mem_raddr), .mem_rdata(mem_rdata),
+    .mem_refused(mem_refused),
+    // no JTAG host on this image
+    .jb_rx_v(1'b0), .jb_rx_d(8'h00), .jb_tx_v(), .jb_tx_d(), .jb_tx_full(1'b0),
     .reg_mode_o(reg_mode_o));
 
   always_comb begin
@@ -48,13 +52,14 @@ module hydra_fpga_mem_harness #(
     ui_sys[7:6] = profile;
   end
 
-  hydra_sys_tile #(.TPU_FROM_MEM(1'b1)) u_sys (
+  hydra_sys_tile #(.TPU_ENGINE(2)) u_sys (
     .ui_in(ui_sys), .uo_out(uo_out), .uio_in(8'h00), .uio_out(uio_out),
     .uio_oe(uio_oe), .ena(1'b1), .clk(clk), .rst_n(tile_rst_n),
     .dbg_checksum(checksum), .dbg_tiles(tiles),
     .dbg_simd_checksum(simd_checksum), .dbg_simd_jobs(simd_jobs),
     .mem_we(mem_we), .mem_bank(mem_bank), .mem_addr(mem_addr),
-    .mem_wdata(mem_wdata), .mem_raddr(mem_raddr), .mem_rdata(mem_rdata));
+    .mem_wdata(mem_wdata), .mem_raddr(mem_raddr), .mem_rdata(mem_rdata),
+    .mem_refused(mem_refused));
 
   // Switches up: how many tiles the array has completed, on the lights.
   assign uo_mirror  = (profile == 2'b11) ? tiles[7:0] : uo_out;

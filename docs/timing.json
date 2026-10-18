@@ -208,6 +208,100 @@
           0.108,
           0
         ]
+      ],
+      "version": "v2"
+    },
+    {
+      "label": "2026-10-17, tile v3.4, CLOCK_PERIOD 66 ns",
+      "version": "v3.4",
+      "source": "build/harden-ladder/20261017-115622/checks.out (rung buffers20)",
+      "settings": "4x4; sky130_fd_sc_hd__clkdlybuf4s* excluded (EXTRA_EXCLUDED_CELLS); DESIGN_REPAIR_MAX_SLEW_PCT and _CAP_PCT 20",
+      "period_ns": 66,
+      "critical_path_ns": 54.858,
+      "fmax_slow_MHz": 18.23,
+      "utilisation": 0.517451,
+      "slew_violations": 4197,
+      "cap_violations": 30,
+      "drc": 0,
+      "lvs": 0,
+      "antenna": 0,
+      "slew_report": {
+        "max_ss_100C_1v60": {
+          "slew": [
+            4197,
+            -1.551
+          ],
+          "cap": [
+            30,
+            -0.044
+          ]
+        },
+        "nom_tt_025C_1v80": {
+          "slew": [
+            635,
+            -0.633
+          ],
+          "cap": [
+            0,
+            null
+          ]
+        }
+      },
+      "corners": [
+        [
+          "max_ss_100C_1v60",
+          11.142,
+          0.873,
+          0
+        ],
+        [
+          "nom_ss_100C_1v60",
+          12.189,
+          0.868,
+          0
+        ],
+        [
+          "min_ss_100C_1v60",
+          13.298,
+          0.864,
+          0
+        ],
+        [
+          "max_tt_025C_1v80",
+          39.016,
+          0.307,
+          0
+        ],
+        [
+          "nom_tt_025C_1v80",
+          39.573,
+          0.305,
+          0
+        ],
+        [
+          "min_tt_025C_1v80",
+          40.181,
+          0.303,
+          0
+        ],
+        [
+          "max_ff_n40C_1v95",
+          48.526,
+          0.11,
+          0
+        ],
+        [
+          "nom_ff_n40C_1v95",
+          48.72,
+          0.109,
+          0
+        ],
+        [
+          "min_ff_n40C_1v95",
+          48.901,
+          0.107,
+          0
+        ]
       ]
     }
   ]

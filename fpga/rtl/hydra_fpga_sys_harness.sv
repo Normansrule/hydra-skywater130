@@ -36,7 +36,9 @@ module hydra_fpga_sys_harness #(
     .ui_in(ui_in), .uo_out(uo_out), .uio_out(uio_out),
     .tile_rst_n(tile_rst_n),
     .mem_we(), .mem_bank(), .mem_addr(), .mem_wdata(), .mem_raddr(),
-    .mem_rdata(32'h0),
+    .mem_rdata(32'h0), .mem_refused(1'b0),
+    // no JTAG host on this image
+    .jb_rx_v(1'b0), .jb_rx_d(8'h00), .jb_tx_v(), .jb_tx_d(), .jb_tx_full(1'b0),
     .reg_mode_o(reg_mode_o));
 
   // The system tile reads its latency profile from ui_in[7:6]; the bridge

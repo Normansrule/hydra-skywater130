@@ -68,12 +68,18 @@ module hydra_padmux #(
   // does not block a legal update on another.
   // ---------------------------------------------------------------------------
   logic [NPAD*SELW-1:0] sel_d;
+  // Selections are compared and added at 32 bits (SELW <= 32), zero-extended
+  // explicitly so that no operand is widened implicitly.
+  logic [31:0] cfg32;
 
   always_comb begin
     sel_d = sel_q;
+    cfg32 = 32'd0;
     if (cfg_we && !locked_q) begin
       for (int p = 0; p < NPAD; p++) begin
-        if (cfg_sel[p*SELW +: SELW] < NALT)
+        cfg32 = 32'd0;
+        cfg32[SELW-1:0] = cfg_sel[p*SELW +: SELW];
+        if (cfg32 < NALT)
           sel_d[p*SELW +: SELW] = cfg_sel[p*SELW +: SELW];
       end
     end
@@ -92,13 +98,18 @@ module hydra_padmux #(
   // ---------------------------------------------------------------------------
   // Routing.
   // ---------------------------------------------------------------------------
+  logic [31:0] sel32;
+
   always_comb begin
+    sel32 = 32'd0;
     for (int p = 0; p < NPAD; p++) begin
-      pad_out[p] = alt_out[p*NALT + sel_q[p*SELW +: SELW]];
-      pad_oe[p]  = alt_oe [p*NALT + sel_q[p*SELW +: SELW]] & rst_n;
+      sel32 = 32'd0;
+      sel32[SELW-1:0] = sel_q[p*SELW +: SELW];
+      pad_out[p] = alt_out[p*NALT + sel32];
+      pad_oe[p]  = alt_oe [p*NALT + sel32] & rst_n;
       for (int k = 0; k < NALT; k++) begin
-        alt_in[p*NALT + k] = (sel_q[p*SELW +: SELW] == k) ? pad_in[p]
-                                                          : alt_idle[p*NALT + k];
+        alt_in[p*NALT + k] = (sel32 == k) ? pad_in[p]
+                                          : alt_idle[p*NALT + k];
       end
     end
   end

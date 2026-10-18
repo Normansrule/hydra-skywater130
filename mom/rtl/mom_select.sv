@@ -174,11 +174,15 @@ module mom_select
     // Margin is only meaningful when the runner-up is itself valid. Reporting
     // a margin against an invalid lane would show a huge number and read as
     // "very confident" when it actually means "no alternative existed".
-    sel_margin = (snd[PW-1] || !any_valid) ? '0
+    sel_margin = (snd[PW-1] || !any_valid) ? {COST_W{1'b0}}
                : (snd[PW-2:3] >= best[PW-2:3])
                  ? (snd[PW-2:3] - best[PW-2:3])
-                 : '0;
+                 : {COST_W{1'b0}};
   end
+
+  // The winner's validity bit (always clear when any lane is valid) and the
+  // runner-up's engine number are not outputs. Named for the linter.
+  wire _unused_ok = &{1'b0, best[PW-1], snd[2:0]};
 
 `ifdef FORMAL
   // The winner must be valid whenever anything is.

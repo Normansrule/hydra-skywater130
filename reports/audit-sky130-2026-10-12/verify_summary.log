@@ -1,0 +1,83 @@
+site: page and architecture match the repository
+readme-check: lead figures current; utilisation and slack match the latest harden
+--    layout versus schematic matches
+PASS rst-sync-copy: tile copy identical to the verified common/rtl original
+PASS tile-shared: 9 dispatcher modules identical in chip and tile
+PASS tb_basys3_selftest: 9 checks -- banner, hex display, upper mirror, 4 buttons, reset, core
+PASS cost-mux: 121 decisions identical to the parallel build
+PASS tb_cost_cal: 41076 cost products within 1/256 of exact; calibration compares without wrapping and ignores out-of-range updates
+SBY  5:32:29 [key_vault_prove] DONE (PASS, rc=0)
+SBY  5:32:30 [key_vault_ni] DONE (PASS, rc=0)
+SBY  5:33:01 [key_vault_ni_full] DONE (PASS, rc=0)
+SBY  5:33:02 [key_vault_cover] DONE (PASS, rc=0)
+PASS tb_mailbox: 12 checks, lock contention and protocol enforcement exact
+SBY  5:33:03 [mailbox_prove] DONE (PASS, rc=0)
+SBY  5:33:04 [mailbox_cover] DONE (PASS, rc=0)
+PASS tb_sha256: 7 messages, digests identical to hashlib
+PASS tb_sha256_stream: 140 messages (0-130 bytes and boundaries to 1000) identical to hashlib; protocol errors rejected
+SBY  5:33:11 [sha256_stream_prove] DONE (PASS, rc=0)
+SBY  5:34:22 [sha256_stream_blocks] DONE (PASS, rc=0)
+SBY  5:34:47 [sha256_stream_cover] DONE (PASS, rc=0)
+PASS tb_measure: 7 images (0 to 1000 bytes) measured into the PCR, identical to hashlib; start refused while recording (7 checks)
+SBY  5:34:54 [measure_prove] DONE (PASS, rc=0)
+SBY  5:35:51 [measure_cover] DONE (PASS, rc=0)
+PASS tb_pcr: 6 extend_count, chain identical to hashlib, reset clears
+SBY  5:35:54 [pcr_prove] DONE (PASS, rc=0)
+PASS tb_fpga_selftest: 28 checks -- sweep, mirror, pattern, banner, echo, report
+PASS tb_xsec_unit: 231 vectors exact -- Zknh, constant-time compare, privilege traps
+SBY  5:35:55 [xsec_priv] DONE (PASS, rc=0)
+SBY  5:35:56 [xsec_ni] DONE (PASS, rc=0)
+SBY  5:36:19 [xsec_ni_full] DONE (PASS, rc=0)
+PASS tb_jtag_tap: 132 TCK edges bit-exact against the standard's model, 2 user updates
+SBY  5:36:20 [jtag_tap_prove] DONE (PASS, rc=0)
+SBY  5:36:20 [jtag_tap_cover] DONE (PASS, rc=0)
+PASS tb_jtag_bridge: 47 transfers across unrelated clocks, 22 checks exact
+SBY  5:36:22 [hydra_padmux_prove] DONE (PASS, rc=0)
+SBY  5:36:22 [hydra_rst_sync_prove] DONE (PASS, rc=0)
+SBY  5:36:23 [hydra_tt_spi_prove] DONE (PASS, rc=0)
+SBY  5:36:25 [mom_xbar_prove] DONE (PASS, rc=0)
+PASS tb_mom_xbar_bound: engines 0..7 at NENG = 1, 5, 7, 8: every legal one taken, every other flagged
+PASS tb_tpu: 40 cases, 640 results exact against the model
+SBY  5:36:26 [tpu_ctrl_prove] DONE (PASS, rc=0)
+PASS tb_simd: 48 cases, 572 results exact against the model
+SBY  5:36:26 [simd_ctrl_prove] DONE (PASS, rc=0)
+PASS tb_ntt: 32 cases, 396 butterflies exact against the model
+SBY  5:36:27 [ntt_ctrl_prove] DONE (PASS, rc=0)
+PASS ntt-moduli q=12289    32 cases, 396 butterflies exact against the model
+PASS ntt-moduli q=12289    memory path: 9 jobs run and 3 refused as they should be, 2320 result words exact from the cycle of completion; load and range checks hold
+PASS ntt-moduli q=3329     32 cases, 348 butterflies exact against the model
+PASS ntt-moduli q=3329     memory path: 9 jobs run and 3 refused as they should be, 2280 result words exact from the cycle of completion; load and range checks hold
+PASS ntt-moduli q=8380417  32 cases, 440 butterflies exact against the model
+PASS ntt-moduli q=8380417  memory path: 9 jobs run and 3 refused as they should be, 2288 result words exact from the cycle of completion; load and range checks hold
+PASS tb_hydra_dma: 9 jobs, 96 results read back from memory exactly
+SBY  5:36:31 [hydra_dma_gemm_prove] DONE (PASS, rc=0)
+PASS tb_hydra_dma_simd: 11 jobs, 58 results read back from memory exactly
+PASS tb_hydra_dma_ntt: q=12289, 9 jobs run and 3 refused as they should be, 2320 result words exact from the cycle of completion; load and range checks hold
+PASS tb_fpga_mem: matrices in over the serial port, 16 results out, all correct
+PASS tb_mom_system
+PASS tb_sys_tile
+5 GEMMs through the register map: every checksum matches the model
+PASS tb_sys_tile_tpu
+PASS tb_sys_tile_mem: 2 back-to-back jobs (k=300, k=40), every completion the array's own, results in memory at retirement
+5 vector jobs: every checksum matches its model, and the GEMMs still went to the array
+PASS tb_sys_tile_two: the dispatcher routed between two real engines
+# matches its sources, which is what this compares.
+cd tt/tile/test && rm -rf sim_build && make -s 2>&1 | grep -E "TESTS=|FAIL"
+** TESTS=21 PASS=21 FAIL=0 SKIP=0                                 119912892.02          84.43    1420291.17  **
+PASS tb_v1_v2_diff
+PASS tb_fpga_harness
+PASS tb_openframe
+39 passed in 1.09s
+PASS uart-baud: arty-a7-35             25 MHz / 217 clocks per bit, host -2% / 0 / +2%
+PASS uart-baud: ecp5-evn-mem           12 MHz / 104 clocks per bit, host -2% / 0 / +2%
+PASS uart-baud: ecp5-evn-selftest      12 MHz / 104 clocks per bit, host -2% / 0 / +2%
+PASS uart-baud: ecp5-evn-sys           12 MHz / 104 clocks per bit, host -2% / 0 / +2%
+PASS uart-baud: ecp5-evn-tpu           12 MHz / 104 clocks per bit, host -2% / 0 / +2%
+PASS uart-baud: ecp5-evn-two           12 MHz / 104 clocks per bit, host -2% / 0 / +2%
+PASS uart-baud: ecp5-evn               12 MHz / 104 clocks per bit, host -2% / 0 / +2%
+PASS uart-baud: tangnano20k            27 MHz / 234 clocks per bit, host -2% / 0 / +2%
+PASS uart-baud: ulx3s-85f            12.5 MHz / 109 clocks per bit, host -2% / 0 / +2%
+docs/ISA.md matches the RTL
+docs/ISA_CPU.md matches the decoder
+docs/ISA_GPU.md matches gpu_pkg.sv
+EXIT 0

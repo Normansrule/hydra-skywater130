@@ -131,6 +131,14 @@ module tb_fpga_harness;
     send(8'h42); recv(h0); recv(h1);
     if (h0 !== 8'hEE || h1 !== 8'h42) begin errors++; $display("unknown cmd reply %h %h", h0, h1); end
 
+    // HOST-01 (SkyWater 130 audit): this image has no scratchpad. A memory
+    // write or read must be refused as an unknown command, not acknowledged
+    // as if a word had been stored.
+    send(8'h4D); recv(h0); recv(h1);
+    if (h0 !== 8'hEE || h1 !== 8'h4D) begin errors++; $display("FAIL: memory write on a memory-less image answered %h %h", h0, h1); end
+    send(8'h52); recv(h0); recv(h1);
+    if (h0 !== 8'hEE || h1 !== 8'h52) begin errors++; $display("FAIL: memory read on a memory-less image answered %h %h", h0, h1); end
+
     // ---- 2. legacy personality ----------------------------------------------
     send(8'hC3); send(8'h00); recv(h0); recv(h1);
     if (h0 !== 8'h3C || h1 !== 8'h00 || regm) begin errors++; $display("switch to legacy failed"); end

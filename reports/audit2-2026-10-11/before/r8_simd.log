@@ -1,0 +1,9 @@
+WARNING: /home/claude/hydra-targets/build/sim/hydra_dma_simd.v:1007: $readmemh(mem/tb/dma_simd_a.hex): Not enough words in the file for the requested range [0:1023].
+WARNING: /home/claude/hydra-targets/build/sim/hydra_dma_simd.v:1008: $readmemh(mem/tb/dma_simd_b.hex): Not enough words in the file for the requested range [0:1023].
+WARNING: /home/claude/hydra-targets/build/sim/hydra_dma_simd.v:1009: $readmemh(mem/tb/dma_simd_exp.hex): Not enough words in the file for the requested range [0:511].
+FAIL R8: 179 of 256 results corrupted by host writes during the job
+FAIL R8: 102 operand entries overwritten while the engine owned them
+R8: 390 host writes during a 64-group job; results and operands intact
+FAIL tb_hydra_dma_simd: 2 errors over 11 jobs
+Fatal [19950] mem/tb/tb_hydra_dma_simd.sv:238:7 - tb_hydra_dma_simd.<unnamed_block>.<unnamed_block>
+/home/claude/hydra-targets/build/sim/hydra_dma_simd.v:1412: $finish(1) called at 19950 (1s)

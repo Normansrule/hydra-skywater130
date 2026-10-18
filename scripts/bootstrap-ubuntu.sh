@@ -62,12 +62,13 @@ fi
 
 # ---------------------------------------------------------------------- sv2v
 # The tile's src/regen.sh converts its SystemVerilog with sv2v, and so does
-# every FPGA build here. Ubuntu does not package it.
+# every FPGA build here. Ubuntu does not package it. Pinned to v0.0.13, the
+# version the archived evidence was produced with.
 if ! command -v sv2v >/dev/null; then
   say "sv2v"
   tmp="$(mktemp -d)"
   curl -fsSL -o "$tmp/sv2v.zip" \
-    https://github.com/zachjs/sv2v/releases/latest/download/sv2v-Linux.zip
+    https://github.com/zachjs/sv2v/releases/download/v0.0.13/sv2v-Linux.zip
   unzip -oq "$tmp/sv2v.zip" -d "$tmp"
   $SUDO install -m755 "$tmp"/sv2v-Linux/sv2v /usr/local/bin/sv2v
   rm -rf "$tmp"
@@ -103,7 +104,10 @@ say "python packages"
 # click: current SymbiYosys imports it. Without it every proof dies at
 # startup -- which is how the GitHub runs failed from 2026-10-06, once
 # make verify stopped ignoring failed proofs (pipefail).
-PKGS="cocotb>=1.8 pytest pyyaml pyserial apycula click"
+# Pinned to the versions the archived run used (reports/*/tools.txt), so a
+# fresh machine gets the toolchain the evidence came from (SkyWater 130
+# audit BUILD-03). pyserial is only needed on a machine with a board.
+PKGS="cocotb==2.1.0 pytest==9.1.1 pyyaml==6.0.3 pyserial==3.5 apycula==0.34 click==8.4.2"
 if [ "$SYSTEM_PY" -eq 1 ]; then
   # shellcheck disable=SC2086
   $SUDO pip install --break-system-packages -q $PKGS

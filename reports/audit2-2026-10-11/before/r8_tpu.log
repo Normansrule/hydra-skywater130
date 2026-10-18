@@ -1,0 +1,10 @@
+WARNING: /home/claude/hydra-targets/build/sim/hydra_dma.v:1104: $readmemh(mem/tb/dma_a.hex): Not enough words in the file for the requested range [0:2047].
+WARNING: /home/claude/hydra-targets/build/sim/hydra_dma.v:1105: $readmemh(mem/tb/dma_b.hex): Not enough words in the file for the requested range [0:2047].
+WARNING: /home/claude/hydra-targets/build/sim/hydra_dma.v:1106: $readmemh(mem/tb/dma_exp.hex): Not enough words in the file for the requested range [0:511].
+NOTE: readback address collided with a write at 245
+FAIL R8: 16 of 16 results corrupted by host writes during the job
+FAIL R8: 144 operand words overwritten while the engine owned them
+R8: 232 host writes during a 200-slice job; results and operands intact
+FAIL tb_hydra_dma: 2 errors over 9 jobs
+Fatal [15580] mem/tb/tb_hydra_dma.sv:229:7 - tb_hydra_dma.<unnamed_block>.<unnamed_block>
+/home/claude/hydra-targets/build/sim/hydra_dma.v:1439: $finish(1) called at 15580 (1s)

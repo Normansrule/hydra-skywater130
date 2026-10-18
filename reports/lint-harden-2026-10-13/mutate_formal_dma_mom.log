@@ -1,0 +1,84 @@
+cd common/formal && python3 mutate_targets.py
+hydra_padmux: baseline PASS
+  KILLED    legality check dropped
+  KILLED    oe not gated by reset
+  KILLED    lock not sticky
+  KILLED    writes accepted while locked
+  KILLED    idle value ignored
+  KILLED    wrong reset personality
+  KILLED    input routed to wrong alternative
+  KILLED    unfiltered select register
+hydra_rst_sync: baseline PASS
+  KILLED    release after one edge
+  KILLED    asynchronous release
+mom_xbar: baseline PASS
+  KILLED    work sent to a busy engine
+  KILLED    out-of-range engine index forwarded
+  KILLED    accept asserted without forwarding
+  KILLED    engine freed before its completion is reported
+  KILLED    completion reported for the wrong engine's tag
+  KILLED    dispatch not gated by reset
+hydra_tt_spi: baseline PASS
+  KILLED    byte reported before eight bits
+  KILLED    received byte drops the last bit
+  KILLED    frame does not restart on chip select
+  KILLED    rx_valid held for more than a cycle
+  KILLED    transmit loads the wrong byte
+  KILLED    samples on the falling edge
+mom_xbar (simulation): baseline PASS
+  KILLED    a done from an idle engine is believed
+  KILLED    completion errors never reported
+  KILLED    round-robin replaced by fixed priority
+=== ALL MUTATIONS KILLED ===
+python3 mem/formal/mutate_dma.py
+baseline green: both benches pass, proof passes
+
+KILL  result count ignored: free after the first result  [formal]
+KILL  result count read live from the shared bus, not latched  [formal]
+KILL  zero-length job wraps the counter  [formal]
+KILL  start accepted while draining  [formal]
+KILL  memory latency wait skipped  [simulation]
+KILL  operand straight off the bank, no holding register  [simulation]
+KILL  address advances without a capture (no re-present on stall)  [simulation]
+KILL  capture while the held word is still waiting  [simulation]
+KILL  read pointer never advances  [simulation]
+KILL  write pointer never advances  [simulation]
+KILL  A and B swapped  [simulation]
+KILL  result base ignored  [simulation]
+KILL  TPU streamer started for a descriptor the core refuses (wedges the engine)  [simulation]
+KILL  TPU job past the end of a bank not refused  [simulation]
+KILL  vector-unit streamer started for a descriptor the core refuses  [simulation]
+KILL  vector-unit result pointer only as wide as the operand banks  [simulation]
+KILL  NTT completion reported before the last result is written  [simulation]
+KILL  NTT residue >= q accepted at the load port  [simulation]
+KILL  NTT job past the end of a bank not refused  [simulation]
+KILL  NTT y0 and y1 written in the wrong order  [simulation]
+KILL  NTT result base taken as a word, not a group  [simulation]
+KILL  TPU host load accepted while the engine owns the banks  [simulation]
+KILL  vector-unit host load accepted while the engine owns the banks  [simulation]
+KILL  NTT host load accepted while the engine owns the banks  [simulation]
+KILL  TPU ownership returned at acceptance, not completion  [simulation]
+KILL  writes enabled without a result  [simulation]
+
+26 killed, 0 survived
+python3 tools/mutate_mom.py
+baseline green: cost-cal, harness, systile, xbar-bound
+
+  KILLED    MODEL-01 normalisation shift chosen from the highest nonzero byte  by make cost-cal
+  KILLED    MODEL-02 calibration compares a 32-bit slice that wraps  by make cost-cal
+  KILLED    MODEL-02 out-of-range update index not guarded  by make cost-cal
+  KILLED    RTL-02 dispatch recorded on valid-and-not-HOLD, not on the crossbar handshake  by make systile
+  KILLED    RTL-04 multi-byte read not snapshotted  by make systile
+  KILLED    RTL-08 host completion accepted and discarded in the system tile  by make systile
+  KILLED    RTL-08 crossbar engine bound narrowed to the engine-ID width  by make xbar-bound
+  KILLED    HOST-01 memory commands acknowledged on an image with no memory  by make harness
+
+=== ALL 8 DISPATCHER MUTATIONS KILLED ===
+cd tt/tile && python3 test/mutate_sim.py
+baseline: 21 tests, 0 failing
+  KILLED    PARAM_LOCK ignored  by test_reg_param_retune_moves_the_decision
+  KILLED    frame length not checked  by test_reg_torn_frames_change_nothing (+1 more)
+  KILLED    GO accepts a torn descriptor  by test_reg_torn_frames_change_nothing (+2 more)
+  KILLED    HOLD ignored  by test_reg_hold_backpressure
+make: *** [Makefile:468: mutate] Terminated
+EXIT 124

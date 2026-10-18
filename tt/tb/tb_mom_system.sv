@@ -26,6 +26,9 @@ module tb_mom_system;
 
   logic clk = 0, rst_n = 0;
   always #27.5 clk = ~clk;
+  // A broken design must FAIL here, not hang (ci_selftest, 2026-10-11): about
+  // twenty times the cycles a passing run needs.
+  initial begin repeat (1000000) @(posedge clk); $display("FAIL tb_mom_system: watchdog"); $fatal(1); end
 
   // ---- dispatcher ----------------------------------------------------------
   logic            wd_valid, wd_ready;

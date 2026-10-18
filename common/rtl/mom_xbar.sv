@@ -107,7 +107,14 @@ module mom_xbar #(
   assign eng_busy = busy_q;
 
   // ---- dispatch -------------------------------------------------------------
-  wire in_range = (32'(disp_engine) < ENGW'(NENG));
+  // The bound is compared one bit wider than the engine number (SkyWater 130
+  // audit RTL-08, 2026-10-11). It used to be ENGW'(NENG), which is 0 when
+  // NENG = 2^ENGW: at NENG = 8 every engine was "out of range". tb_mom_xbar_bound.
+  wire eng_in_range = ({1'b0, disp_engine} < (ENGW+1)'(NENG));
+  wire in_range     = eng_in_range;
+  if (NENG > (1 << ENGW)) begin : g_bad_param
+    mom_xbar_NENG_needs_a_wider_ENGW u_stop ();   // elaboration stops here
+  end
   wire target_free = in_range && !busy_q[disp_engine] && eng_ready[disp_engine];
   // Gated by rst_n, combinationally: a block in reset must not accept work or
   // start an engine, and rst_n here is the async-asserted output of

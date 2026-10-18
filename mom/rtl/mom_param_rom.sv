@@ -36,6 +36,12 @@
  * ===========================================================================
  * WHERE THE DEFAULT NUMBERS COME FROM
  * ===========================================================================
+ * These are NOMINAL engines for the cost model, not the engines built in the
+ * parent repository (a 4x4 array and 4 butterflies; see
+ * docs/verification/capability-matrix.md there). Calibration corrects the
+ * difference at run time; the PARAM register lets software set rows that
+ * match the real engines.
+ *
  * p_peak_log2:
  *   CPU     1 op/cycle scalar                       -> log2(1)   = 0
  *   SIMD    4 lanes x 2 (fused multiply-add)  = 8   -> log2(8)   = 3
@@ -128,7 +134,7 @@ module mom_param_rom
       row[ENG_TPU]    <= DEF_TPU;
       row[ENG_NTT]    <= DEF_NTT;
       row[ENG_CRYPTO] <= DEF_CRYPTO;
-    end else if (wr_en && wr_priv && (wr_engine < 3'(ENG_N))) begin
+    end else if (wr_en && wr_priv && ({29'd0, wr_engine} < ENG_N)) begin
       row[wr_engine] <= wr_data;
     end
   end

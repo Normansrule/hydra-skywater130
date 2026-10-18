@@ -34,7 +34,9 @@ module hydra_fpga_two_harness #(
     .ui_in(ui_in), .uo_out(uo_out), .uio_out(uio_out),
     .tile_rst_n(tile_rst_n),
     .mem_we(), .mem_bank(), .mem_addr(), .mem_wdata(), .mem_raddr(),
-    .mem_rdata(32'h0),
+    .mem_rdata(32'h0), .mem_refused(1'b0),
+    // no JTAG host on this image
+    .jb_rx_v(1'b0), .jb_rx_d(8'h00), .jb_tx_v(), .jb_tx_d(), .jb_tx_full(1'b0),
     .reg_mode_o(reg_mode_o));
 
   always_comb begin
@@ -45,7 +47,7 @@ module hydra_fpga_two_harness #(
   wire [31:0] checksum, simd_checksum;
   wire [15:0] tiles, simd_jobs;
 
-  hydra_sys_tile #(.REAL_TPU(1'b1), .REAL_SIMD(1'b1)) u_sys (
+  hydra_sys_tile #(.TPU_ENGINE(1), .SIMD_ENGINE(1)) u_sys (
     .ui_in(ui_sys), .uo_out(uo_out), .uio_in(8'h00), .uio_out(uio_out),
     .uio_oe(uio_oe), .ena(1'b1), .clk(clk), .rst_n(tile_rst_n),
     .dbg_checksum(checksum), .dbg_tiles(tiles),

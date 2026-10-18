@@ -25,7 +25,7 @@ module hydra_rst_sync #(
   logic [STAGES-1:0] sync_q;
 
   always_ff @(posedge clk or negedge arst_n) begin
-    if (!arst_n) sync_q <= '0;
+    if (!arst_n) sync_q <= {STAGES{1'b0}};
     else         sync_q <= {sync_q[STAGES-2:0], 1'b1};
   end
 

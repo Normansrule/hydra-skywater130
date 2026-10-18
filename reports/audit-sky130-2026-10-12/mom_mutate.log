@@ -1,0 +1,13 @@
+baseline green: cost-cal, harness, systile, xbar-bound
+
+  KILLED    MODEL-01 normalisation shift chosen from the highest nonzero byte  by make cost-cal
+  KILLED    MODEL-02 calibration compares a 32-bit slice that wraps  by make cost-cal
+  KILLED    MODEL-02 out-of-range update index not guarded  by make cost-cal
+  KILLED    RTL-02 dispatch recorded on valid-and-not-HOLD, not on the crossbar handshake  by make systile
+  KILLED    RTL-04 multi-byte read not snapshotted  by make systile
+  KILLED    RTL-08 host completion accepted and discarded in the system tile  by make systile
+  KILLED    RTL-08 crossbar engine bound narrowed to the engine-ID width  by make xbar-bound
+  KILLED    HOST-01 memory commands acknowledged on an image with no memory  by make harness
+
+=== ALL 8 DISPATCHER MUTATIONS KILLED ===
+EXIT 0

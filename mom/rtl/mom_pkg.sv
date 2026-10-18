@@ -44,11 +44,14 @@ package mom_pkg;
   localparam int unsigned ENG_N = 5;
 
   typedef enum logic [2:0] {
-    ENG_CPU    = 3'd0,  // scalar RV32IMC_Zba pipeline
-    ENG_SIMD   = 3'd1,  // 4-lane 32-bit vector unit
-    ENG_TPU    = 3'd2,  // 16x16 INT8 output-stationary systolic array
-    ENG_NTT    = 3'd3,  // 8-butterfly number-theoretic transform engine
-    ENG_CRYPTO = 3'd4   // AES / SHA / HMAC datapath
+    // Dispatch slots. The comment says what is BUILT in the parent
+    // repository today (docs/verification/capability-matrix.md); the cost
+    // model's nominal sizes are in mom_param_rom.sv and are not the same.
+    ENG_CPU    = 3'd0,  // scalar CPU slot: latency model only, no core integrated
+    ENG_SIMD   = 3'd1,  // 4-lane 32-bit integer vector unit
+    ENG_TPU    = 3'd2,  // INT8 output-stationary systolic array, built 4x4
+    ENG_NTT    = 3'd3,  // number-theoretic transform butterflies, built 4 lanes
+    ENG_CRYPTO = 3'd4   // cipher/hash slot: latency model only
   } engine_e;
 
   // -------------------------------------------------------------------------
@@ -235,11 +238,11 @@ package mom_pkg;
   // hardware: a 6:1 mux either way.
   // -------------------------------------------------------------------------
   function automatic logic dtype_ok(input logic [5:0] mask, input dtype_e dt);
-    dtype_ok = (mask >> dt) & 1'b1;
+    dtype_ok = |(mask & (6'd1 << dt));
   endfunction
 
   function automatic logic opc_ok(input logic [8:0] mask, input opclass_e oc);
-    opc_ok = (mask >> oc) & 1'b1;
+    opc_ok = |(mask & (9'd1 << oc));
   endfunction
 
   localparam int unsigned COST_W    = 32;
@@ -264,7 +267,6 @@ package mom_pkg;
   // absolute resolution halves, from 0.78% to 1.56% of unity, which is far
   // finer than the 6.25% step the loop actually moves in.
   // -------------------------------------------------------------------------
-  localparam int unsigned KCAL_W     = 8;
   localparam int unsigned KCAL_SHIFT = 6;    // Q2.6
   localparam logic [7:0]  KCAL_UNITY = 8'd64;
   localparam int unsigned KCAL_ALPHA = 4;    // step = k >> 4, see mom_calibrate.sv

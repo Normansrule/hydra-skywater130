@@ -76,7 +76,8 @@ module hydra_arty_a7_35_tt (
   assign jb_0 = c_uio_mirror[0];
   assign ja_4 = c_reg_mode_o;
 
-  hydra_fpga_tt_harness u_core (
+  // UART: 25 MHz / 217 = 115207.4 baud, +0.01% against 115200 (budget 2%)
+  hydra_fpga_tt_harness #(.CLKS_PER_BIT(217)) u_core (
     .clk(c_clk),
     .reg_mode_o(c_reg_mode_o),
     .rst_n(c_rst_n),

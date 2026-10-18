@@ -171,12 +171,6 @@ module mom_cost_engine
   wire [3:0] lg_p_att = (bw_bound < param.p_peak_log2) ? bw_bound
                                                        : param.p_peak_log2;
 
-  // Exposed for the testbench to check against the Python reference model.
-  // Synthesis prunes it if unused.
-  // synthesis translate_off
-  wire [3:0] dbg_lg_p_att = lg_p_att;
-  // synthesis translate_on
-
   // ===========================================================================
   // Equations (3) and (4): compute cycles
   // ===========================================================================
@@ -202,7 +196,6 @@ module mom_cost_engine
   // problems: 64 cycles of weight load plus the transfer dwarfs the compute.
   // ===========================================================================
   wire [COST_W-1:0] t_move  = {8'd0, bytes_q} >> bw_dma_log2;
-  wire [COST_W-1:0] t_setup = {20'd0, param.t_setup};
 
   // The latency hint biases against setup cost. A real-time caller would
   // rather run on an idle CPU than wait 64 cycles for a weight load.
@@ -244,7 +237,7 @@ module mom_cost_engine
   logic [COST_W-1:0] t_pred_q;
   logic [31:0]       e_ops_q, e_mem_q;
   logic              valid_q, capable_q;
-  logic [3:0]        lambda_q;
+  logic              lambda_en_q;     // only the enable is used after stage A
 
 
   // ===========================================================================
@@ -268,25 +261,30 @@ module mom_cost_engine
   //     t_pred = m * 2^e     with m in [2^15, 2^16)
   //     t_cal  = (m * k) >> KCAL_SHIFT << e
   //
-  // Relative precision loss is bounded by 2^-16, one part in 65,536. The
-  // calibration loop moves k in 1.56% steps, so the discarded bits are four
-  // orders of magnitude below the granularity of the thing being computed.
+  // The shift is chosen in whole bytes, the smallest that makes t_pred fit in
+  // 16 bits: e = 0 below 2^16 (exact), 8 below 2^24, 16 above. Whenever bits
+  // are dropped the mantissa keeps at least 9 significant bits, so the result
+  // is at most 1/256 (0.39%) low -- a quarter of the calibrator's smallest
+  // step (1/64). That bound is what `make cost-cal` checks, against the EXACT
+  // product, at every exponent boundary and every legal k.
   //
-  // Verified by the 25,000-vector cross-check against the reference model,
-  // which had to be updated to match: the model mirrors the hardware, not the
-  // cleaner algebra.
+  // SkyWater 130 audit MODEL-01 (2026-10-11): the shift used to be chosen from
+  // the HIGHEST nonzero byte (e = 8 as soon as bit 8 was set), so 511 kept one
+  // significant bit and became 256 -- 50% low -- while this comment claimed
+  // one part in 65,536. The old reference model had been changed to mirror
+  // the hardware, so the two agreed and nothing compared either with the
+  // algebra. tb_cost_cal.sv now does.
   // ---------------------------------------------------------------------------
   logic [4:0] tp_e;
   always_comb begin
-    if      (t_pred_q[31:16] != 16'd0) tp_e = 5'd16;
-    else if (t_pred_q[15:8]  !=  8'd0) tp_e = 5'd8;
-    else                             tp_e = 5'd0;
+    if      (t_pred_q[31:24] != 8'd0) tp_e = 5'd16;
+    else if (t_pred_q[23:16] != 8'd0) tp_e = 5'd8;
+    else                              tp_e = 5'd0;
   end
 
-  // Coarse normalization to byte granularity rather than bit granularity. A
-  // full leading-zero normalize would need a 32-bit priority encoder and a
-  // barrel shifter to recover at most 7 more bits of a quantity already
-  // precise to one part in 65,536. Three cases cost three muxes.
+  // Byte-granularity normalization rather than a full leading-zero count:
+  // three muxes instead of a 32-bit priority encoder and barrel shifter, for
+  // the 1/256 bound above.
   wire [15:0] tp_m = (tp_e == 5'd16) ? t_pred_q[31:16]
                    : (tp_e == 5'd8)  ? t_pred_q[23:8]
                                      : t_pred_q[15:0];
@@ -295,12 +293,13 @@ module mom_cost_engine
 
   // Shift back: << tp_e to undo the normalization, >> KCAL_SHIFT for the Q2.6
   // factor. Combined into one signed shift so only one shifter is built.
-  wire signed [6:0] cal_sh = $signed({2'b0, tp_e}) - $signed(7'(KCAL_SHIFT));
+  wire signed [31:0] cal_sh32 = $signed({27'd0, tp_e}) - $signed(KCAL_SHIFT);
+  wire signed [6:0]  cal_sh   = cal_sh32[6:0];   // -6..10: seven bits hold it
 
   wire [47:0] cal_wide = cal_sh >= 0 ? ({24'd0, cal_prod} << cal_sh[5:0])
                                      : ({24'd0, cal_prod} >> (-cal_sh[5:0]));
 
-  wire [COST_W-1:0] t_cal = (cal_wide[47:COST_W] != '0) ? COST_SAT
+  wire [COST_W-1:0] t_cal = (cal_wide[47:COST_W] != 16'd0) ? COST_SAT
                                                         : cal_wide[COST_W-1:0];
 
   // ===========================================================================
@@ -391,22 +390,22 @@ module mom_cost_engine
   // ---------------------------------------------------------------------------
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-      t_pred_q <= '0; e_ops_q <= '0; e_mem_q <= '0;
-      valid_q <= 1'b0; capable_q <= 1'b0; lambda_q <= '0;
+      t_pred_q <= {COST_W{1'b0}}; e_ops_q <= 32'd0; e_mem_q <= 32'd0;
+      valid_q <= 1'b0; capable_q <= 1'b0; lambda_en_q <= 1'b0;
     end else if (adv) begin
       t_pred_q  <= t_pred_a;
       e_ops_q   <= e_ops_sc;
       e_mem_q   <= e_mem_sc;
       valid_q   <= valid_a;
       capable_q <= capable_a;
-      lambda_q  <= lambda_sh;
+      lambda_en_q <= lambda_sh[3];
     end
   end
   assign t_pred  = t_pred_q;
   assign valid   = valid_q;
   assign capable = capable_q;
 
-  wire [32:0] e_sum_w = lambda_q[3] ? ({1'b0, e_ops_q} + {1'b0, e_mem_q})
+  wire [32:0] e_sum_w = lambda_en_q ? ({1'b0, e_ops_q} + {1'b0, e_mem_q})
                                     : 33'd0;
   wire [31:0] e_scaled = e_sum_w[32] ? COST_SAT : e_sum_w[31:0];
 
@@ -420,6 +419,11 @@ module mom_cost_engine
     else
       cost = j_sum[COST_W-1:0];
   end
+
+  // Bits the arithmetic computes but does not need: bit 6 of the two signed
+  // shift amounts (bit 7 is the sign, 5:0 the magnitude), and ENGINE_ID,
+  // which names the instance in waveforms only. Removed by synthesis.
+  wire _unused_ok = &{1'b0, net_sh_s[6], mem_sh_s[6], cal_sh32[31:7], ENGINE_ID};
 
 `ifdef FORMAL
   // An invalid engine must present maximum cost, so the selector can never

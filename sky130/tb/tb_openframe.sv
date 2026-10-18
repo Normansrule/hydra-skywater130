@@ -22,6 +22,9 @@ module tb_openframe;
   integer errors = 0;
 
   always #27.5 clk = ~clk;
+  // A broken design must FAIL here, not hang (ci_selftest, 2026-10-11): about
+  // twenty times the cycles a passing run needs.
+  initial begin repeat (1000000) @(posedge clk); $display("FAIL tb_openframe: watchdog"); $fatal(1); end
   always @* begin
     gpio_in[P_CLK]  = clk;
     gpio_in[P_RSTN] = rst_n;

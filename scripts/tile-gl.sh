@@ -20,8 +20,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # re-hardened) and 17 of 18 failed for that reason alone.
 python3 "$ROOT/tools/netlist_matches.py" "$NET" "$ROOT/tt/tile/src/project.v" || {
   echo "tile-gl: harden first:"
-  echo "  cd $HC && source ~/ttsetup/venv/bin/activate && ./tt/tt_tool.py --harden"
+  echo "  cd $HC && source ~/ttsetup/venv/bin/activate && ./tt/tt_tool.py --create-user-config && ./tt/tt_tool.py --harden"
   exit 2; }
+# A passing run on the wrong die size is not evidence for the submission:
+# say so, but still run, because the logic is the same either way.
+python3 "$ROOT/tools/tile_size_check.py" "$HC" \
+  || echo "tile-gl: WARNING -- this netlist is not the tile size info.yaml declares (see above)"
 
 # Find the PDK the run actually used. The 2026-10 runs read it from
 # /tmp/pdk/ciel/..., not from a documented location, so search rather than assume.

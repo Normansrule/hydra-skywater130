@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>HYDRA-130 — a dispatcher that measures its own engines</title>
+<title>HYDRA-130 — adaptive scheduling and accelerator research</title>
 <style>
   :root {
     box-sizing: border-box;
@@ -62,7 +62,6 @@
   .n-label { font: 600 14px ui-sans-serif, system-ui, sans-serif; }
   .n-sub { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; fill: var(--dim); }
   .node:hover rect, .node:focus rect { stroke: var(--accent); stroke-width: 2.5; }
-  .node:focus { outline: none; }
   .edge { fill: none; stroke: var(--line); stroke-width: 1.6; }
   .edge-label { font: 10.5px ui-monospace, SFMono-Regular, Menlo, monospace;
                  fill: var(--dim); text-anchor: middle; }
@@ -96,104 +95,163 @@
   .kind-col li { color: var(--dim); font-size: 13.5px; margin: 5px 0; }
   footer { color: var(--dim); font-size: 13px; margin-top: 64px;
             border-top: 1px solid var(--line); padding-top: 18px; }
+  .skip { position: absolute; left: -9999px; top: 8px; background: var(--panel);
+           color: var(--ink); padding: 8px 14px; border-radius: 8px; z-index: 9; }
+  .skip:focus { left: 12px; }
+  nav.toc { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 18px 0 0; font-size: 14px; }
+  nav.toc a { color: var(--accent); }
+  a:focus-visible, .node:focus-visible, summary:focus-visible {
+    outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+  .node:focus-visible rect { stroke: var(--accent); stroke-width: 3; }
+  .status { display: inline-block; font: 700 11px/1 ui-monospace, monospace; letter-spacing: .08em;
+             border: 1px solid currentColor; border-radius: 999px; padding: 3px 8px; }
+  .st-built { color: var(--accent); } .st-planned { color: var(--warn); } .st-lib { color: var(--dim); }
+  .callout { border-left: 3px solid var(--warn); background: var(--panel); padding: 12px 16px;
+              border-radius: 0 10px 10px 0; max-width: 78ch; }
+  details { margin-top: 10px; }
+  details h3 { font-size: 14px; margin: 12px 0 4px; }
+  details li { color: var(--dim); font-size: 13.5px; }
+  @media (max-width: 640px) { .wrap { padding: 0 16px 64px; } header { padding-top: 40px; } }
+  @media print {
+    :root { --bg: #fff; --panel: #fff; --ink: #000; --dim: #333; --line: #bbb; --accent: #0d5f58; --warn: #7a520c; }
+    .skip, nav.toc { display: none; }
+    .panel { overflow: visible; break-inside: avoid; }
+    .diagram, .bars, .sweep { min-width: 0; }
+    details { display: block; } details > * { display: block; }
+    a { color: #000; }
+  }
 </style>
 </head>
 <body>
+<a class="skip" href="#main">Skip to content</a>
 <div class="wrap">
 
 <header>
-  <div class="tag">SkyWater sky130 · Tiny Tapeout · ECP5</div>
+  <div class="tag">FPGA · SkyWater sky130 · Tiny Tapeout</div>
   <h1>HYDRA-130</h1>
-  <p class="lede">A dispatcher that predicts how long each engine would take,
-  sends the work to the cheapest one, then measures what actually happened and
-  corrects its own model. Three arithmetic engines, a scratchpad, and a host
-  link — verified against independent models, proved where proof is cheaper
-  than testing, and honest about what has not been built yet.</p>
+  <p class="lede">Adaptive hardware scheduling and accelerator research. A
+  dispatcher predicts how long each engine would take a piece of work, sends
+  it to the cheapest, measures what happened and corrects its own model.
+  What runs depends on the build: each view below names one.</p>
+  <nav class="toc" aria-label="Sections">
+    <a href="#built">As built</a><a href="#tile">The tile</a><a href="#library">IP library</a>
+    <a href="#roadmap">Roadmap</a><a href="#area">Area</a><a href="#boards">Board images</a>
+    <a href="#verify">Verification</a><a href="#pending">Not done</a>
+  </nav>
 </header>
 
-<h2>How it fits together</h2>
+<main id="main">
+<p class="callout"><b>Status.</b> Not a complete or board-qualified CPU/GPU/TPU
+system. No image has run on a physical board. No CPU or GPU is integrated, and
+fully homomorphic encryption and sequestered execution are specifications,
+refused by the host driver. The Tiny Tapeout tile is the scheduler alone. See
+<code>docs/verification/capability-matrix.md</code>.</p>
+
+<h2 id="built">As built: ecp5-evn-mem (scheduler + memory-fed array)</h2>
 <div class="panel">
-<svg class="diagram" viewBox="0 0 1556 554" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="HYDRA-130 block diagram">
+<svg class="diagram" viewBox="0 0 1584 450" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="As built: ecp5-evn-mem (scheduler + memory-fed array). The same blocks and connections are listed as text below the figure.">
 <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/></marker></defs>
-<path class="edge" data-a="host" data-b="bridge" d="M 106.0 173.0 C 190.0 173.0, 190.0 173.0, 274.0 173.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="190.0" y="167.0">bytes</text>
-<path class="edge" data-a="bridge" data-b="spi" d="M 274.0 173.0 C 358.0 173.0, 358.0 69.0, 442.0 69.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="358.0" y="115.0">pins</text>
-<path class="edge" data-a="bridge" data-b="bank" d="M 274.0 173.0 C 862.0 173.0, 862.0 173.0, 1450.0 173.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="862.0" y="167.0">load</text>
-<path class="edge" data-a="spi" data-b="regs" d="M 442.0 69.0 C 442.0 69.0, 442.0 173.0, 442.0 173.0" marker-end="url(#ah)"/>
-<path class="edge" data-a="regs" data-b="feat" d="M 442.0 173.0 C 526.0 173.0, 526.0 69.0, 610.0 69.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="526.0" y="115.0">descriptor</text>
-<path class="edge" data-a="feat" data-b="cost" d="M 610.0 69.0 C 610.0 69.0, 610.0 173.0, 610.0 173.0" marker-end="url(#ah)"/>
-<path class="edge" data-a="cost" data-b="sel" d="M 610.0 173.0 C 610.0 173.0, 610.0 277.0, 610.0 277.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="610.0" y="219.0">5 costs</text>
-<path class="edge" data-a="sb" data-b="cost" d="M 778.0 69.0 C 694.0 69.0, 694.0 173.0, 610.0 173.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="694.0" y="115.0">queue</text>
-<path class="edge" data-a="sel" data-b="xbar" d="M 610.0 277.0 C 778.0 277.0, 778.0 173.0, 946.0 173.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="778.0" y="219.0">engine</text>
-<path class="edge" data-a="sb" data-b="xbar" d="M 778.0 69.0 C 862.0 69.0, 862.0 173.0, 946.0 173.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="862.0" y="115.0">tag</text>
-<path class="edge" data-a="xbar" data-b="tpu" d="M 946.0 173.0 C 1030.0 173.0, 1030.0 69.0, 1114.0 69.0" marker-end="url(#ah)"/>
-<path class="edge" data-a="xbar" data-b="simd" d="M 946.0 173.0 C 1030.0 173.0, 1030.0 173.0, 1114.0 173.0" marker-end="url(#ah)"/>
-<path class="edge" data-a="xbar" data-b="ntt" d="M 946.0 173.0 C 1030.0 173.0, 1030.0 277.0, 1114.0 277.0" marker-end="url(#ah)"/>
-<path class="edge" data-a="tpu" data-b="cal" d="M 1114.0 69.0 C 946.0 69.0, 946.0 277.0, 778.0 277.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="946.0" y="167.0">done</text>
-<path class="edge" data-a="cal" data-b="cost" d="M 778.0 277.0 C 694.0 277.0, 694.0 173.0, 610.0 173.0" marker-end="url(#ah)"/>
+<path class="edge" data-a="host" data-b="bridge" d="M 106.0 173.0 C 204.0 173.0, 204.0 173.0, 302.0 173.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="204.0" y="167.0">bytes</text>
+<path class="edge" data-a="bridge" data-b="spi" d="M 302.0 173.0 C 400.0 173.0, 400.0 69.0, 498.0 69.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="400.0" y="115.0">pins</text>
+<path class="edge" data-a="bridge" data-b="bank" d="M 302.0 202 V 381.0 H 1478.0 V 202" marker-end="url(#ah)"/>
+<text class="edge-label" x="890.0" y="375.0">load, read</text>
+<path class="edge" data-a="spi" data-b="regs" d="M 498.0 69.0 C 498.0 69.0, 498.0 173.0, 498.0 173.0" marker-end="url(#ah)"/>
+<path class="edge" data-a="regs" data-b="feat" d="M 498.0 173.0 C 596.0 173.0, 596.0 69.0, 694.0 69.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="596.0" y="115.0">descriptor</text>
+<path class="edge" data-a="feat" data-b="cost" d="M 694.0 69.0 C 694.0 69.0, 694.0 173.0, 694.0 173.0" marker-end="url(#ah)"/>
+<path class="edge" data-a="cost" data-b="sel" d="M 694.0 173.0 C 792.0 173.0, 792.0 173.0, 890.0 173.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="792.0" y="167.0">5 costs</text>
+<path class="edge" data-a="sb" data-b="cost" d="M 890.0 69.0 C 792.0 69.0, 792.0 173.0, 694.0 173.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="792.0" y="115.0">queue</text>
+<path class="edge" data-a="sel" data-b="xbar" d="M 890.0 173.0 C 988.0 173.0, 988.0 173.0, 1086.0 173.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="988.0" y="167.0">engine</text>
+<path class="edge" data-a="xbar" data-b="sb" d="M 1086.0 173.0 C 988.0 173.0, 988.0 69.0, 890.0 69.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="988.0" y="115.0">tag, done</text>
+<path class="edge" data-a="xbar" data-b="tpu" d="M 1086.0 173.0 C 1184.0 173.0, 1184.0 69.0, 1282.0 69.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="1184.0" y="115.0">job</text>
+<path class="edge" data-a="xbar" data-b="models" d="M 1086.0 173.0 C 1184.0 173.0, 1184.0 277.0, 1282.0 277.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="1184.0" y="219.0">job</text>
+<path class="edge" data-a="bank" data-b="dma" d="M 1478.0 173.0 C 1478.0 173.0, 1478.0 69.0, 1478.0 69.0" marker-end="url(#ah)"/>
+<path class="edge" data-a="dma" data-b="tpu" d="M 1478.0 69.0 C 1380.0 69.0, 1380.0 69.0, 1282.0 69.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="1380.0" y="63.0">operands</text>
+<path class="edge" data-a="sb" data-b="cal" d="M 890.0 69.0 C 792.0 69.0, 792.0 277.0, 694.0 277.0" marker-end="url(#ah)"/>
+<path class="edge" data-a="cal" data-b="cost" d="M 694.0 277.0 C 694.0 277.0, 694.0 173.0, 694.0 173.0" marker-end="url(#ah)"/>
 <text class="edge-label" x="694.0" y="219.0">k</text>
-<path class="edge" data-a="dma" data-b="tpu" d="M 1282.0 173.0 C 1198.0 173.0, 1198.0 69.0, 1114.0 69.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="1198.0" y="115.0">operands</text>
-<path class="edge" data-a="dma" data-b="simd" d="M 1282.0 173.0 C 1198.0 173.0, 1198.0 173.0, 1114.0 173.0" marker-end="url(#ah)"/>
-<path class="edge" data-a="dma" data-b="ntt" d="M 1282.0 173.0 C 1198.0 173.0, 1198.0 277.0, 1114.0 277.0" marker-end="url(#ah)"/>
-<path class="edge" data-a="bank" data-b="dma" d="M 1450.0 173.0 C 1366.0 173.0, 1366.0 173.0, 1282.0 173.0" marker-end="url(#ah)"/>
-<path class="edge" data-a="jtag" data-b="jbr" d="M 274.0 381.0 C 358.0 381.0, 358.0 381.0, 442.0 381.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="358.0" y="375.0">TCK</text>
-<path class="edge" data-a="jbr" data-b="regs" d="M 442.0 381.0 C 442.0 381.0, 442.0 173.0, 442.0 173.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="442.0" y="271.0">second way in</text>
-<path class="edge" data-a="regs" data-b="mbox" d="M 442.0 173.0 C 610.0 173.0, 610.0 381.0, 778.0 381.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="610.0" y="271.0">commands</text>
-<path class="edge" data-a="mbox" data-b="kv" d="M 778.0 381.0 C 862.0 381.0, 862.0 381.0, 946.0 381.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="862.0" y="375.0">by slot</text>
-<path class="edge" data-a="mbox" data-b="sha" d="M 778.0 381.0 C 946.0 381.0, 946.0 381.0, 1114.0 381.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="946.0" y="375.0">measure</text>
-<path class="edge" data-a="sha" data-b="pcr" d="M 1114.0 381.0 C 1198.0 381.0, 1198.0 381.0, 1282.0 381.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="1198.0" y="375.0">extend</text>
-<path class="edge" data-a="xsec" data-b="kv" d="M 610.0 485.0 C 778.0 485.0, 778.0 381.0, 946.0 381.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="778.0" y="427.0">by slot</text>
-<path class="edge" data-a="xsec" data-b="pcr" d="M 610.0 485.0 C 946.0 485.0, 946.0 381.0, 1282.0 381.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="946.0" y="427.0">extend, read</text>
-<path class="edge" data-a="regs" data-b="kv" d="M 442.0 173.0 C 694.0 173.0, 694.0 381.0, 946.0 381.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="694.0" y="271.0">slots</text>
-<path class="edge" data-a="kv" data-b="xbar" d="M 946.0 381.0 C 946.0 381.0, 946.0 173.0, 946.0 173.0" marker-end="url(#ah)"/>
-<text class="edge-label" x="946.0" y="271.0">key by slot</text>
-<g class="node" data-id="host" tabindex="0"><title>tools/hydra_host.py</title><rect x="40" y="144" width="132" height="58" rx="9"/><text class="n-label" x="106.0" y="168">Host</text><text class="n-sub" x="106.0" y="186">serial port</text></g>
-<g class="node" data-id="bridge" tabindex="0"><title>fpga/rtl/hydra_fpga_bridge.sv</title><rect x="208" y="144" width="132" height="58" rx="9"/><text class="n-label" x="274.0" y="168">Bridge</text><text class="n-sub" x="274.0" y="186">UART to pins, memory</text></g>
-<g class="node" data-id="spi" tabindex="0"><title>mom/rtl/hydra_tt_spi.sv</title><rect x="376" y="40" width="132" height="58" rx="9"/><text class="n-label" x="442.0" y="64">SPI slave</text><text class="n-sub" x="442.0" y="82">register map</text></g>
-<g class="node" data-id="regs" tabindex="0"><title>mom/rtl/hydra_tt_regs.sv</title><rect x="376" y="144" width="132" height="58" rx="9"/><text class="n-label" x="442.0" y="168">Registers</text><text class="n-sub" x="442.0" y="186">the host map</text></g>
-<g class="node" data-id="feat" tabindex="0"><title>mom/rtl/mom_features.sv</title><rect x="544" y="40" width="132" height="58" rx="9"/><text class="n-label" x="610.0" y="64">Features</text><text class="n-sub" x="610.0" y="82">log2 work, intensity</text></g>
-<g class="node" data-id="cost" tabindex="0"><title>mom/rtl/mom_cost_engine.sv</title><rect x="544" y="144" width="132" height="58" rx="9"/><text class="n-label" x="610.0" y="168">Cost engine</text><text class="n-sub" x="610.0" y="186">one, walked over five</text></g>
-<g class="node" data-id="sel" tabindex="0"><title>mom/rtl/mom_select.sv</title><rect x="544" y="248" width="132" height="58" rx="9"/><text class="n-label" x="610.0" y="272">Select</text><text class="n-sub" x="610.0" y="290">argmin with margin</text></g>
-<g class="node" data-id="sb" tabindex="0"><title>mom/rtl/mom_scoreboard.sv</title><rect x="712" y="40" width="132" height="58" rx="9"/><text class="n-label" x="778.0" y="64">Scoreboard</text><text class="n-sub" x="778.0" y="82">tags, queue depth</text></g>
-<g class="node" data-id="cal" tabindex="0"><title>mom/rtl/mom_calibrate.sv</title><rect x="712" y="248" width="132" height="58" rx="9"/><text class="n-label" x="778.0" y="272">Calibrate</text><text class="n-sub" x="778.0" y="290">measured vs predicted</text></g>
-<g class="node" data-id="xbar" tabindex="0"><title>common/rtl/mom_xbar.sv</title><rect x="880" y="144" width="132" height="58" rx="9"/><text class="n-label" x="946.0" y="168">Crossbar</text><text class="n-sub" x="946.0" y="186">descriptor to engine</text></g>
-<g class="node" data-id="tpu" tabindex="0"><title>engines/tpu/rtl/tpu_top.sv</title><rect x="1048" y="40" width="132" height="58" rx="9"/><text class="n-label" x="1114.0" y="64">TPU</text><text class="n-sub" x="1114.0" y="82">4x4 INT8 array</text></g>
-<g class="node" data-id="simd" tabindex="0"><title>engines/simd/rtl/simd_top.sv</title><rect x="1048" y="144" width="132" height="58" rx="9"/><text class="n-label" x="1114.0" y="168">SIMD</text><text class="n-sub" x="1114.0" y="186">4 x 32-bit lanes</text></g>
-<g class="node" data-id="ntt" tabindex="0"><title>engines/ntt/rtl/ntt_top.sv</title><rect x="1048" y="248" width="132" height="58" rx="9"/><text class="n-label" x="1114.0" y="272">NTT</text><text class="n-sub" x="1114.0" y="290">4 Barrett butterflies</text></g>
-<g class="node" data-id="dma" tabindex="0"><title>mem/rtl/hydra_dma_gemm.sv</title><rect x="1216" y="144" width="132" height="58" rx="9"/><text class="n-label" x="1282.0" y="168">Streamer</text><text class="n-sub" x="1282.0" y="186">banks to engines</text></g>
-<g class="node" data-id="bank" tabindex="0"><title>mem/rtl/hydra_spram.sv</title><rect x="1384" y="144" width="132" height="58" rx="9"/><text class="n-label" x="1450.0" y="168">Scratchpad</text><text class="n-sub" x="1450.0" y="186">A, B, W, results</text></g>
-<g class="node" data-id="jtag" tabindex="0"><title>dbg/rtl/hydra_jtag_tap.sv</title><rect x="208" y="352" width="132" height="58" rx="9"/><text class="n-label" x="274.0" y="376">Test port</text><text class="n-sub" x="274.0" y="394">IEEE 1149.1, own clock</text></g>
-<g class="node" data-id="jbr" tabindex="0"><title>dbg/rtl/hydra_jtag_bridge.sv</title><rect x="376" y="352" width="132" height="58" rx="9"/><text class="n-label" x="442.0" y="376">Crossing</text><text class="n-sub" x="442.0" y="394">toggle handshake</text></g>
-<g class="node" data-id="xsec" tabindex="0"><title>isa/rtl/hydra_xsec_unit.sv</title><rect x="544" y="456" width="132" height="58" rx="9"/><text class="n-label" x="610.0" y="480">Security ISA</text><text class="n-sub" x="610.0" y="498">Zknh + Xhydrasec</text></g>
-<g class="node" data-id="pcr" tabindex="0"><title>sec/rtl/hydra_pcr.sv</title><rect x="1216" y="352" width="132" height="58" rx="9"/><text class="n-label" x="1282.0" y="376">Measurement</text><text class="n-sub" x="1282.0" y="394">extend only, no write</text></g>
-<g class="node" data-id="sha" tabindex="0"><title>sec/rtl/hydra_sha256_stream.sv</title><rect x="1048" y="352" width="132" height="58" rx="9"/><text class="n-label" x="1114.0" y="376">SHA-256</text><text class="n-sub" x="1114.0" y="394">padded in hardware</text></g>
-<g class="node" data-id="mbox" tabindex="0"><title>sec/rtl/hydra_mailbox.sv</title><rect x="712" y="352" width="132" height="58" rx="9"/><text class="n-label" x="778.0" y="376">Mailbox</text><text class="n-sub" x="778.0" y="394">lock, command, execute</text></g>
-<g class="node" data-id="kv" tabindex="0"><title>sec/rtl/hydra_key_vault.sv</title><rect x="880" y="352" width="132" height="58" rx="9"/><text class="n-label" x="946.0" y="376">Key vault</text><text class="n-sub" x="946.0" y="394">write and use, never read</text></g>
+<g class="node" data-id="host" tabindex="0"><title>tools/hydra_host.py</title><rect x="40" y="144" width="132" height="58" rx="9"/><text class="n-label" x="106.0" y="168">Host</text><text class="n-sub" x="106.0" y="186">PC, Python driver</text></g>
+<g class="node" data-id="bridge" tabindex="0"><title>fpga/rtl/hydra_fpga_bridge.sv</title><rect x="236" y="144" width="132" height="58" rx="9"/><text class="n-label" x="302.0" y="168">Bridge</text><text class="n-sub" x="302.0" y="186">UART to pins, memory</text></g>
+<g class="node" data-id="spi" tabindex="0"><title>mom/rtl/hydra_tt_spi.sv</title><rect x="432" y="40" width="132" height="58" rx="9"/><text class="n-label" x="498.0" y="64">SPI slave</text><text class="n-sub" x="498.0" y="82">register map</text></g>
+<g class="node" data-id="regs" tabindex="0"><title>mom/rtl/hydra_tt_regs.sv</title><rect x="432" y="144" width="132" height="58" rx="9"/><text class="n-label" x="498.0" y="168">Registers</text><text class="n-sub" x="498.0" y="186">the host map</text></g>
+<g class="node" data-id="feat" tabindex="0"><title>mom/rtl/mom_features.sv</title><rect x="628" y="40" width="132" height="58" rx="9"/><text class="n-label" x="694.0" y="64">Features</text><text class="n-sub" x="694.0" y="82">log2 work, intensity</text></g>
+<g class="node" data-id="cost" tabindex="0"><title>mom/rtl/mom_cost_engine.sv</title><rect x="628" y="144" width="132" height="58" rx="9"/><text class="n-label" x="694.0" y="168">Cost engine</text><text class="n-sub" x="694.0" y="186">one, walked over five</text></g>
+<g class="node" data-id="sel" tabindex="0"><title>mom/rtl/mom_select.sv</title><rect x="824" y="144" width="132" height="58" rx="9"/><text class="n-label" x="890.0" y="168">Select</text><text class="n-sub" x="890.0" y="186">argmin with margin</text></g>
+<g class="node" data-id="sb" tabindex="0"><title>mom/rtl/mom_scoreboard.sv</title><rect x="824" y="40" width="132" height="58" rx="9"/><text class="n-label" x="890.0" y="64">Scoreboard</text><text class="n-sub" x="890.0" y="82">tags, queue depth</text></g>
+<g class="node" data-id="cal" tabindex="0"><title>mom/rtl/mom_calibrate.sv</title><rect x="628" y="248" width="132" height="58" rx="9"/><text class="n-label" x="694.0" y="272">Calibrate</text><text class="n-sub" x="694.0" y="290">measured vs predicted</text></g>
+<g class="node" data-id="xbar" tabindex="0"><title>common/rtl/mom_xbar.sv</title><rect x="1020" y="144" width="132" height="58" rx="9"/><text class="n-label" x="1086.0" y="168">Crossbar</text><text class="n-sub" x="1086.0" y="186">descriptor to engine</text></g>
+<g class="node" data-id="tpu" tabindex="0"><title>sys/rtl/hydra_engine_tpu_dma.sv</title><rect x="1216" y="40" width="132" height="58" rx="9"/><text class="n-label" x="1282.0" y="64">TPU, from memory</text><text class="n-sub" x="1282.0" y="82">4x4 INT8 array</text></g>
+<g class="node" data-id="models" tabindex="0"><title>sys/rtl/hydra_sys_tile.sv</title><rect x="1216" y="248" width="132" height="58" rx="9"/><text class="n-label" x="1282.0" y="272">Latency models</text><text class="n-sub" x="1282.0" y="290">CPU, SIMD, NTT, crypto</text></g>
+<g class="node" data-id="dma" tabindex="0"><title>mem/rtl/hydra_dma_gemm.sv</title><rect x="1412" y="40" width="132" height="58" rx="9"/><text class="n-label" x="1478.0" y="64">Streamer</text><text class="n-sub" x="1478.0" y="82">banks to the array</text></g>
+<g class="node" data-id="bank" tabindex="0"><title>mem/rtl/hydra_spram.sv</title><rect x="1412" y="144" width="132" height="58" rx="9"/><text class="n-label" x="1478.0" y="168">Scratchpad</text><text class="n-sub" x="1478.0" y="186">A, B, results</text></g>
 </svg>
 </div>
-<p class="scroll-note">Every block names the file that implements it — hover
-to see the path. The diagram is generated from the repository and the
-generator refuses to draw a block whose file is missing.</p>
+<details><summary>As built: ecp5-evn-mem (scheduler + memory-fed array), as text</summary><h3>Blocks</h3><ul><li><b>Host</b> (PC, Python driver) — <code>tools/hydra_host.py</code></li><li><b>Bridge</b> (UART to pins, memory) — <code>fpga/rtl/hydra_fpga_bridge.sv</code></li><li><b>SPI slave</b> (register map) — <code>mom/rtl/hydra_tt_spi.sv</code></li><li><b>Registers</b> (the host map) — <code>mom/rtl/hydra_tt_regs.sv</code></li><li><b>Features</b> (log2 work, intensity) — <code>mom/rtl/mom_features.sv</code></li><li><b>Cost engine</b> (one, walked over five) — <code>mom/rtl/mom_cost_engine.sv</code></li><li><b>Select</b> (argmin with margin) — <code>mom/rtl/mom_select.sv</code></li><li><b>Scoreboard</b> (tags, queue depth) — <code>mom/rtl/mom_scoreboard.sv</code></li><li><b>Calibrate</b> (measured vs predicted) — <code>mom/rtl/mom_calibrate.sv</code></li><li><b>Crossbar</b> (descriptor to engine) — <code>common/rtl/mom_xbar.sv</code></li><li><b>TPU, from memory</b> (4x4 INT8 array) — <code>sys/rtl/hydra_engine_tpu_dma.sv</code></li><li><b>Latency models</b> (CPU, SIMD, NTT, crypto) — <code>sys/rtl/hydra_sys_tile.sv</code></li><li><b>Streamer</b> (banks to the array) — <code>mem/rtl/hydra_dma_gemm.sv</code></li><li><b>Scratchpad</b> (A, B, results) — <code>mem/rtl/hydra_spram.sv</code></li></ul><h3>Connections</h3><ul><li>Host → Bridge: bytes</li><li>Bridge → SPI slave: pins</li><li>Bridge → Scratchpad: load, read</li><li>SPI slave → Registers</li><li>Registers → Features: descriptor</li><li>Features → Cost engine</li><li>Cost engine → Select: 5 costs</li><li>Scoreboard → Cost engine: queue</li><li>Select → Crossbar: engine</li><li>Crossbar → Scoreboard: tag, done</li><li>Crossbar → TPU, from memory: job</li><li>Crossbar → Latency models: job</li><li>Scratchpad → Streamer</li><li>Streamer → TPU, from memory: operands</li><li>Scoreboard → Calibrate</li><li>Calibrate → Cost engine: k</li></ul></details>
+<p class="scroll-note"><span class="status st-built">AS BUILT</span> Every block
+here is instantiated in that build's own source list
+(<code>plans/ecp5-evn-mem.yaml</code>); the generator checks it and refuses to draw a
+block that is not. The CPU, vector, NTT and crypto slots in this build are
+latency models. Wide figure: scroll sideways, or read the text version.</p>
 
-<h2>Where the silicon goes</h2>
+<h2 id="tile">As built: the Tiny Tapeout tile (scheduler only)</h2>
+<div class="panel">
+<svg class="diagram" viewBox="0 0 996 554" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="As built: the Tiny Tapeout tile (scheduler only). The same blocks and connections are listed as text below the figure.">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/></marker></defs>
+<path class="edge" data-a="pins" data-b="spi" d="M 106.0 277.0 C 204.0 277.0, 204.0 277.0, 302.0 277.0" marker-end="url(#ah)"/>
+<path class="edge" data-a="spi" data-b="regs" d="M 302.0 277.0 C 400.0 277.0, 400.0 277.0, 498.0 277.0" marker-end="url(#ah)"/>
+<path class="edge" data-a="regs" data-b="feat" d="M 498.0 277.0 C 596.0 277.0, 596.0 173.0, 694.0 173.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="596.0" y="219.0">descriptor</text>
+<path class="edge" data-a="feat" data-b="cost" d="M 694.0 173.0 C 694.0 173.0, 694.0 277.0, 694.0 277.0" marker-end="url(#ah)"/>
+<path class="edge" data-a="cost" data-b="sel" d="M 694.0 277.0 C 792.0 277.0, 792.0 277.0, 890.0 277.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="792.0" y="271.0">5 costs</text>
+<path class="edge" data-a="sb" data-b="cost" d="M 890.0 173.0 C 792.0 173.0, 792.0 277.0, 694.0 277.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="792.0" y="219.0">queue</text>
+<path class="edge" data-a="sel" data-b="regs" d="M 890.0 306 V 485.0 H 498.0 V 306" marker-end="url(#ah)"/>
+<text class="edge-label" x="694.0" y="479.0">decision</text>
+<path class="edge" data-a="regs" data-b="sb" d="M 498.0 248 V 69.0 H 890.0 V 144" marker-end="url(#ah)"/>
+<text class="edge-label" x="694.0" y="63.0">COMP</text>
+<path class="edge" data-a="sb" data-b="cal" d="M 890.0 173.0 C 792.0 173.0, 792.0 381.0, 694.0 381.0" marker-end="url(#ah)"/>
+<path class="edge" data-a="cal" data-b="cost" d="M 694.0 381.0 C 694.0 381.0, 694.0 277.0, 694.0 277.0" marker-end="url(#ah)"/>
+<text class="edge-label" x="694.0" y="323.0">k</text>
+<g class="node" data-id="pins" tabindex="0"><title>tt/tile/src/tt_um_hydra_mom.sv</title><rect x="40" y="248" width="132" height="58" rx="9"/><text class="n-label" x="106.0" y="272">Pins</text><text class="n-sub" x="106.0" y="290">SPI on ui/uo</text></g>
+<g class="node" data-id="spi" tabindex="0"><title>tt/tile/src/rtl/hydra_tt_spi.sv</title><rect x="236" y="248" width="132" height="58" rx="9"/><text class="n-label" x="302.0" y="272">SPI slave</text><text class="n-sub" x="302.0" y="290">mode 0</text></g>
+<g class="node" data-id="regs" tabindex="0"><title>tt/tile/src/rtl/hydra_tt_regs.sv</title><rect x="432" y="248" width="132" height="58" rx="9"/><text class="n-label" x="498.0" y="272">Registers</text><text class="n-sub" x="498.0" y="290">the host map</text></g>
+<g class="node" data-id="feat" tabindex="0"><title>tt/tile/src/rtl/mom_features.sv</title><rect x="628" y="144" width="132" height="58" rx="9"/><text class="n-label" x="694.0" y="168">Features</text><text class="n-sub" x="694.0" y="186">log2 work, intensity</text></g>
+<g class="node" data-id="cost" tabindex="0"><title>tt/tile/src/rtl/mom_cost_engine.sv</title><rect x="628" y="248" width="132" height="58" rx="9"/><text class="n-label" x="694.0" y="272">Cost engine</text><text class="n-sub" x="694.0" y="290">one, walked over five</text></g>
+<g class="node" data-id="sel" tabindex="0"><title>tt/tile/src/rtl/mom_select.sv</title><rect x="824" y="248" width="132" height="58" rx="9"/><text class="n-label" x="890.0" y="272">Select</text><text class="n-sub" x="890.0" y="290">argmin with margin</text></g>
+<g class="node" data-id="sb" tabindex="0"><title>tt/tile/src/rtl/mom_scoreboard.sv</title><rect x="824" y="144" width="132" height="58" rx="9"/><text class="n-label" x="890.0" y="168">Scoreboard</text><text class="n-sub" x="890.0" y="186">4 tags</text></g>
+<g class="node" data-id="cal" tabindex="0"><title>tt/tile/src/rtl/mom_calibrate.sv</title><rect x="628" y="352" width="132" height="58" rx="9"/><text class="n-label" x="694.0" y="376">Calibrate</text><text class="n-sub" x="694.0" y="394">host-reported completions</text></g>
+</svg>
+</div>
+<details><summary>As built: the Tiny Tapeout tile (scheduler only), as text</summary><h3>Blocks</h3><ul><li><b>Pins</b> (SPI on ui/uo) — <code>tt/tile/src/tt_um_hydra_mom.sv</code></li><li><b>SPI slave</b> (mode 0) — <code>tt/tile/src/rtl/hydra_tt_spi.sv</code></li><li><b>Registers</b> (the host map) — <code>tt/tile/src/rtl/hydra_tt_regs.sv</code></li><li><b>Features</b> (log2 work, intensity) — <code>tt/tile/src/rtl/mom_features.sv</code></li><li><b>Cost engine</b> (one, walked over five) — <code>tt/tile/src/rtl/mom_cost_engine.sv</code></li><li><b>Select</b> (argmin with margin) — <code>tt/tile/src/rtl/mom_select.sv</code></li><li><b>Scoreboard</b> (4 tags) — <code>tt/tile/src/rtl/mom_scoreboard.sv</code></li><li><b>Calibrate</b> (host-reported completions) — <code>tt/tile/src/rtl/mom_calibrate.sv</code></li></ul><h3>Connections</h3><ul><li>Pins → SPI slave</li><li>SPI slave → Registers</li><li>Registers → Features: descriptor</li><li>Features → Cost engine</li><li>Cost engine → Select: 5 costs</li><li>Scoreboard → Cost engine: queue</li><li>Select → Registers: decision</li><li>Registers → Scoreboard: COMP</li><li>Scoreboard → Calibrate</li><li>Calibrate → Cost engine: k</li></ul></details>
+
+<h2 id="library">IP library: built and checked, not all connected</h2>
+<div class="panel"><table>
+<thead><tr><th scope="col">Block</th><th scope="col">What</th><th scope="col">File</th>
+<th scope="col">Check</th><th scope="col">Status</th></tr></thead>
+<tbody><tr><th scope='row'>TPU array</th><td>4x4 INT8 systolic array</td><td><code>engines/tpu/rtl/tpu_top.sv</code></td><td><code>make tpu</code></td><td><span class='status st-lib'>LIBRARY</span></td></tr><tr><th scope='row'>Vector unit</th><td>4 x 32-bit lanes (not a GPU)</td><td><code>engines/simd/rtl/simd_top.sv</code></td><td><code>make simd</code></td><td><span class='status st-lib'>LIBRARY</span></td></tr><tr><th scope='row'>NTT</th><td>4 Barrett butterflies, 3 moduli</td><td><code>engines/ntt/rtl/ntt_top.sv</code></td><td><code>make ntt-moduli</code></td><td><span class='status st-lib'>LIBRARY</span></td></tr><tr><th scope='row'>Vector unit, from memory</th><td>streamer and banks</td><td><code>sys/rtl/hydra_engine_simd_dma.sv</code></td><td><code>make dma-simd</code></td><td><span class='status st-lib'>LIBRARY</span></td></tr><tr><th scope='row'>NTT, from memory</th><td>memory format v1</td><td><code>sys/rtl/hydra_engine_ntt_dma.sv</code></td><td><code>make dma-ntt</code></td><td><span class='status st-lib'>LIBRARY</span></td></tr><tr><th scope='row'>Test port</th><td>IEEE 1149.1 TAP, own clock</td><td><code>dbg/rtl/hydra_jtag_tap.sv</code></td><td><code>make jtag</code></td><td><span class='status st-lib'>LIBRARY</span></td></tr><tr><th scope='row'>Clock crossing</th><td>test port into the register map</td><td><code>dbg/rtl/hydra_jtag_bridge.sv</code></td><td><code>make jtag-bridge</code></td><td><span class='status st-lib'>LIBRARY</span></td></tr><tr><th scope='row'>Key vault</th><td>write and use, never read back</td><td><code>sec/rtl/hydra_key_vault.sv</code></td><td><code>make keyvault</code></td><td><span class='status st-lib'>LIBRARY</span></td></tr><tr><th scope='row'>Mailbox</th><td>lock, command, execute</td><td><code>sec/rtl/hydra_mailbox.sv</code></td><td><code>make mailbox</code></td><td><span class='status st-lib'>LIBRARY</span></td></tr><tr><th scope='row'>SHA-256</th><td>padded in hardware</td><td><code>sec/rtl/hydra_sha256_stream.sv</code></td><td><code>make sha256-stream</code></td><td><span class='status st-lib'>LIBRARY</span></td></tr><tr><th scope='row'>Measurement</th><td>extend-only register</td><td><code>sec/rtl/hydra_pcr.sv</code></td><td><code>make pcr</code></td><td><span class='status st-lib'>LIBRARY</span></td></tr><tr><th scope='row'>Security ISA</th><td>Zknh + Xhydrasec unit</td><td><code>isa/rtl/hydra_xsec_unit.sv</code></td><td><code>make xsec</code></td><td><span class='status st-lib'>LIBRARY</span></td></tr><tr><th scope='row'>Pad multiplexer</th><td>OpenFrame pad ownership</td><td><code>common/rtl/hydra_padmux.sv</code></td><td><code>make padmux</code></td><td><span class='status st-lib'>LIBRARY</span></td></tr></tbody>
+</table></div>
+<p class="scroll-note">These exist and pass their own checks. Being listed
+here says nothing about being wired into a build; the as-built views above
+are the only claims of connection.</p>
+
+<h2 id="roadmap">Roadmap: specified, not built</h2>
+<div class="panel"><table>
+<thead><tr><th scope="col">Item</th><th scope="col">What</th><th scope="col">Specification</th>
+<th scope="col">Status</th></tr></thead>
+<tbody><tr><th scope='row'>CPU</th><td>Sixfold RV64, needs a program-load port</td><td><code>docs/architecture/heterogeneous-system.md</code></td><td><span class='status st-planned'>PLANNED</span></td></tr><tr><th scope='row'>GPU</th><td>Pixelstorm SIMT, sixth dispatch slot</td><td><code>docs/architecture/heterogeneous-system.md</code></td><td><span class='status st-planned'>PLANNED</span></td></tr><tr><th scope='row'>FHE profile</th><td>BFV via pinned OpenFHE, leveled</td><td><code>docs/security/fhe-profile.md</code></td><td><span class='status st-planned'>PLANNED</span></td></tr><tr><th scope='row'>SE boundary</th><td>authenticated, zeroised, access-checked</td><td><code>docs/security/se-contract.md</code></td><td><span class='status st-planned'>PLANNED</span></td></tr><tr><th scope='row'>Mode transition</th><td>QUIESCE, DRAIN, ZEROIZE, INSTALL</td><td><code>docs/security/mode-transition.md</code></td><td><span class='status st-planned'>PLANNED</span></td></tr></tbody>
+</table></div>
+
+<h2 id="area">Where the tile's cells go</h2>
 <div class="panel">
 <svg class="bars" viewBox="0 0 900 416" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Standard cell area by block">
 <g class="bar"><rect x="150" y="12" width="171" height="26" rx="4"/><text class="b-name" x="140" y="30">TPU</text><text class="b-val" x="331" y="30">119,562 µm²</text></g>
@@ -205,8 +263,8 @@ generator refuses to draw a block whose file is missing.</p>
 <g class="bar"><rect x="150" y="360" width="6" height="26" rx="4"/><text class="b-name" x="140" y="378">Streamer</text><text class="b-val" x="166" y="378">4,348 µm²</text></g>
 </svg>
 </div>
-<p class="scroll-note">To scale. Five copies of the cost engine were the
-largest thing on the tile, which is what drove the redesign below.</p>
+<p class="scroll-note">Synthesized standard-cell area per block (yosys synth -flatten + abc -liberty, sky130_fd_sc_hd__tt_025C_1v80).
+Synthesis estimate. NOT comparable with a LibreLane harden number. An area chart, not a placed floorplan.</p>
 
 <h2>One cost engine doing the work of five</h2>
 <div class="panel">
@@ -242,65 +300,64 @@ largest thing on the tile, which is what drove the redesign below.</p>
 <text class="s-note" x="120" y="176">Two cycles each: the engine’s second stage consumes the calibration factor, an input, so each engine’s inputs are held across both.</text>
 </svg>
 </div>
-
-<h2>What the numbers say</h2>
-<div class="cards">
-  <div class="card"><div class="k">144,505</div>
-    <div class="v">µm² of standard cells in the tile, down 26% from
-    194,824 by walking one cost engine over five parameter rows
-    instead of building five</div></div>
-  <div class="card"><div class="k">44</div>
-    <div class="v">deliberate faults injected across four mutation suites,
-    all caught or proven equivalent</div></div>
-  <div class="card"><div class="k">8</div>
-    <div class="v">modules whose contracts are proved by k-induction, not
-    sampled by tests</div></div>
-  <div class="card"><div class="k">1,608</div>
-    <div class="v">arithmetic results checked against models written from the
-    contract, not from the code</div></div>
-</div>
+<p class="scroll-note">144,505 µm² of cells with one shared cost
+engine, 26% less than 194,824 µm² with five (same synthesis
+method). The cycle structure is the real one (<code>mom/rtl/mom_top.sv</code>).</p>
 
 <h2>Engines</h2>
 <div class="panel"><table>
-<thead><tr><th>Engine</th><th>What it is</th><th>Cells</th><th>Area</th>
-<th>Checked against a model</th><th>Mutation testing</th></tr></thead>
-<tbody><tr><th>TPU</th><td>4x4 INT8 systolic array</td><td class='num'>15,115</td><td class='num'>119,562 µm²</td><td>640 results exact vs model</td><td>8 killed, 1 equivalent</td></tr><tr><th>SIMD</th><td>4 lanes x 32 bits, 8 operations</td><td class='num'>12,861</td><td class='num'>96,967 µm²</td><td>572 results exact vs model</td><td>10 killed, 0 survivors</td></tr><tr><th>NTT</th><td>4 Barrett butterflies; q selectable (ML-KEM, ML-DSA, Falcon). Area at q=12289</td><td class='num'>8,551</td><td class='num'>70,524 µm²</td><td>396 / 348 / 440 butterflies exact, one per modulus</td><td>8 killed, 1 equivalent</td></tr><tr><th>Streamer</th><td>scratchpad to engine and back</td><td class='num'>423</td><td class='num'>4,348 µm²</td><td>96 / 50 / 108 results read back from memory</td><td>13 killed, 0 survivors</td></tr><tr><th>JTAG</th><td>IEEE 1149.1 test access port (no boundary scan)</td><td class='num'>491</td><td class='num'>4,512 µm²</td><td>132 TCK edges bit-exact vs a model of the standard</td><td>reset guarantee proved from any state</td></tr><tr><th>SHA-256</th><td>block compression, 64 rounds, one per cycle</td><td class='num'>7,419</td><td class='num'>65,727 µm²</td><td>7 messages identical to hashlib</td><td>not yet</td></tr><tr><th>Measurement</th><td>image bytes to PCR on one SHA-256 core, padded in hardware</td><td class='num'>10,518</td><td class='num'>92,480 µm²</td><td>7 images, digest and chain identical to hashlib</td><td>3 planted faults rejected by the proof</td></tr></tbody>
+<thead><tr><th scope="col">Engine</th><th scope="col">What it is</th><th scope="col">Cells</th>
+<th scope="col">Area</th><th scope="col">Checked against a model</th><th scope="col">Mutation testing</th></tr></thead>
+<tbody><tr><th scope='row'>TPU</th><td>4x4 INT8 systolic array</td><td class='num'>15,115</td><td class='num'>119,562 µm²</td><td>640 results exact vs model</td><td>8 killed, 1 equivalent</td></tr><tr><th scope='row'>SIMD</th><td>4 lanes x 32 bits, 8 operations</td><td class='num'>12,861</td><td class='num'>96,967 µm²</td><td>572 results exact vs model</td><td>10 killed, 0 survivors</td></tr><tr><th scope='row'>NTT</th><td>4 Barrett butterflies; q selectable (ML-KEM, ML-DSA, Falcon). Area at q=12289</td><td class='num'>8,551</td><td class='num'>70,524 µm²</td><td>396 / 348 / 440 butterflies exact, one per modulus</td><td>8 killed, 1 equivalent</td></tr><tr><th scope='row'>Streamer</th><td>scratchpad to engine and back</td><td class='num'>423</td><td class='num'>4,348 µm²</td><td>96 / 50 / 108 results read back from memory</td><td>13 killed, 0 survivors</td></tr><tr><th scope='row'>JTAG</th><td>IEEE 1149.1 test access port (no boundary scan)</td><td class='num'>491</td><td class='num'>4,512 µm²</td><td>132 TCK edges bit-exact vs a model of the standard</td><td>reset guarantee proved from any state</td></tr><tr><th scope='row'>SHA-256</th><td>block compression, 64 rounds, one per cycle</td><td class='num'>7,419</td><td class='num'>65,727 µm²</td><td>7 messages identical to hashlib</td><td>not yet</td></tr><tr><th scope='row'>Measurement</th><td>image bytes to PCR on one SHA-256 core, padded in hardware</td><td class='num'>10,518</td><td class='num'>92,480 µm²</td><td>7 images, digest and chain identical to hashlib</td><td>3 planted faults rejected by the proof</td></tr></tbody>
 </table></div>
-<p class="scroll-note">yosys synth -flatten + abc -liberty, sky130_fd_sc_hd__tt_025C_1v80. Synthesis estimate. NOT comparable with a LibreLane harden number.</p>
 
-<h2>Board images</h2>
+<h2 id="boards">Board images</h2>
 <div class="panel"><table>
-<thead><tr><th>Plan</th><th>What it carries</th><th>LUT4</th><th>Flops</th>
-<th>Multipliers</th><th>Fmax</th></tr></thead>
-<tbody><tr><th>ecp5-evn-selftest</th><td>bring-up: LEDs, switches, button, serial</td><td class='num'>945</td><td class='num'>252</td><td class='num'>0</td><td class='num'>232.99 MHz</td></tr><tr><th>ecp5-evn</th><td>tile plus the host bridge</td><td class='num'>12,940</td><td class='num'>3,368</td><td class='num'>10</td><td class='num'>32.66 MHz</td></tr><tr><th>ecp5-evn-sys</th><td>dispatcher, crossbar, engine models</td><td class='num'>15,043</td><td class='num'>3,713</td><td class='num'>10</td><td class='num'>37.33 MHz</td></tr><tr><th>ecp5-evn-tpu</th><td>engine 2 is the real array</td><td class='num'>17,493</td><td class='num'>4,589</td><td class='num'>28</td><td class='num'>33.69 MHz</td></tr><tr><th>ecp5-evn-two</th><td>array and vector unit both real</td><td class='num'>17,918</td><td class='num'>4,565</td><td class='num'>36</td><td class='num'>35.67 MHz</td></tr><tr><th>ecp5-evn-mem</th><td>array fed from a host-loaded bank</td><td class='num'>16,567</td><td class='num'>4,476</td><td class='num'>22</td><td class='num'>35.1 MHz</td></tr></tbody>
+<thead><tr><th scope="col">Plan</th><th scope="col">What it carries</th><th scope="col">LUT4</th>
+<th scope="col">Flops</th><th scope="col">Multipliers</th><th scope="col">Fmax</th></tr></thead>
+<tbody><tr><th scope='row'>ecp5-evn-selftest</th><td>bring-up: LEDs, switches, button, serial</td><td class='num'>945</td><td class='num'>252</td><td class='num'>0</td><td class='num'>232.99 MHz</td></tr><tr><th scope='row'>ecp5-evn</th><td>tile plus the host bridge</td><td class='num'>12,940</td><td class='num'>3,368</td><td class='num'>10</td><td class='num'>32.66 MHz</td></tr><tr><th scope='row'>ecp5-evn-sys</th><td>dispatcher, crossbar, engine models</td><td class='num'>15,043</td><td class='num'>3,713</td><td class='num'>10</td><td class='num'>37.33 MHz</td></tr><tr><th scope='row'>ecp5-evn-tpu</th><td>engine 2 is the real array</td><td class='num'>17,493</td><td class='num'>4,589</td><td class='num'>28</td><td class='num'>33.69 MHz</td></tr><tr><th scope='row'>ecp5-evn-two</th><td>array and vector unit both real</td><td class='num'>17,918</td><td class='num'>4,565</td><td class='num'>36</td><td class='num'>35.67 MHz</td></tr><tr><th scope='row'>ecp5-evn-mem</th><td>array fed from a host-loaded bank</td><td class='num'>16,567</td><td class='num'>4,476</td><td class='num'>22</td><td class='num'>35.1 MHz</td></tr></tbody>
 </table></div>
-<p class="scroll-note">Lattice ECP5 evaluation board, place and route by
-nextpnr. All pass timing at the 12&nbsp;MHz operating clock.</p>
+<p class="scroll-note">nextpnr place-and-route figures as recorded in
+<code>docs/metrics.json</code>, from an earlier run whose revision was not
+recorded; they predate later RTL changes. Lattice ECP5 evaluation board. None
+of these images has been run on a board.</p>
 
-<h2>How it is verified</h2>
+<h2 id="verify">How it is verified</h2>
 <div class="panel"><table>
-<thead><tr><th>Check</th><th>Scale</th><th>Kind</th></tr></thead>
-<tbody><tr><th>tile suite (research tile, register map)</th><td class='num'>18 / 18</td><td><span class='kind'>simulation</span></td></tr><tr><th>tile suite on the hardened netlist</th><td class='num'>v3 pending; v2 17 / 17</td><td><span class='kind'>gate level</span></td></tr><tr><th>v2 legacy is v1, pin for pin</th><td class='num'>400k cycles</td><td><span class='kind'>differential</span></td></tr><tr><th>shared cost engine decides as parallel</th><td class='num'>121 decisions</td><td><span class='kind'>equivalence</span></td></tr><tr><th>engines against independent models</th><td class='num'>1608 results</td><td><span class='kind'>simulation</span></td></tr><tr><th>whole path over the serial port</th><td class='num'>16 results</td><td><span class='kind'>end to end</span></td></tr><tr><th>mutation suites</th><td class='num'>44 killed</td><td><span class='kind'>fault injection</span></td></tr><tr><th>key vault: no key bit on the host port</th><td class='num'>unbounded</td><td><span class='kind'>non-interference</span></td></tr><tr><th>formal proofs</th><td class='num'>15 modules</td><td><span class='kind'>k-induction</span></td></tr><tr><th>five TMS-high clocks reach reset from any state</th><td class='num'>all 16 states</td><td><span class='kind'>exhaustive</span></td></tr><tr><th>test port clock crossing, unrelated clocks</th><td class='num'>47 transfers</td><td><span class='kind'>simulation</span></td></tr><tr><th>mailbox: two requesters never both hold the lock</th><td class='num'>unbounded</td><td><span class='kind'>induction</span></td></tr><tr><th>measurement register changes only by extending</th><td class='num'>unbounded</td><td><span class='kind'>induction</span></td></tr><tr><th>extend chain step by step vs hashlib</th><td class='num'>6 extends</td><td><span class='kind'>outside reference</span></td></tr><tr><th>SHA-256 padded in hardware vs hashlib</th><td class='num'>140 lengths</td><td><span class='kind'>outside reference</span></td></tr><tr><th>padding: marker, zeros, length of exactly the bytes sent</th><td class='num'>unbounded</td><td><span class='kind'>k-induction</span></td></tr><tr><th>image bytes to PCR, digest and chain vs hashlib</th><td class='num'>7 images</td><td><span class='kind'>outside reference</span></td></tr><tr><th>measurement: PCR moves only as an extend finishes; no software path during it</th><td class='num'>unbounded</td><td><span class='kind'>k-induction</span></td></tr><tr><th>bring-up image: sweep, mirror, pattern, serial</th><td class='num'>28 checks</td><td><span class='kind'>simulation</span></td></tr><tr><th>security instructions: Zknh and Xhydrasec</th><td class='num'>231 vectors</td><td><span class='kind'>simulation</span></td></tr><tr><th>key writes need machine mode and trap elsewhere</th><td class='num'>all operands</td><td><span class='kind'>induction</span></td></tr><tr><th>no instruction moves key bits into a register</th><td class='num'>unbounded</td><td><span class='kind'>non-interference</span></td></tr><tr><th>Basys 3 bring-up: display, 16 LEDs, 5 buttons, reset</th><td class='num'>9 checks</td><td><span class='kind'>simulation</span></td></tr></tbody>
+<thead><tr><th scope="col">Check</th><th scope="col">Scale</th><th scope="col">Kind</th>
+<th scope="col">Run with</th></tr></thead>
+<tbody><tr><th scope='row'>tile suite (research tile v3.1, register map)</th><td class='num'>21 / 21</td><td><span class='kind'>simulation</span></td><td><code>make tile</code></td></tr><tr><th scope='row'>tile suite on the hardened netlist (v3.4, 2026-10-17)</th><td class='num'>21 / 21</td><td><span class='kind'>gate level</span></td><td><code>make tile-gl</code></td></tr><tr><th scope='row'>v2 legacy is v1, pin for pin</th><td class='num'>400k cycles</td><td><span class='kind'>differential</span></td><td><code>make diff</code></td></tr><tr><th scope='row'>shared cost engine decides as parallel</th><td class='num'>121 decisions</td><td><span class='kind'>differential</span></td><td><code>make cost-mux</code></td></tr><tr><th scope='row'>cost and calibration arithmetic vs exact products</th><td class='num'>41,076 products, within 1/256</td><td><span class='kind'>outside reference</span></td><td><code>make cost-cal</code></td></tr><tr><th scope='row'>TPU array against an independent model</th><td class='num'>640 results</td><td><span class='kind'>simulation</span></td><td><code>make tpu</code></td></tr><tr><th scope='row'>vector unit against an independent model</th><td class='num'>572 results</td><td><span class='kind'>simulation</span></td><td><code>make simd</code></td></tr><tr><th scope='row'>NTT butterflies at three moduli, core and memory path</th><td class='num'>1,184 butterflies, 6,888 words</td><td><span class='kind'>simulation</span></td><td><code>make ntt-moduli</code></td></tr><tr><th scope='row'>memory-fed engines: results, refusals, bank ownership</th><td class='num'>3 engines</td><td><span class='kind'>simulation</span></td><td><code>make dma</code></td></tr><tr><th scope='row'>dispatcher with the memory-fed array, completion at commit</th><td class='num'>2 back-to-back jobs</td><td><span class='kind'>simulation</span></td><td><code>make systile-mem</code></td></tr><tr><th scope='row'>dispatch recorded only on the real handshake; coherent reads</th><td class='num'>every cycle checked</td><td><span class='kind'>simulation</span></td><td><code>make systile</code></td></tr><tr><th scope='row'>whole path over the serial port</th><td class='num'>16 results</td><td><span class='kind'>end to end</span></td><td><code>make memboard</code></td></tr><tr><th scope='row'>serial divisor vs an independently timed host</th><td class='num'>9 images, -2% to +2%</td><td><span class='kind'>outside reference</span></td><td><code>make uart-baud</code></td></tr><tr><th scope='row'>memory-path mutations</th><td class='num'>26 of 26 caught</td><td><span class='kind'>fault injection</span></td><td><code>make dma-mutate</code></td></tr><tr><th scope='row'>dispatcher audit-fix mutations</th><td class='num'>8 of 8 caught</td><td><span class='kind'>fault injection</span></td><td><code>make mom-mutate</code></td></tr><tr><th scope='row'>formal proof tasks run by make verify</th><td class='num'>20 tasks</td><td><span class='kind'>k-induction</span></td><td><code>make verify</code></td></tr><tr><th scope='row'>key vault: no key bit on the host port</th><td class='num'>unbounded</td><td><span class='kind'>non-interference</span></td><td><code>make keyvault</code></td></tr><tr><th scope='row'>five TMS-high clocks reach reset from any state</th><td class='num'>all 16 states</td><td><span class='kind'>exhaustive</span></td><td><code>make jtag</code></td></tr><tr><th scope='row'>test port clock crossing, unrelated clocks</th><td class='num'>47 transfers</td><td><span class='kind'>simulation</span></td><td><code>make jtag-bridge</code></td></tr><tr><th scope='row'>mailbox: two requesters never both hold the lock</th><td class='num'>unbounded</td><td><span class='kind'>induction</span></td><td><code>make mailbox</code></td></tr><tr><th scope='row'>measurement register changes only by extending</th><td class='num'>unbounded</td><td><span class='kind'>induction</span></td><td><code>make pcr</code></td></tr><tr><th scope='row'>extend chain step by step vs hashlib</th><td class='num'>6 extends</td><td><span class='kind'>outside reference</span></td><td><code>make pcr</code></td></tr><tr><th scope='row'>SHA-256 padded in hardware vs hashlib</th><td class='num'>140 lengths</td><td><span class='kind'>outside reference</span></td><td><code>make sha256-stream</code></td></tr><tr><th scope='row'>padding: marker, zeros, length of exactly the bytes sent</th><td class='num'>unbounded</td><td><span class='kind'>k-induction</span></td><td><code>make sha256-stream</code></td></tr><tr><th scope='row'>image bytes to PCR, digest and chain vs hashlib</th><td class='num'>7 images</td><td><span class='kind'>outside reference</span></td><td><code>make measure</code></td></tr><tr><th scope='row'>measurement: PCR moves only as an extend finishes; no software path during it</th><td class='num'>unbounded</td><td><span class='kind'>k-induction</span></td><td><code>make measure</code></td></tr><tr><th scope='row'>bring-up image: sweep, mirror, pattern, serial</th><td class='num'>28 checks</td><td><span class='kind'>simulation</span></td><td><code>make selftest</code></td></tr><tr><th scope='row'>security instructions: Zknh and Xhydrasec</th><td class='num'>231 vectors</td><td><span class='kind'>simulation</span></td><td><code>make xsec</code></td></tr><tr><th scope='row'>key writes need machine mode and trap elsewhere</th><td class='num'>all operands</td><td><span class='kind'>induction</span></td><td><code>make xsec</code></td></tr><tr><th scope='row'>no instruction moves key bits into a register</th><td class='num'>unbounded</td><td><span class='kind'>non-interference</span></td><td><code>make xsec</code></td></tr><tr><th scope='row'>Basys 3 bring-up: display, 16 LEDs, 5 buttons, reset</th><td class='num'>9 checks</td><td><span class='kind'>simulation</span></td><td><code>make basys3-selftest</code></td></tr></tbody>
 </table></div>
-<p>Each engine is compared against a model written from its contract rather
-than from its code, so a misreading of the specification shows up as a
-disagreement instead of being copied into both. Where a property is cheaper
-to prove than to sample — a port contract, a completion that must fire once —
-it is proved. Mutation testing then asks the only question that matters about
-a test suite: if the design were broken, would anything fail?</p>
+<p><code>make verify</code> runs 20 proof tasks and 5
+cover tasks, read from the Makefile by this generator, and fails if any of
+them fails. A proof establishes its named property under its stated
+assumptions, nothing wider. Results quoted in the table are from the run
+archived in <code>reports/</code>; this page does not run anything.</p>
 
 <h2>What kind of evidence</h2>
 <div class="kinds">
-<div class="kind-col"><div class="kind-h">simulation<span class="kind-n">6</span></div><ul>
-<li>tile suite (research tile, register map)</li>
-<li>engines against independent models</li>
+<div class="kind-col"><div class="kind-h">simulation<span class="kind-n">11</span></div><ul>
+<li>tile suite (research tile v3.1, register map)</li>
+<li>TPU array against an independent model</li>
+<li>vector unit against an independent model</li>
+<li>NTT butterflies at three moduli, core and memory path</li>
+<li>memory-fed engines: results, refusals, bank ownership</li>
+<li>dispatcher with the memory-fed array, completion at commit</li>
+<li>dispatch recorded only on the real handshake; coherent reads</li>
 <li>test port clock crossing, unrelated clocks</li>
 <li>bring-up image: sweep, mirror, pattern, serial</li>
 <li>security instructions: Zknh and Xhydrasec</li>
 <li>Basys 3 bring-up: display, 16 LEDs, 5 buttons, reset</li>
 </ul></div>
+<div class="kind-col"><div class="kind-h">outside reference<span class="kind-n">5</span></div><ul>
+<li>cost and calibration arithmetic vs exact products</li>
+<li>serial divisor vs an independently timed host</li>
+<li>extend chain step by step vs hashlib</li>
+<li>SHA-256 padded in hardware vs hashlib</li>
+<li>image bytes to PCR, digest and chain vs hashlib</li>
+</ul></div>
 <div class="kind-col"><div class="kind-h">k-induction<span class="kind-n">3</span></div><ul>
-<li>formal proofs</li>
+<li>formal proof tasks run by make verify</li>
 <li>padding: marker, zeros, length of exactly the bytes sent</li>
 <li>measurement: PCR moves only as an extend finishes; no software path during it</li>
 </ul></div>
@@ -309,63 +366,59 @@ a test suite: if the design were broken, would anything fail?</p>
 <li>measurement register changes only by extending</li>
 <li>key writes need machine mode and trap elsewhere</li>
 </ul></div>
-<div class="kind-col"><div class="kind-h">outside reference<span class="kind-n">3</span></div><ul>
-<li>extend chain step by step vs hashlib</li>
-<li>SHA-256 padded in hardware vs hashlib</li>
-<li>image bytes to PCR, digest and chain vs hashlib</li>
+<div class="kind-col"><div class="kind-h">differential<span class="kind-n">2</span></div><ul>
+<li>v2 legacy is v1, pin for pin</li>
+<li>shared cost engine decides as parallel</li>
+</ul></div>
+<div class="kind-col"><div class="kind-h">fault injection<span class="kind-n">2</span></div><ul>
+<li>memory-path mutations</li>
+<li>dispatcher audit-fix mutations</li>
 </ul></div>
 <div class="kind-col"><div class="kind-h">non-interference<span class="kind-n">2</span></div><ul>
 <li>key vault: no key bit on the host port</li>
 <li>no instruction moves key bits into a register</li>
 </ul></div>
 <div class="kind-col"><div class="kind-h">gate level<span class="kind-n">1</span></div><ul>
-<li>tile suite on the hardened netlist</li>
-</ul></div>
-<div class="kind-col"><div class="kind-h">differential<span class="kind-n">1</span></div><ul>
-<li>v2 legacy is v1, pin for pin</li>
-</ul></div>
-<div class="kind-col"><div class="kind-h">equivalence<span class="kind-n">1</span></div><ul>
-<li>shared cost engine decides as parallel</li>
+<li>tile suite on the hardened netlist (v3.4, 2026-10-17)</li>
 </ul></div>
 <div class="kind-col"><div class="kind-h">end to end<span class="kind-n">1</span></div><ul>
 <li>whole path over the serial port</li>
-</ul></div>
-<div class="kind-col"><div class="kind-h">fault injection<span class="kind-n">1</span></div><ul>
-<li>mutation suites</li>
 </ul></div>
 <div class="kind-col"><div class="kind-h">exhaustive<span class="kind-n">1</span></div><ul>
 <li>five TMS-high clocks reach reset from any state</li>
 </ul></div>
 </div>
-<p class="scroll-note">"Tested" spans everything from one happy path to an
-exhaustive proof, so the checks are grouped by what they actually establish.</p>
 
-<h2>What has not been done</h2>
-<ul class="warn"><li>The v3 research tile (3x4, 113,939 um^2 by synthesis) has not been hardened. Its utilisation is an estimate (about 70%) from v2's LibreLane-to-yosys ratio; if placement or routing fails, tiles goes back to 4x4.</li><li>5,039 slew and 20 capacitance warnings on the signed-off v2 tile. Not sign-off failures; tools/slew_report.py names the overloaded drivers. Re-read them on the v3 harden.</li><li>The butterfly engine's area at q=8380417 (ML-DSA) is not yet measured: its 46-bit products make it the slowest of the three to synthesise. q=12289 and q=3329 are measured.</li><li>Never run on hardware. The bring-up image is built and simulated; docs/FPGA_BRINGUP.md is the procedure, and LED polarity is still an assumption until a board confirms it.</li><li>Full SkyWater chip never hardened: no LibreLane run of the OpenFrame chip has completed, so it has no gate-level netlist, timing sign-off, DRC or LVS result. (The Tiny Tapeout tile HAS: sign-off clean on 2026-10-05.)</li><li>Two board images (ecp5-evn-sys, ecp5-evn-tpu) predate the content-hash rebuild rule, so their provenance is unknown until each is rebuilt once; `make -C fpga/build/<board> provenance` then says whether a bitstream matches the current sources.</li><li>No boundary scan: there are no scan cells at the pads, so SAMPLE, PRELOAD and EXTEST are absent and the chip is not boundary-scan testable.</li><li>The test port cannot reach registers if the system clock is dead: the bridge waits and reports busy. Reading with the system clock stopped would mean running the register file on the probe's clock.</li><li>Measured boot has its hardware half -- image bytes in, SHA-256 padded in hardware, PCR extended, on one core (hydra_measure) -- but nothing drives it yet: no boot ROM or core issues the measurements.</li><li>The security instructions are a verified functional unit, not yet wired into a RV64 pipeline; until they are, no core on this chip has them.</li><li>The Basys 3 bring-up image is simulated and its constraints generated, but no bitstream has been built: that needs Vivado or the openXC7 flow on your machine. The larger HYDRA images have not been ported to the Artix-7.</li></ul>
+<h2 id="pending">What has not been done</h2>
+<ul class="warn"><li>v3.4 at 4x4 hardened clean on 2026-10-17 (make harden, first rung): DRC, LVS, antenna 0, setup +11.142 ns and hold +0.107 ns worst corner, 51.7%, 21/21 gate level; all nine corners are in docs/timing.json.</li><li>Slew: 5,039 on v2; 3,665 on v3.2 (50% margins, clkdlybuf4s25_1 fanout buffers); 4,197 on v3.4 at the slow corner (worst -1.551 ns) and 635 at typical (worst -0.633 ns), plus 30 capacitance. The worst nets are now buf_1 fanout buffers driving 10 to 13 loads. FIRST_TRY.md requires 0. v3.5 (2026-10-17) also excluded buf_1 and clkbuf_1: the resizer then used the dlygate4sd3_1 delay gate for every fanout buffer; slew 3,298 and capacitance 8, but setup failed by 2.403 ns, so it was rejected.</li><li>The butterfly engine's area at q=8380417 (ML-DSA) is not yet measured: its 46-bit products make it the slowest of the three to synthesise. q=12289 and q=3329 are measured.</li><li>Never run on hardware. The bring-up image is built and simulated; docs/FPGA_BRINGUP.md is the procedure, and LED polarity is still an assumption until a board confirms it.</li><li>Full SkyWater chip never hardened: no LibreLane run of the OpenFrame chip has completed, so it has no gate-level netlist, timing sign-off, DRC or LVS result. (The Tiny Tapeout tile HAS: v3.4 sign-off clean on 2026-10-17.)</li><li>Two board images (ecp5-evn-sys, ecp5-evn-tpu) predate the content-hash rebuild rule, so their provenance is unknown until each is rebuilt once; `make -C fpga/build/<board> provenance` then says whether a bitstream matches the current sources.</li><li>No boundary scan: there are no scan cells at the pads, so SAMPLE, PRELOAD and EXTEST are absent and the chip is not boundary-scan testable.</li><li>The test port cannot reach registers if the system clock is dead: the bridge waits and reports busy. Reading with the system clock stopped would mean running the register file on the probe's clock.</li><li>Measured boot has its hardware half -- image bytes in, SHA-256 padded in hardware, PCR extended, on one core (hydra_measure) -- but nothing drives it yet: no boot ROM or core issues the measurements.</li><li>The security instructions are a verified functional unit, not yet wired into a RV64 pipeline; until they are, no core on this chip has them.</li><li>The Basys 3 bring-up image is simulated and its constraints generated, but no bitstream has been built: that needs Vivado or the openXC7 flow on your machine. The larger HYDRA images have not been ported to the Artix-7.</li></ul>
+</main>
 
 <footer>
-  Generated by <code>tools/gen_site.py</code> from <code>docs/metrics.json</code>
-  and the module tree. Run <code>make site-check</code> to prove this page still
-  matches the repository.
+  Generated by <code>tools/gen_site.py</code> from <code>docs/metrics.json</code>,
+  the build plans and the module tree. <code>make site-check</code> regenerates
+  it into a scratch directory and fails if the committed page differs.
 </footer>
 
 </div>
 <script>
   // Highlight a block and the wires touching it. No library, no build step:
   // the page has to open from disk years from now without fetching anything.
-  const edges = [...document.querySelectorAll('.edge')];
-  for (const n of document.querySelectorAll('.node')) {
-    const id = n.dataset.id;
-    const on = () => edges.forEach(e => {
-      if (e.dataset.a === id || e.dataset.b === id) {
-        e.style.stroke = 'var(--accent)'; e.style.strokeWidth = '2.6';
-      }
-    });
-    const off = () => edges.forEach(e => { e.style.stroke = ''; e.style.strokeWidth = ''; });
-    n.addEventListener('mouseenter', on);
-    n.addEventListener('mouseleave', off);
-    n.addEventListener('focus', on);
-    n.addEventListener('blur', off);
+  // Everything the script adds is also in the text versions above.
+  for (const svg of document.querySelectorAll('svg.diagram')) {
+    const edges = [...svg.querySelectorAll('.edge')];
+    for (const n of svg.querySelectorAll('.node')) {
+      const id = n.dataset.id;
+      const on = () => edges.forEach(e => {
+        if (e.dataset.a === id || e.dataset.b === id) {
+          e.style.stroke = 'var(--accent)'; e.style.strokeWidth = '2.6';
+        }
+      });
+      const off = () => edges.forEach(e => { e.style.stroke = ''; e.style.strokeWidth = ''; });
+      n.addEventListener('mouseenter', on);
+      n.addEventListener('mouseleave', off);
+      n.addEventListener('focus', on);
+      n.addEventListener('blur', off);
+    }
   }
 </script>
 </body>

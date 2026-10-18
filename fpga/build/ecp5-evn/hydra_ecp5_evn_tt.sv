@@ -52,7 +52,8 @@ module hydra_ecp5_evn_tt (
   assign led_1 = c_uo_mirror[1];
   assign led_0 = c_uo_mirror[0];
 
-  hydra_fpga_tt_harness u_core (
+  // UART: 12 MHz / 104 = 115384.6 baud, +0.16% against 115200 (budget 2%)
+  hydra_fpga_tt_harness #(.CLKS_PER_BIT(104)) u_core (
     .clk(c_clk),
     .reg_mode_o(c_reg_mode_o),
     .rst_n(c_rst_n),

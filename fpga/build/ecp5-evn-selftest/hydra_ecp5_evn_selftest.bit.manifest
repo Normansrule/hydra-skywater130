@@ -1,0 +1,12 @@
+image   910a7dd22c5bf0da98611ff993649a967b5ab57e4b00bb1215e08cba76a5e23f  hydra_ecp5_evn_selftest.bit
+srchash 443d807e7323f722
+tools   sv2v v0.0.13 Yosys 0.52 (git sha1 fee39a3284c90249e1d9684cf6944ffbbcbb8f90) nextpnr-ecp5 -- Next Generation Place and Route (Version 0.9-3) 
+built   2026-10-18T05:00:21Z
+seed    1
+603fda177eac7e7cbd4e4fe278b079e43235146d439554290b50abf8025bd4eb  ../../../fpga/rtl/hydra_fpga_uart.sv
+f62b667cbbea2408e86ed7e276856b167c09b9ad148fd3b6f8148edaf01eedd4  ../../../fpga/rtl/hydra_fpga_selftest.sv
+cfe0610e3b3eab2fa52db8674ecbe03923cec9f180b86935c493a7e2f822f64a  ../../../common/rtl/hydra_rst_sync.sv
+534693d4c957709d1fbb7b26181ab57f497555e2964574cdff2cf2ea78e28618  hydra_ecp5_evn_selftest.sv
+885096b29838f4159d6aa14cb1d5c370046d1eec7ae7745a8484c336c7ed34aa  hydra_ecp5_evn_selftest.lpf
+12bbada0e41f6e0cf25e48f55c7a4d000162ab1763baafdb58488c548882dc65  ../../../plans/ecp5-evn-selftest.yaml
+7d1b78096ea360303795c4bec670c41e7d46eb8aecb787317e22929e6c6f6064  Makefile

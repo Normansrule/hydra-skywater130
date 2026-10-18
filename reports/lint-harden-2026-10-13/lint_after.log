@@ -1,0 +1,4 @@
+Verilator 5.020 2024-01-01 rev (Debian 5.020-1)
+  clean  tile (tt_um_hydra_mom)
+  clean  openframe (openframe_project_wrapper)
+PASS lint: tile netlist and OpenFrame chip are Verilator -Wall clean

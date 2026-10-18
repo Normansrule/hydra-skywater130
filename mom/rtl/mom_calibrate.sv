@@ -103,7 +103,7 @@ module mom_calibrate
   //   alpha=3  12.5% per update, ~6 updates to correct 2x
   //   alpha=4   6.25%            ~12 updates      (default)
   //   alpha=6   1.56%            ~45 updates
-  parameter int unsigned ALPHA = 4,   // = KCAL_ALPHA in mom_pkg
+  parameter int unsigned ALPHA = KCAL_ALPHA,
   parameter logic [7:0]  K_MIN = 8'd4,
   parameter logic [7:0]  K_MAX = 8'd255
 ) (
@@ -151,7 +151,7 @@ module mom_calibrate
   // feeds a multiplier in the cost engine, and an X there would propagate into
   // the comparison tree and make the dispatch decision nondeterministic.
   for (genvar e = 0; e < ENG_N; e++) begin : g_rd
-    assign rd_k[e] = (rd_opclass < opclass_e'(NOPC)) ? k[e][rd_opclass]
+    assign rd_k[e] = ({28'd0, rd_opclass} < NOPC) ? k[e][rd_opclass]
                                                      : KCAL_UNITY;
   end
 
@@ -162,17 +162,23 @@ module mom_calibrate
   // k may have moved between dispatch and completion. Comparing against the
   // stale value would make the loop chase its own tail.
   // ---------------------------------------------------------------------------
-  wire [7:0] k_cur = (upd_engine < 3'(ENG_N) && upd_opclass < opclass_e'(NOPC))
-                   ? k[upd_engine][upd_opclass]
-                   : KCAL_UNITY;
+  // An index outside the table updates nothing and is not counted. Without
+  // this guard the write landed on ANOTHER entry once the array was
+  // flattened (k[7][0] changed k[1][6] in simulation): MODEL-02.
+  wire upd_idx_ok = ({29'd0, upd_engine} < ENG_N) && ({28'd0, upd_opclass} < NOPC);
+  wire [7:0] k_cur = upd_idx_ok ? k[upd_engine][upd_opclass] : KCAL_UNITY;
 
-  wire [39:0]       t_cal_wide = upd_t_predicted * {32'd0, k_cur};
-  wire [COST_W-1:0] t_cal      = t_cal_wide[COST_W+KCAL_SHIFT-1 -: COST_W];
+  // Compared at full width (SkyWater 130 audit MODEL-02, 2026-10-11). This
+  // used to keep only 32 bits of floor(t_pred * k / 64); with k above unity a
+  // large prediction wrapped, compared as a tiny number, and k moved the wrong
+  // way. 34 bits hold the whole quotient of the 40-bit product.
+  wire [39:0]          t_cal_wide = upd_t_predicted * {32'd0, k_cur};
+  wire [COST_W+1:0]    t_cal      = t_cal_wide[39:KCAL_SHIFT];
 
   // Sign of the error. Ties do not move k, which kills dither at the fixed
   // point when a workload is perfectly predicted.
-  wire too_slow = (upd_t_measured > t_cal);   // model was optimistic, raise k
-  wire too_fast = (upd_t_measured < t_cal);   // model was pessimistic, lower k
+  wire too_slow = ({2'b00, upd_t_measured} > t_cal);   // model was optimistic, raise k
+  wire too_fast = ({2'b00, upd_t_measured} < t_cal);   // model was pessimistic, lower k
 
   // ---------------------------------------------------------------------------
   // The update arithmetic lives in a function so the datapath below and the
@@ -205,14 +211,13 @@ module mom_calibrate
     end
   endfunction
 
-  wire [7:0] step   = step_of(k_cur);
   wire [7:0] k_up   = k_up_of(k_cur);
   wire [7:0] k_dn   = k_dn_of(k_cur);
   wire [7:0] k_next = too_slow ? k_up : (too_fast ? k_dn : k_cur);
 
   // A prediction of zero is meaningless and would divide the model by nothing.
   // Skip the update rather than corrupt k.
-  wire do_update = upd_valid && !freeze && (upd_t_predicted != '0);
+  wire do_update  = upd_valid && !freeze && (upd_t_predicted != {COST_W{1'b0}}) && upd_idx_ok;
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -232,6 +237,10 @@ module mom_calibrate
       last_dir                   <= too_slow;
     end
   end
+
+  // The low KCAL_SHIFT bits of the product are the fraction the comparison
+  // drops on purpose (floor). Named for the linter, removed by synthesis.
+  wire _unused_ok = &{1'b0, t_cal_wide[KCAL_SHIFT-1:0]};
 
 `ifdef FORMAL
   // ---------------------------------------------------------------------------

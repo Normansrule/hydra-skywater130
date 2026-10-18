@@ -57,7 +57,8 @@ module hydra_ecp5_evn_mem (
   assign c_profile[1] = dip_1;
   assign c_profile[0] = dip_0;
 
-  hydra_fpga_mem_harness u_core (
+  // UART: 12 MHz / 104 = 115384.6 baud, +0.16% against 115200 (budget 2%)
+  hydra_fpga_mem_harness #(.CLKS_PER_BIT(104)) u_core (
     .clk(c_clk),
     .profile(c_profile),
     .reg_mode_o(c_reg_mode_o),

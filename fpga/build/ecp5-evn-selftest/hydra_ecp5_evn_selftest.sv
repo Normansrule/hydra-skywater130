@@ -67,7 +67,9 @@ module hydra_ecp5_evn_selftest (
   assign c_dip[1] = dip_1;
   assign c_dip[0] = dip_0;
 
-  hydra_fpga_selftest u_core (
+  // UART: 12 MHz / 104 = 115384.6 baud, +0.16% against 115200 (budget 2%)
+  // TICK: 12000 clocks per millisecond
+  hydra_fpga_selftest #(.CLKS_PER_BIT(104), .TICK(12000)) u_core (
     .clk(c_clk),
     .dip(c_dip),
     .led(c_led),

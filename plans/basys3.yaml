@@ -1,0 +1,48 @@
+# Basys 3 (Artix-7 XC7A35T): the TT-A tile with TWO host paths.
+#   serial  the on-board FTDI channel B (RsRx B18 / RsTx A18), 115200 8N1
+#   JTAG    a probe on Pmod JA: pin 1 TCK, pin 2 TMS, pin 3 TDI, pin 4 TDO,
+#           pins 5/11 ground, 6/12 3.3 V. The board's own USB JTAG configures
+#           the FPGA and does not reach user logic; this port is separate.
+# Both reach the same bridge command set (fpga/rtl/hydra_fpga_bridge.sv) and
+# either works with the other absent: simulated by `make jtag-harness`.
+# 100 MHz oscillator, MMCM down to 25 MHz; the ECP5 build of the same tile
+# closes at 15.41 MHz, so 25 MHz on Artix-7 is a question for Vivado's timing
+# report (the build refuses a bitstream that misses it).
+# LEDs 0-7 mirror the tile's outputs, LEDs 8-15 its bidirectional pins.
+core:    hydra_fpga_tt_jtag_harness
+module:  hydra_basys3_tt
+board:   basys3
+sources:
+  - mom/rtl/mom_pkg.sv
+  - mom/rtl/mom_features.sv
+  - mom/rtl/mom_param_rom.sv
+  - mom/rtl/mom_cost_engine.sv
+  - mom/rtl/mom_calibrate.sv
+  - mom/rtl/mom_select.sv
+  - mom/rtl/mom_scoreboard.sv
+  - mom/rtl/mom_top.sv
+  - mom/rtl/hydra_tt_spi.sv
+  - mom/rtl/hydra_tt_regs.sv
+  - mom/hydra_mom_pins.sv
+  - dbg/rtl/hydra_jtag_tap.sv
+  - dbg/rtl/hydra_jtag_bridge.sv
+  - fpga/rtl/hydra_fpga_uart.sv
+  - fpga/rtl/hydra_fpga_bridge.sv
+  - fpga/rtl/hydra_fpga_jtag_host.sv
+  - fpga/rtl/hydra_fpga_tt_jtag_harness.sv
+sys_hz: 25000000
+baud:   115200
+clock:  clk
+reset:  rst_n
+async_clocks:
+  - {core: jtag_tck, mhz: 10}
+pins:
+  - {core: uart_rx_i, board: uart_rx}
+  - {core: uart_tx_o, board: uart_tx}
+  - {core: jtag_tck, board: "ja[0]"}
+  - {core: jtag_tms, board: "ja[1]"}
+  - {core: jtag_tdi, board: "ja[2]"}
+  - {core: jtag_tdo, board: "ja[3]"}
+  - {core: reg_mode_o, board: "ja[4]"}
+  - {core: "uo_mirror[7:0]", board: "led[7:0]"}
+  - {core: "uio_mirror[7:0]", board: "led[15:8]"}

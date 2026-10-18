@@ -26,8 +26,11 @@ module tb_sys_tile_tpu;
   wire  [7:0] uo, uio, uio_oe;
   int errors = 0;
   always #27.5 clk = ~clk;
+  // A broken design must FAIL here, not hang (ci_selftest, 2026-10-11): about
+  // twenty times the cycles a passing run needs.
+  initial begin repeat (6000000) @(posedge clk); $display("FAIL tb_sys_tile_tpu: watchdog"); $fatal(1); end
 
-  hydra_sys_tile #(.REAL_TPU(1'b1)) dut (
+  hydra_sys_tile #(.TPU_ENGINE(1)) dut (
     .ui_in(ui), .uo_out(uo), .uio_in(8'h00), .uio_out(uio), .uio_oe(uio_oe),
     .ena(1'b1), .clk(clk), .rst_n(rst_n));
 

@@ -1,0 +1,119 @@
+tile_size_check: info.yaml asks for 4x4
+  ok    src/user_config.json is set up for 4x4
+  ok    the last harden (runs/wokwi) is 4x4
+netlist_matches: all 78 design names in the netlist are in project.v
+tile_size_check: info.yaml asks for 4x4
+  ok    src/user_config.json is set up for 4x4
+  ok    the last harden (runs/wokwi) is 4x4
+tile-gl: netlist  /home/aleks/src/tinytapeout-hydra/runs/wokwi/final/pnl/tt_um_hydra_mom.pnl.v
+tile-gl: PDK_ROOT /home/aleks/.ciel/ciel/sky130/versions/8afc8346a57fe1ab7934ba5a6056ea8b43078e71
+                                                        ** TESTS=21 PASS=21 FAIL=0 SKIP=0                                  70079856.02         717.06      97732.23  **
+PASS tile-gl: all 21 tile tests pass on the hardened netlist
+corner max_ss_100C_1v60: checks.rpt, netlist tt_um_hydra_mom.pnl.v
+  max slew     4197 violations, worst slack -1.551
+  max cap        30 violations, worst slack -0.044
+  max fanout      0
+
+slew violations come from 465 net(s):
+   pins  share   worst  loads  net  <-  driver
+     14   0.3%  -1.411     13  net1174  <-  fanout1174 (buf_1)
+     12   0.3%  -1.310     11  net564  <-  fanout564 (buf_1)
+     12   0.3%  -0.946     11  net1172  <-  fanout1172 (buf_1)
+     12   0.3%  -0.918     11  net1257  <-  fanout1257 (buf_1)
+     12   0.3%  -0.114     11  _08635_  <-  _10584_ (o211a_2)
+     11   0.3%  -1.422     10  net560  <-  fanout560 (buf_1)
+     11   0.3%  -1.369     10  net1251  <-  fanout1251 (buf_1)
+     11   0.3%  -1.236     10  net93  <-  fanout93 (buf_1)
+     11   0.3%  -1.175     10  net563  <-  fanout563 (buf_1)
+     11   0.3%  -1.058     10  net763  <-  fanout763 (buf_1)
+     11   0.3%  -1.002     10  net966  <-  fanout966 (buf_1)
+     11   0.3%  -0.988     10  net868  <-  fanout868 (buf_1)
+  ...the top 5 nets account for 1% of all slew violations
+
+capacitance violations (these are DRIVERS -- each is a cell asked to drive too much):
+   -0.044  fanout1685/X                 net net1685  loads 7
+   -0.037  fanout560/X                  net net560  loads 10
+   -0.037  fanout1174/X                 net net1174  loads 13
+   -0.034  fanout1251/X                 net net1251  loads 10
+   -0.031  fanout564/X                  net net564  loads 11
+   -0.027  fanout93/X                   net net93  loads 10
+   -0.024  fanout563/X                  net net563  loads 10
+   -0.017  fanout763/X                  net net763  loads 10
+   -0.014  fanout966/X                  net net966  loads 10
+   -0.013  fanout868/X                  net net868  loads 10
+   -0.012  fanout1211/X                 net net1211  loads 6
+   -0.011  fanout1172/X                 net net1172  loads 11
+
+reading it:
+  Violations are spread thin: a design-wide repair setting is more appropriate than
+  fixing nets one by one.
+Paste everything from 'corner' down back; nothing has been changed.
+corner nom_tt_025C_1v80: checks.rpt, netlist tt_um_hydra_mom.pnl.v
+  max slew      635 violations, worst slack -0.633
+  max cap         0
+  max fanout      0
+
+slew violations come from 62 net(s):
+   pins  share   worst  loads  net  <-  driver
+     14   2.2%  -0.522     13  net1174  <-  fanout1174 (buf_1)
+     12   1.9%  -0.455     11  net564  <-  fanout564 (buf_1)
+     12   1.9%  -0.242     11  net1172  <-  fanout1172 (buf_1)
+     12   1.9%  -0.236     11  net1257  <-  fanout1257 (buf_1)
+     11   1.7%  -0.527     10  net560  <-  fanout560 (buf_1)
+     11   1.7%  -0.498     10  net1251  <-  fanout1251 (buf_1)
+     11   1.7%  -0.415     10  net93  <-  fanout93 (buf_1)
+     11   1.7%  -0.361     10  net563  <-  fanout563 (buf_1)
+     11   1.7%  -0.318     10  net763  <-  fanout763 (buf_1)
+     11   1.7%  -0.281     10  net868  <-  fanout868 (buf_1)
+     11   1.7%  -0.279     10  net966  <-  fanout966 (buf_1)
+     11   1.7%  -0.208     10  net976  <-  fanout976 (buf_1)
+  ...the top 5 nets account for 10% of all slew violations
+
+reading it:
+  Violations are spread thin: a design-wide repair setting is more appropriate than
+  fixing nets one by one.
+Paste everything from 'corner' down back; nothing has been changed.
+run:    runs/wokwi/final/metrics.json
+clock:  CLOCK_PERIOD 66 ns  (15.15 MHz)
+
+  corner                    setup slack  hold slack  setup vio
+  max_ss_100C_1v60               11.142       0.873          0
+  nom_ss_100C_1v60               12.189       0.868          0
+  min_ss_100C_1v60               13.298       0.864          0
+  max_tt_025C_1v80               39.016       0.307          0
+  nom_tt_025C_1v80               39.573       0.305          0
+  min_tt_025C_1v80               40.181       0.303          0
+  max_ff_n40C_1v95               48.526       0.110          0
+  nom_ff_n40C_1v95               48.720       0.109          0
+  min_ff_n40C_1v95               48.901       0.107          0
+  design__max_slew_violation__count             4197
+  design__max_cap_violation__count              30
+  design__instance__utilization                 0.517451
+  route__drc_errors                             0
+  magic__drc_error__count                       0
+  design__lvs_error__count                      0
+  antenna__violating__nets                      0
+
+----- HYDRA-TIMING (copy from here) -----
+period_ns          66
+corner max_ss_100C_1v60       setup   11.142  hold   0.873  vio 0
+corner nom_ss_100C_1v60       setup   12.189  hold   0.868  vio 0
+corner min_ss_100C_1v60       setup   13.298  hold   0.864  vio 0
+corner max_tt_025C_1v80       setup   39.016  hold   0.307  vio 0
+corner nom_tt_025C_1v80       setup   39.573  hold   0.305  vio 0
+corner min_tt_025C_1v80       setup   40.181  hold   0.303  vio 0
+corner max_ff_n40C_1v95       setup   48.526  hold   0.110  vio 0
+corner nom_ff_n40C_1v95       setup   48.720  hold   0.109  vio 0
+corner min_ff_n40C_1v95       setup   48.901  hold   0.107  vio 0
+critical_path_ns   54.858   (slowest corner)
+fmax_slow_MHz      18.23
+design__instance__utilization      0.517451
+design__max_slew_violation__count  4197
+design__max_cap_violation__count   30
+magic__drc_error__count            0
+design__lvs_error__count           0
+antenna__violating__nets           0
+----- HYDRA-TIMING (to here) -----
+
+Timing: every corner meets setup at 66 ns (15.15 MHz).
+Sign-off clean: DRC, LVS and antenna all zero. Nothing to change.

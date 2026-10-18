@@ -203,10 +203,15 @@ module openframe_project_wrapper (
     end
   end
 
+  // The pad selection is read back nowhere on this chip (locked_q is), so it
+  // is connected to a named wire and consumed rather than left empty.
+  wire [NMUX-1:0] padmux_sel;
+  wire _unused_sel = &{1'b0, padmux_sel};
+
   hydra_padmux #(.NPAD(NMUX), .NALT(NALT), .SELW(1), .RESET_SEL({NMUX{1'b0}})) u_padmux (
     .clk(clk), .rst_n(rst_n),
     .cfg_we(cfg_we), .cfg_sel({NMUX{1'b1}}), .cfg_lock(cfg_lock),
-    .sel_q(), .locked_q(padmux_locked),
+    .sel_q(padmux_sel), .locked_q(padmux_locked),
     .alt_out(alt_out), .alt_oe(alt_oe), .alt_idle(alt_idle), .alt_in(alt_in),
     .pad_out(pad_out), .pad_oe(pad_oe), .pad_in(pad_in));
 

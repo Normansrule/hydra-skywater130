@@ -83,11 +83,11 @@ least significant bit = value 0.
 
 | engine | | op classes it accepts | data types it accepts |
 |---|---|---|---|
-| 0 `CPU` | scalar RV32IMC_Zba pipeline | SCALAR, ELEMENT, REDUCE, GEMM, CONV2D, FFT, NTT, CIPHER, HASH | INT8, INT16, INT32, FP16, FP32 |
-| 1 `SIMD` | 4-lane 32-bit vector unit | ELEMENT, REDUCE, GEMM, CONV2D, FFT | INT8, INT16, INT32, FP16, FP32 |
-| 2 `TPU` | 16x16 INT8 output-stationary systolic array | GEMM, CONV2D | INT8, INT16 |
-| 3 `NTT` | 8-butterfly number-theoretic transform engine | FFT, NTT | INT32, POLY_Q |
-| 4 `CRYPTO` | AES / SHA / HMAC datapath | CIPHER, HASH | INT32 |
+| 0 `CPU` | scalar CPU slot: latency model only, no core integrated | SCALAR, ELEMENT, REDUCE, GEMM, CONV2D, FFT, NTT, CIPHER, HASH | INT8, INT16, INT32, FP16, FP32 |
+| 1 `SIMD` | 4-lane 32-bit integer vector unit | ELEMENT, REDUCE, GEMM, CONV2D, FFT | INT8, INT16, INT32, FP16, FP32 |
+| 2 `TPU` | INT8 output-stationary systolic array, built 4x4 | GEMM, CONV2D | INT8, INT16 |
+| 3 `NTT` | number-theoretic transform butterflies, built 4 lanes | FFT, NTT | INT32, POLY_Q |
+| 4 `CRYPTO` | cipher/hash slot: latency model only | CIPHER, HASH | INT32 |
 
 ## Engine cost parameters
 

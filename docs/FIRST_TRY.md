@@ -1,4 +1,8 @@
-# First try: what must be true before anything goes to a shuttle
+# Release and tapeout preparation
+
+*Formerly "First try". For your first simulation, see [GETTING_STARTED.md](GETTING_STARTED.md); this page is the gate before anything goes to a shuttle.*
+
+## What must be true before anything goes to a shuttle
 
 **Harden the tree you verified.** The tile exists in two checkouts —
 `~/src/hydra-skywater130/tt/tile`, where `make verify` checks it, and
@@ -54,7 +58,7 @@ make tpu-mutate simd-mutate ntt-mutate dma-mutate   # ~10 minutes
 
 | check | result at the time of writing |
 |---|---|
-| research tile cocotb suite (v3, register map) | 18 / 18 |
+| research tile cocotb suite (v3.1, register map) | 21 / 21 |
 | v2 against v1, pin for pin | 400,000 cycles, 3,118 random resets |
 | formal proofs | pad mux, reset sync, SPI slave, crossbar, TPU, SIMD, NTT, streamer |
 | engines against independent models | TPU 640, SIMD 572, NTT 396 results exact |
@@ -84,10 +88,36 @@ export PDK=sky130A
 export LIBRELANE_TAG=3.0.3              # check action.yml first
 pip install librelane==$LIBRELANE_TAG
 
-./tt/tt_tool.py --create-user-config     # re-run whenever info.yaml changes
+./tt/tt_tool.py --create-user-config     # EVERY time before --harden: --harden reads src/user_config.json, not info.yaml
+                                         # (2026-10-10: a "3x4" harden came out 4x4 without it; tools/tile_size_check.py catches it)
 ./tt/tt_tool.py --harden                 # needs Docker running
 ./tt/tt_tool.py --print-warnings         # read every one of them
 ```
+
+**Unattended:** `cd ~/src/hydra-skywater130 && make harden` does all of the
+above for each configuration in `tools/harden_ladder.py --list`, stops one
+whose run writes nothing for an hour, falls back to the next, and on the
+first clean sign-off runs `tile-gl`, the slew report and the timing summary.
+It writes one log, copied to Windows Downloads under WSL.
+Keep `PDK_ROOT` out of `/tmp`: WSL empties it on restart, LibreLane then
+downloads the PDK again, and a network hiccup stops the harden in its first
+minute (2026-10-17). `make harden` stops on such a failure rather than trying
+the next configuration.
+
+**If a harden seems stuck** at a constant violation count, find out which
+count it is before changing anything:
+
+```bash
+cd ~/src/tinytapeout-hydra && grep -rh "Number of violations" runs/wokwi/*detailedrouting*/ | tail -5
+```
+
+A number that falls less each iteration is detailed routing that cannot
+clear congestion. `make drt-progress` (in the parent repository) projects it
+to the 64-iteration limit and says whether it will reach zero. If not, stop
+the run (Ctrl-C) and give it more area. v3.1 did exactly this at 3×4
+(10,085, 5,223, 4,558, 4,338, 4,190), which is why v3.2 is 4×4. Slew warnings are a different count:
+they appear once, in the timing reports at the end, and
+`tools/slew_report.py` reads them.
 
 Then print the numbers that decide go or no-go. Metric key names vary by
 LibreLane version, so this prints everything relevant rather than guessing

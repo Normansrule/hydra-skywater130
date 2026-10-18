@@ -1,0 +1,13 @@
+`verilator_config
+// Each waiver names one signal and the reason it is intended. Nothing else is
+// waived: tools/lint/lint.sh runs verilator --lint-only -Wall and fails on
+// any other warning.
+//
+// SYNCASYNCNET on the OpenFrame chip's tile reset. hydra_mom_pins samples its
+// personality strap (ui_in[7:4] == 4'hA) synchronously WHILE rst_n is low,
+// and the same rst_n is the asynchronous input of its reset synchroniser.
+// Sampling the strap from the synchronised reset instead would extend the
+// window two clocks past the release, when ui_in[7:4] is already the legacy
+// completion tag, so the strap could be misread. The Tiny Tapeout tile has
+// no strap and needs no waiver.
+lint_off -rule SYNCASYNCNET -file "*" -match "*tile_rst_n*"

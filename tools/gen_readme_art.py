@@ -7,7 +7,7 @@ here reads the file that DEFINES what it shows:
 
   pinout.svg        tt/tile/info.yaml `pinout`          (what the shuttle sees)
   fpga_wiring.svg   the board file + the bring-up plan   (core port -> ball)
-  architecture.svg  the block list in gen_site.py        (every block a file)
+  architecture.svg  gen_site.py's as-built view of each repository's own build
   area.svg          docs/metrics.json                    (measured numbers)
 
 Figures have their own white card behind them so they read on GitHub's light
@@ -192,7 +192,12 @@ def from_site():
         svg = svg.replace("currentColor", "#9aa6b6")
         return svg.replace(">", ">" + style + f'<rect width="100%" height="100%" fill="{CARD}"/>', 1)
 
-    write("architecture.svg", restyle(gen_site.svg_diagram()))
+    # Each repository gets the as-built view of ITS OWN build: the memory
+    # image here, the scheduler-only tile in the tile repository. (Until the
+    # SkyWater 130 audit, 2026-10-11, both showed every IP block wired
+    # together, which no build is.)
+    write("architecture.svg", restyle(gen_site.svg_graph(gen_site.AS_BUILT)), repos=[OUT[0]])
+    write("architecture.svg", restyle(gen_site.svg_graph(gen_site.TILE_BUILT)), repos=[OUT[1]])
     write("area.svg", restyle(gen_site.svg_area(m)), repos=[OUT[0]])
 
 
@@ -334,14 +339,13 @@ def timing_chart():
     r = d["runs"][-1]
     cs = r["corners"]
     w, top, rh = 900, 92, 30
-    h = top + len(cs) * rh + 96
+    h = top + len(cs) * rh + 96 + (20 if "slew_violations" in r else 0)
     lo = min(0, min(c[1] for c in cs)); hi = max(c[1] for c in cs)
     x0, x1 = 280, 770          # bars; values get their own column at the right
     sx = lambda v: x0 + (v - lo) / (hi - lo) * (x1 - x0)
     zero = sx(0)
     b = [f'<text x="24" y="58" style="{FONT};font-size:12.5px" fill="{DIM}">'
-         f'Setup slack per process corner, {escape(r["label"])}. Negative means the slowest path '
-         f'misses the clock at that corner.</text>']
+         f'Setup slack per process corner, {escape(r["label"])}. Negative means a missed clock.</text>']
     b.append(f'<line x1="{zero}" y1="{top-14}" x2="{zero}" y2="{top+len(cs)*rh}" stroke="{INK}" stroke-width="1.2"/>'
              f'<text x="{zero}" y="{top-20}" text-anchor="middle" style="{MONO};font-size:11px" fill="{INK}">0 ns</text>')
     for i, (name, s, hold, vio) in enumerate(cs):
@@ -356,6 +360,17 @@ def timing_chart():
     b.append(f'<text x="24" y="{fy}" style="{FONT};font-size:12.5px" fill="{INK}">'
              f'Slowest path {r["critical_path_ns"]:.2f} ns → at most {r["fmax_slow_MHz"]:.2f} MHz when slow and hot. '
              f'Utilisation {r["utilisation"]*100:.1f}%. DRC {r["drc"]}, LVS {r["lvs"]}, antenna {r["antenna"]}.</text>')
+    if "slew_violations" in r:
+        # slew is not a sign-off item, but FIRST_TRY.md's go/no-go wants 0, so
+        # the figure says how far off it is instead of leaving it out
+        worst = min(cs, key=lambda c: c[1])[0]
+        sw = (r.get("slew_report") or {}).get(worst, {}).get("slew", [None, None])[1]
+        b.append(f'<text x="24" y="{fy+20}" style="{FONT};font-size:12.5px" fill="{"#b45309" if r["slew_violations"] else INK}">'
+                 f'Slew warnings {r["slew_violations"]:,}, capacitance {r["cap_violations"]:,}'
+                 + (f'; worst slew slack {sw:+.3f} ns ({escape(worst)})' if sw is not None else "")
+                 + ('. Not sign-off; FIRST_TRY.md wants 0.' if r["slew_violations"] else ".")
+                 + '</text>')
+        fy += 20
     b.append(f'<text x="24" y="{fy+20}" style="{FONT};font-size:11.5px" fill="{DIM}">'
              f'From docs/timing.json, pasted from tools/timing_report.py --summary on a real run.</text>')
     write("timing.svg", card(w, h, "".join(b), "Timing, from the hardened layout"))

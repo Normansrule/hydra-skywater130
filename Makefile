@@ -9,6 +9,15 @@ SHELL := /bin/bash
 # sby, a failed proof or a $fatal testbench all passed `make verify` (found
 # 2026-10-06, when sby was absent and verify stayed green on every proof).
 .SHELLFLAGS := -o pipefail -c
+# Every simulation goes through runsim.sh: sv2v turns $$fatal into $$finish(1),
+# which Icarus exits 0 on, so an exit code alone cannot be trusted (audit R5).
+SIM := $(CURDIR)/scripts/runsim.sh
+# Every converted netlist and simulator executable lives inside THIS checkout
+# (audit R5 follow-up, 2026-10-11). They used to share fixed names in /tmp,
+# so two checkouts -- or scripts/ci_selftest.sh's broken copy next to the real
+# tree -- could run each other's executables.
+SIMTMP := $(CURDIR)/build/sim
+$(shell mkdir -p $(SIMTMP))
 TILE  := tt/tile
 
 .PHONY: status provenance readme-check sha256-stream measure verify all tt asic fpga padmux tile diff harness sky130 tools boards bind mutate area capacity clean check-tile
@@ -20,7 +29,7 @@ provenance:                   ## which board bitstreams were built from the curr
 	@for d in fpga/build/*/; do grep -q '^provenance:' $$d/Makefile 2>/dev/null || continue; \
 	  $(MAKE) -s --no-print-directory -C $$d provenance 2>/dev/null || true; done
 
-verify: site-check readme-check tt-ready rst-sync-copy tile-shared basys3-selftest check-tile cost-mux keyvault mailbox sha256 sha256-stream measure pcr selftest xsec jtag jtag-bridge padmux xbar tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-two tile diff harness sky130 tools boards bind isa-check
+verify: site-check readme-check tt-ready rst-sync-copy tile-shared lint basys3-selftest check-tile cost-mux cost-cal keyvault mailbox sha256 sha256-stream measure pcr selftest xsec jtag jtag-bridge padmux xbar xbar-bound tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-mem systile-two tile diff harness jtag-harness sky130 tools boards bind uart-baud isa-check
 	@echo "=== all checks passed ==="
 
 # All three targets from the one source, in one command. Each depends on the
@@ -52,24 +61,24 @@ check-tile:
 
 jtag:                         ## test access port against a model of IEEE 1149.1
 	python3 dbg/tb/jtag_model.py > /dev/null
-	sv2v dbg/rtl/hydra_jtag_tap.sv dbg/tb/tb_jtag_tap.sv > /tmp/hydra_jtag.v
-	iverilog -g2012 -o /tmp/hydra_jtag /tmp/hydra_jtag.v
-	@vvp -n /tmp/hydra_jtag 2>/dev/null | grep -E 'PASS|FAIL'
+	sv2v dbg/rtl/hydra_jtag_tap.sv dbg/tb/tb_jtag_tap.sv > $(SIMTMP)/hydra_jtag.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_jtag $(SIMTMP)/hydra_jtag.v
+	@$(SIM) --show 'PASS|FAIL' -- vvp -n $(SIMTMP)/hydra_jtag
 	cd dbg && sv2v --define=FORMAL -E Assert rtl/hydra_jtag_tap.sv > formal/jtag_tap_sv2v.v
 	cd dbg/formal && sby -f jtag_tap.sby prove | tail -1
 	cd dbg/formal && sby -f jtag_tap.sby cover | tail -1
 
 jtag-bridge:                  ## the test port's clock crossing into the register map
-	sv2v dbg/rtl/hydra_jtag_bridge.sv dbg/tb/tb_jtag_bridge.sv > /tmp/hydra_jbr.v
-	iverilog -g2012 -o /tmp/hydra_jbr /tmp/hydra_jbr.v
-	@vvp -n /tmp/hydra_jbr 2>/dev/null | grep -E 'PASS|FAIL'
+	sv2v dbg/rtl/hydra_jtag_bridge.sv dbg/tb/tb_jtag_bridge.sv > $(SIMTMP)/hydra_jbr.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_jbr $(SIMTMP)/hydra_jbr.v
+	@$(SIM) --show 'PASS|FAIL' -- vvp -n $(SIMTMP)/hydra_jbr
 	@python3 dbg/formal/cdc_check.py
 
 xsec:                         ## security instructions: Zknh + Xhydrasec, vectors and proofs
 	python3 isa/tb/xsec_model.py > /dev/null
-	sv2v isa/rtl/hydra_xsec_unit.sv > /tmp/hydra_xsec.v
-	iverilog -g2012 -o /tmp/hydra_xsec /tmp/hydra_xsec.v isa/tb/tb_xsec_unit.sv
-	@vvp -n /tmp/hydra_xsec 2>/dev/null | grep -E 'PASS|FAIL'
+	sv2v isa/rtl/hydra_xsec_unit.sv > $(SIMTMP)/hydra_xsec.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_xsec $(SIMTMP)/hydra_xsec.v isa/tb/tb_xsec_unit.sv
+	@$(SIM) --show 'PASS|FAIL' -- vvp -n $(SIMTMP)/hydra_xsec
 	cd isa && sv2v --define=FORMAL -E Assert rtl/hydra_xsec_unit.sv \
 	  ../sec/rtl/hydra_key_vault.sv formal/xsec_ni.sv > formal/xsec_sv2v.v
 	cd isa/formal && sby -f xsec.sby priv | tail -1
@@ -111,6 +120,12 @@ render-layout:                ## render the hardened tile into both READMEs' doc
 slew-report:                  ## group slew/capacitance warnings by net and name each driver
 	python3 tools/slew_report.py $(or $(RUN),$(HOME)/src/tinytapeout-hydra)
 
+harden:                       ## harden the tile unattended: tries each configuration, stops a stalled one
+	python3 tools/harden_ladder.py $(or $(RUN),$(HOME)/src/tinytapeout-hydra) $(ARGS)
+
+drt-progress:                 ## is a harden's detailed routing converging? (safe while it runs)
+	python3 tools/drt_progress.py $(or $(RUN),$(HOME)/src/tinytapeout-hydra)
+
 critical-paths:               ## classify the failing timing paths of a harden run (run in the hardening checkout)
 	python3 tools/critical_paths.py $(or $(RUN),$(HOME)/src/tinytapeout-hydra)
 
@@ -122,9 +137,9 @@ tt-ready-full:                ## the same, plus synthesis and the tile tests
 
 basys3-selftest:              ## Basys 3 bring-up image: banner, hex display, 16 LEDs, 5 buttons
 	sv2v fpga/rtl/hydra_fpga_uart.sv fpga/rtl/hydra_fpga_selftest.sv \
-	  fpga/rtl/hydra_basys3_selftest.sv > /tmp/hydra_b3.v
-	iverilog -g2012 -o /tmp/hydra_b3 /tmp/hydra_b3.v fpga/tb_basys3_selftest.sv
-	@vvp -n /tmp/hydra_b3 2>/dev/null | grep -E 'PASS|FAIL'
+	  fpga/rtl/hydra_basys3_selftest.sv > $(SIMTMP)/hydra_b3.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_b3 $(SIMTMP)/hydra_b3.v fpga/tb_basys3_selftest.sv
+	@$(SIM) --show 'PASS|FAIL' -- vvp -n $(SIMTMP)/hydra_b3
 	@python3 tools/gen_basys3_xdc.py fpga/rtl/hydra_basys3_selftest.sv \
 	  fpga/build/basys3-selftest/hydra_basys3_selftest.xdc
 
@@ -135,9 +150,9 @@ flash-basys3:                 ## load the Basys 3 bring-up image (volatile)
 	openFPGALoader -b basys3 fpga/build/basys3-selftest/hydra_basys3_selftest.bit
 
 selftest:                     ## board bring-up image: sweep, switches, pattern, serial
-	sv2v fpga/rtl/hydra_fpga_uart.sv fpga/rtl/hydra_fpga_selftest.sv > /tmp/hydra_selftest.v
-	iverilog -g2012 -o /tmp/hydra_selftest /tmp/hydra_selftest.v fpga/tb_fpga_selftest.sv
-	@vvp -n /tmp/hydra_selftest 2>/dev/null | grep -E 'PASS|FAIL'
+	sv2v fpga/rtl/hydra_fpga_uart.sv fpga/rtl/hydra_fpga_selftest.sv > $(SIMTMP)/hydra_selftest.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_selftest $(SIMTMP)/hydra_selftest.v fpga/tb_fpga_selftest.sv
+	@$(SIM) --show 'PASS|FAIL' -- vvp -n $(SIMTMP)/hydra_selftest
 
 selftest-bit:                 ## build the bring-up bitstream for the ECP5 evaluation board
 	python3 tools/hydra_bind.py build --plan plans/ecp5-evn-selftest.yaml
@@ -149,23 +164,23 @@ flash-selftest:               ## load the bring-up image into the FPGA (volatile
 
 pcr:                          ## measurement register: extend-only, chain checked against hashlib
 	python3 sec/tb/pcr_model.py > /dev/null
-	sv2v sec/rtl/hydra_sha256.sv sec/rtl/hydra_pcr.sv sec/tb/tb_pcr.sv > /tmp/hydra_pcr.v
-	iverilog -g2012 -o /tmp/hydra_pcr /tmp/hydra_pcr.v
-	@vvp -n /tmp/hydra_pcr 2>/dev/null | grep -E 'PASS|FAIL'
+	sv2v sec/rtl/hydra_sha256.sv sec/rtl/hydra_pcr.sv sec/tb/tb_pcr.sv > $(SIMTMP)/hydra_pcr.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_pcr $(SIMTMP)/hydra_pcr.v
+	@$(SIM) --show 'PASS|FAIL' -- vvp -n $(SIMTMP)/hydra_pcr
 	cd sec && sv2v --define=FORMAL -E Assert rtl/hydra_sha256.sv rtl/hydra_pcr.sv > formal/pcr_sv2v.v
 	cd sec/formal && sby -f pcr.sby prove | tail -1
 
 sha256:                       ## hash engine against hashlib, an outside reference
 	python3 sec/tb/sha256_model.py > /dev/null
-	sv2v sec/rtl/hydra_sha256.sv sec/tb/tb_sha256.sv > /tmp/hydra_sha.v
-	iverilog -g2012 -o /tmp/hydra_sha /tmp/hydra_sha.v
-	@vvp -n /tmp/hydra_sha 2>/dev/null | grep -E 'PASS|FAIL'
+	sv2v sec/rtl/hydra_sha256.sv sec/tb/tb_sha256.sv > $(SIMTMP)/hydra_sha.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_sha $(SIMTMP)/hydra_sha.v
+	@$(SIM) --show 'PASS|FAIL' -- vvp -n $(SIMTMP)/hydra_sha
 
 sha256-stream:                ## SHA-256 padded in hardware: 140 lengths vs hashlib, padding proved
 	python3 sec/tb/sha256_stream_model.py > /dev/null
-	sv2v sec/rtl/hydra_sha256.sv sec/rtl/hydra_sha256_stream.sv sec/tb/tb_sha256_stream.sv > /tmp/hydra_sha_stream.v
-	iverilog -g2012 -o /tmp/hydra_sha_stream /tmp/hydra_sha_stream.v
-	@vvp -n /tmp/hydra_sha_stream 2>/dev/null | grep -E 'PASS|FAIL'
+	sv2v sec/rtl/hydra_sha256.sv sec/rtl/hydra_sha256_stream.sv sec/tb/tb_sha256_stream.sv > $(SIMTMP)/hydra_sha_stream.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_sha_stream $(SIMTMP)/hydra_sha_stream.v
+	@$(SIM) --show 'PASS|FAIL' -- vvp -n $(SIMTMP)/hydra_sha_stream
 	cd sec && sv2v --define=FORMAL -E Assert rtl/hydra_sha256_stream.sv > formal/sha256_stream_sv2v.v
 	cd sec/formal && sby -f sha256_stream.sby prove | tail -1
 	cd sec/formal && sby -f sha256_stream.sby blocks | tail -1
@@ -174,17 +189,17 @@ sha256-stream:                ## SHA-256 padded in hardware: 140 lengths vs hash
 measure:                      ## image bytes -> SHA-256 -> PCR on one core: vs hashlib, plus proof
 	python3 sec/tb/measure_model.py > /dev/null
 	sv2v sec/rtl/hydra_sha256.sv sec/rtl/hydra_sha256_stream.sv \
-	  sec/rtl/hydra_measure.sv sec/tb/tb_measure.sv > /tmp/hydra_measure.v
-	iverilog -g2012 -o /tmp/hydra_measure /tmp/hydra_measure.v
-	@vvp -n /tmp/hydra_measure 2>/dev/null | grep -E 'PASS|FAIL'
+	  sec/rtl/hydra_measure.sv sec/tb/tb_measure.sv > $(SIMTMP)/hydra_measure.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_measure $(SIMTMP)/hydra_measure.v
+	@$(SIM) --show 'PASS|FAIL' -- vvp -n $(SIMTMP)/hydra_measure
 	cd sec && sv2v --define=FORMAL -E Assert rtl/hydra_sha256_stream.sv rtl/hydra_measure.sv > formal/measure_sv2v.v
 	cd sec/formal && sby -f measure.sby prove | tail -1
 	cd sec/formal && sby -f measure.sby cover | tail -1
 
 mailbox:                      ## Caliptra-style mailbox: lock discipline and protocol enforcement
-	sv2v sec/rtl/hydra_mailbox.sv sec/tb/tb_mailbox.sv > /tmp/hydra_mbox.v
-	iverilog -g2012 -o /tmp/hydra_mbox /tmp/hydra_mbox.v
-	@vvp -n /tmp/hydra_mbox 2>/dev/null | grep -E 'PASS|FAIL'
+	sv2v sec/rtl/hydra_mailbox.sv sec/tb/tb_mailbox.sv > $(SIMTMP)/hydra_mbox.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_mbox $(SIMTMP)/hydra_mbox.v
+	@$(SIM) --show 'PASS|FAIL' -- vvp -n $(SIMTMP)/hydra_mbox
 	cd sec && sv2v --define=FORMAL -E Assert rtl/hydra_mailbox.sv > formal/mailbox_sv2v.v
 	cd sec/formal && sby -f mailbox.sby prove | tail -1
 	cd sec/formal && sby -f mailbox.sby cover | tail -1
@@ -199,21 +214,21 @@ keyvault:                     ## key vault: invariants, and no key bit reaches t
 
 padmux:                       ## model comparison + formal proofs
 	cd common/tb && python3 padmux_model.py padmux_vectors.hex 20000 1 && \
-	  iverilog -g2012 -o /tmp/tb_padmux ../rtl/hydra_padmux.sv tb_hydra_padmux.sv && \
-	  vvp -n /tmp/tb_padmux | tail -1
+	  iverilog -g2012 -o $(SIMTMP)/tb_padmux ../rtl/hydra_padmux.sv tb_hydra_padmux.sv && \
+	  $(SIM) --tail 1 -- vvp -n $(SIMTMP)/tb_padmux
 	cd common/formal && sby -f hydra_padmux.sby prove | tail -1 && \
 	  sby -f hydra_rst_sync.sby prove | tail -1
 	cd tt/formal && sby -f hydra_tt_spi.sby prove | tail -1
 
-tile:                         ## the research tile's cocotb suite (18 tests, register map)
+tile:                         ## the research tile's cocotb suite (21 tests, register map)
 	# Regenerate to a TEMPORARY file and compare, rather than overwriting
 	# project.v and asking git whether it changed. The git form failed for
 	# any uncommitted work -- including work that was perfectly consistent --
 	# and it passed trivially when the target had just rewritten the file it
 	# was about to check. What matters is that the project.v in the tree
 	# matches its sources, which is what this compares.
-	@cd $(TILE)/src && bash regen.sh > /tmp/tt_project_regen.v
-	@diff -q $(TILE)/src/project.v /tmp/tt_project_regen.v > /dev/null || \
+	@cd $(TILE)/src && bash regen.sh > $(SIMTMP)/tt_project_regen.v
+	@diff -q $(TILE)/src/project.v $(SIMTMP)/tt_project_regen.v > /dev/null || \
 	  { echo "project.v differs from its sources -- run: cd $(TILE)/src && ./regen.sh > project.v"; exit 1; }
 	cd $(TILE)/test && rm -rf sim_build && $(MAKE) -s 2>&1 | grep -E "TESTS=|FAIL"
 
@@ -246,25 +261,28 @@ readme-check:                 ## lead figures current; README numbers match the 
 site:                         ## regenerate the project page and the architecture diagram
 	python3 tools/gen_site.py
 
-site-check:                   ## the page and diagram still match the repository
-	@cp docs/site/index.html /tmp/site_was.html
-	@cp docs/ARCHITECTURE.md /tmp/arch_was.md
-	@python3 tools/gen_site.py > /dev/null
-	@diff -q /tmp/site_was.html docs/site/index.html > /dev/null \
-	  && diff -q /tmp/arch_was.md docs/ARCHITECTURE.md > /dev/null \
-	  && echo "site: page and diagram match the repository" \
-	  || (echo "site: OUT OF DATE -- regenerated, commit the result"; false)
+site-check:                   ## the page and diagram still match the repository (writes nothing)
+	@python3 tools/gen_site.py --check
+
+cost-cal:                     ## cost and calibration arithmetic against exact products (MODEL-01/02)
+	sv2v mom/rtl/mom_pkg.sv mom/rtl/mom_cost_engine.sv mom/rtl/mom_calibrate.sv \
+	  tt/tb/tb_cost_cal.sv > $(SIMTMP)/hydra_cost_cal.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_cost_cal $(SIMTMP)/hydra_cost_cal.v
+	$(SIM) --show '^(PASS|FAIL|MODEL)' -- vvp -n $(SIMTMP)/hydra_cost_cal
 
 cost-mux:                     ## the shared cost engine decides what the parallel one decides
 	cd tt && sv2v --define=HYDRA_COST_SHARED="1'b1" ../mom/rtl/*.sv tb/tb_cost_trace.sv \
-	  > /tmp/ct_s.v && iverilog -g2012 -o /tmp/ct_s /tmp/ct_s.v && \
-	  vvp -n /tmp/ct_s | grep -E '^(D|U|END)' > /tmp/ct_s.txt
+	  > $(SIMTMP)/ct_s.v && iverilog -g2012 -o $(SIMTMP)/ct_s $(SIMTMP)/ct_s.v && \
+	  $(SIM) --expect '^END' --tail 0 -- vvp -n $(SIMTMP)/ct_s && vvp -n $(SIMTMP)/ct_s | grep -E '^(D|U|END)' > $(SIMTMP)/ct_s.txt
 	cd tt && sv2v --define=HYDRA_COST_SHARED="1'b0" ../mom/rtl/*.sv tb/tb_cost_trace.sv \
-	  > /tmp/ct_p.v && iverilog -g2012 -o /tmp/ct_p /tmp/ct_p.v && \
-	  vvp -n /tmp/ct_p | grep -E '^(D|U|END)' > /tmp/ct_p.txt
-	@diff -q /tmp/ct_s.txt /tmp/ct_p.txt > /dev/null \
-	  && echo "PASS cost-mux: $$(wc -l < /tmp/ct_s.txt) decisions identical to the parallel build" \
-	  || (echo "FAIL cost-mux: the two builds disagree"; diff /tmp/ct_s.txt /tmp/ct_p.txt | head; false)
+	  > $(SIMTMP)/ct_p.v && iverilog -g2012 -o $(SIMTMP)/ct_p $(SIMTMP)/ct_p.v && \
+	  $(SIM) --expect '^END' --tail 0 -- vvp -n $(SIMTMP)/ct_p && vvp -n $(SIMTMP)/ct_p | grep -E '^(D|U|END)' > $(SIMTMP)/ct_p.txt
+	@diff -q $(SIMTMP)/ct_s.txt $(SIMTMP)/ct_p.txt > /dev/null \
+	  && echo "PASS cost-mux: $$(wc -l < $(SIMTMP)/ct_s.txt) decisions identical to the parallel build" \
+	  || (echo "FAIL cost-mux: the two builds disagree"; diff $(SIMTMP)/ct_s.txt $(SIMTMP)/ct_p.txt | head; false)
+
+mom-mutate:                   ## put each SkyWater 130 audit fix in the dispatcher back; its test must fail
+	python3 tools/mutate_mom.py
 
 cost-mux-mutate:              ## break the sequencer five ways
 	python3 tools/mutate_cost_mux.py
@@ -272,37 +290,49 @@ cost-mux-mutate:              ## break the sequencer five ways
 diff:                         ## v2 legacy is v1, pin for pin
 	cd tt && sv2v --define=HYDRA_COST_SHARED="1'b0" \
 	  ../mom/rtl/*.sv ../mom/hydra_mom_pins.sv ../common/rtl/hydra_rst_sync.sv rtl/tt_um_hydra_mom_v1.sv \
-	  > /tmp/hydra_diff.v && \
-	  iverilog -g2012 -o /tmp/hydra_diff /tmp/hydra_diff.v tb/tb_v1_v2_diff.sv && \
-	  vvp -n /tmp/hydra_diff | tail -2
+	  > $(SIMTMP)/hydra_diff.v && \
+	  iverilog -g2012 -o $(SIMTMP)/hydra_diff $(SIMTMP)/hydra_diff.v tb/tb_v1_v2_diff.sv && \
+	  $(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_diff
 
 harness:                      ## the PC protocol, end to end
 	cd fpga && sv2v ../mom/rtl/*.sv ../mom/hydra_mom_pins.sv ../common/rtl/hydra_rst_sync.sv \
 	  rtl/hydra_fpga_uart.sv rtl/hydra_fpga_bridge.sv \
-	  rtl/hydra_fpga_tt_harness.sv > /tmp/hydra_harness.v && \
-	  iverilog -g2012 -o /tmp/hydra_harness /tmp/hydra_harness.v tb_fpga_harness.sv && \
-	  vvp -n /tmp/hydra_harness | tail -2
+	  rtl/hydra_fpga_tt_harness.sv > $(SIMTMP)/hydra_harness.v && \
+	  iverilog -g2012 -o $(SIMTMP)/hydra_harness $(SIMTMP)/hydra_harness.v tb_fpga_harness.sv && \
+	  $(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_harness
+
+jtag-harness:                 ## two host paths (UART and JTAG) into one tile, each alone and together
+	cd fpga && sv2v ../mom/rtl/*.sv ../mom/hydra_mom_pins.sv ../common/rtl/hydra_rst_sync.sv \
+	  ../dbg/rtl/hydra_jtag_tap.sv ../dbg/rtl/hydra_jtag_bridge.sv \
+	  rtl/hydra_fpga_uart.sv rtl/hydra_fpga_bridge.sv rtl/hydra_fpga_jtag_host.sv \
+	  rtl/hydra_fpga_tt_jtag_harness.sv > $(SIMTMP)/hydra_jharness.v && \
+	  iverilog -g2012 -o $(SIMTMP)/hydra_jharness $(SIMTMP)/hydra_jharness.v tb_fpga_jtag_harness.sv && \
+	  $(SIM) --tail 4 -- vvp -n $(SIMTMP)/hydra_jharness
 
 xbar:                         ## the engine crossbar against its model and proofs
 	cd common/tb && python3 xbar_model.py xbar_vectors.hex 20000 179 && \
-	  iverilog -g2012 -o /tmp/hydra_xbar ../rtl/mom_xbar.sv tb_mom_xbar.sv && \
-	  vvp -n /tmp/hydra_xbar | tail -1
+	  iverilog -g2012 -o $(SIMTMP)/hydra_xbar ../rtl/mom_xbar.sv tb_mom_xbar.sv && \
+	  $(SIM) --tail 1 -- vvp -n $(SIMTMP)/hydra_xbar
 	cd common/formal && sby -f mom_xbar.sby prove | tail -1
+
+xbar-bound:                   ## the crossbar at NENG = 1, 5, 7 and 8 (RTL-08)
+	iverilog -g2012 -o $(SIMTMP)/hydra_xbar_bound common/rtl/mom_xbar.sv common/tb/tb_mom_xbar_bound.sv
+	$(SIM) --show '^(PASS|FAIL)' -- vvp -n $(SIMTMP)/hydra_xbar_bound
 
 system:                       ## the dispatcher, the crossbar and five engines
 	sv2v mom/rtl/mom_pkg.sv mom/rtl/mom_features.sv \
 	  mom/rtl/mom_param_rom.sv mom/rtl/mom_cost_engine.sv \
 	  mom/rtl/mom_calibrate.sv mom/rtl/mom_select.sv \
 	  mom/rtl/mom_scoreboard.sv mom/rtl/mom_top.sv \
-	  common/rtl/mom_xbar.sv tt/tb/tb_mom_system.sv > /tmp/hydra_sys.v
-	iverilog -g2012 -o /tmp/hydra_sys /tmp/hydra_sys.v
-	vvp -n /tmp/hydra_sys | tail -4
+	  common/rtl/mom_xbar.sv tt/tb/tb_mom_system.sv > $(SIMTMP)/hydra_sys.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_sys $(SIMTMP)/hydra_sys.v
+	$(SIM) --tail 4 -- vvp -n $(SIMTMP)/hydra_sys
 
 tpu:                          ## TPU: golden-model comparison and the port proof
 	python3 engines/tpu/tb/tpu_model.py 4
-	sv2v engines/tpu/rtl/*.sv engines/tpu/tb/tb_tpu.sv > /tmp/hydra_tpu.v
-	iverilog -g2012 -o /tmp/hydra_tpu /tmp/hydra_tpu.v
-	vvp -n /tmp/hydra_tpu 2>/dev/null | tail -2
+	sv2v engines/tpu/rtl/*.sv engines/tpu/tb/tb_tpu.sv > $(SIMTMP)/hydra_tpu.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_tpu $(SIMTMP)/hydra_tpu.v
+	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_tpu
 	cd engines/tpu && sv2v --define=FORMAL -E Assert rtl/tpu_pkg.sv rtl/tpu_ctrl.sv \
 	  > formal/tpu_ctrl_sv2v.v && cd formal && sby -f tpu_ctrl.sby prove | tail -1
 
@@ -311,48 +341,48 @@ tpu-mutate:                   ## break the TPU nine ways; each must be caught
 
 systile:                      ## dispatcher + crossbar + engines over SPI
 	sv2v mom/rtl/*.sv common/rtl/mom_xbar.sv \
-	  sys/rtl/hydra_sys_tile.sv sys/tb/tb_sys_tile.sv > /tmp/hydra_systile.v
-	iverilog -g2012 -o /tmp/hydra_systile /tmp/hydra_systile.v
-	vvp -n /tmp/hydra_systile | tail -5
+	  sys/rtl/hydra_sys_tile.sv sys/tb/tb_sys_tile.sv > $(SIMTMP)/hydra_systile.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_systile $(SIMTMP)/hydra_systile.v
+	$(SIM) --tail 5 -- vvp -n $(SIMTMP)/hydra_systile
 
 simd:                         ## vector unit: model comparison and port proof
 	python3 engines/simd/tb/simd_model.py 4
-	sv2v engines/simd/rtl/*.sv engines/simd/tb/tb_simd.sv > /tmp/hydra_simd.v
-	iverilog -g2012 -o /tmp/hydra_simd /tmp/hydra_simd.v
-	vvp -n /tmp/hydra_simd 2>/dev/null | tail -2
+	sv2v engines/simd/rtl/*.sv engines/simd/tb/tb_simd.sv > $(SIMTMP)/hydra_simd.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_simd $(SIMTMP)/hydra_simd.v
+	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_simd
 	cd engines/simd && sv2v --define=FORMAL -E Assert rtl/simd_pkg.sv rtl/simd_ctrl.sv \
 	  > formal/simd_ctrl_sv2v.v && cd formal && sby -f simd_ctrl.sby prove | tail -1
 
 ntt:                          ## butterfly engine: model comparison and proof
 	python3 engines/ntt/tb/ntt_model.py 4
-	sv2v engines/ntt/rtl/*.sv engines/ntt/tb/tb_ntt.sv > /tmp/hydra_ntt.v
-	iverilog -g2012 -o /tmp/hydra_ntt /tmp/hydra_ntt.v
-	vvp -n /tmp/hydra_ntt 2>/dev/null | tail -2
+	sv2v engines/ntt/rtl/*.sv engines/ntt/tb/tb_ntt.sv > $(SIMTMP)/hydra_ntt.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_ntt $(SIMTMP)/hydra_ntt.v
+	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_ntt
 	cd engines/ntt && sv2v --define=FORMAL -E Assert rtl/ntt_pkg.sv rtl/ntt_ctrl.sv \
 	  > formal/ntt_ctrl_sv2v.v && cd formal && sby -f ntt_ctrl.sby prove | tail -1
 
 dma:                          ## the array fed from real memory, results in memory
 	python3 mem/tb/dma_model.py 6
 	sv2v engines/tpu/rtl/*.sv mem/rtl/*.sv sys/rtl/hydra_engine_tpu_dma.sv \
-	  mem/tb/tb_hydra_dma.sv > /tmp/hydra_dma.v
-	iverilog -g2012 -o /tmp/hydra_dma /tmp/hydra_dma.v
-	vvp -n /tmp/hydra_dma 2>/dev/null | tail -2
+	  mem/tb/tb_hydra_dma.sv > $(SIMTMP)/hydra_dma.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_dma $(SIMTMP)/hydra_dma.v
+	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_dma
 	cd mem && sv2v --define=FORMAL -E Assert rtl/hydra_dma_agen.sv rtl/hydra_dma_gemm.sv \
 	  > formal/hydra_dma_sv2v.v && cd formal && sby -f hydra_dma_gemm.sby prove | tail -1
 
 dma-simd:                     ## the vector unit fed from memory (it stalls; the array does not)
 	python3 mem/tb/dma_simd_model.py 8 > /dev/null
 	sv2v engines/simd/rtl/*.sv mem/rtl/*.sv sys/rtl/hydra_engine_simd_dma.sv \
-	  mem/tb/tb_hydra_dma_simd.sv > /tmp/hydra_dma_simd.v
-	iverilog -g2012 -o /tmp/hydra_dma_simd /tmp/hydra_dma_simd.v
-	vvp -n /tmp/hydra_dma_simd 2>/dev/null | tail -2
+	  mem/tb/tb_hydra_dma_simd.sv > $(SIMTMP)/hydra_dma_simd.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_dma_simd $(SIMTMP)/hydra_dma_simd.v
+	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_dma_simd
 
 dma-ntt:                      ## the butterfly engine fed from three banks
-	python3 mem/tb/dma_ntt_model.py 6 > /dev/null
+	python3 mem/tb/dma_ntt_model.py > /dev/null
 	sv2v engines/ntt/rtl/*.sv mem/rtl/*.sv sys/rtl/hydra_engine_ntt_dma.sv \
-	  mem/tb/tb_hydra_dma_ntt.sv > /tmp/hydra_dma_ntt.v
-	iverilog -g2012 -o /tmp/hydra_dma_ntt /tmp/hydra_dma_ntt.v
-	vvp -n /tmp/hydra_dma_ntt 2>/dev/null | grep -E 'PASS|FAIL'
+	  mem/tb/tb_hydra_dma_ntt.sv > $(SIMTMP)/hydra_dma_ntt.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_dma_ntt $(SIMTMP)/hydra_dma_ntt.v
+	$(SIM) --show 'PASS|FAIL' -- vvp -n $(SIMTMP)/hydra_dma_ntt
 
 memboard:                     ## the whole path over the serial port
 	python3 mem/tb/dma_model.py 6 > /dev/null
@@ -361,22 +391,15 @@ memboard:                     ## the whole path over the serial port
 	  sys/rtl/hydra_engine_simd.sv sys/rtl/hydra_engine_tpu_dma.sv \
 	  sys/rtl/hydra_sys_tile.sv fpga/rtl/hydra_fpga_uart.sv \
 	  fpga/rtl/hydra_fpga_bridge.sv fpga/rtl/hydra_fpga_mem_harness.sv \
-	  fpga/tb_fpga_mem.sv > /tmp/hydra_memboard.v
-	iverilog -g2012 -o /tmp/hydra_memboard /tmp/hydra_memboard.v
-	vvp -n /tmp/hydra_memboard 2>/dev/null | tail -2
+	  fpga/tb_fpga_mem.sv > $(SIMTMP)/hydra_memboard.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_memboard $(SIMTMP)/hydra_memboard.v
+	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_memboard
 
-dma-mutate:                   ## break the memory path nine ways
+dma-mutate:                   ## break the memory path 26 ways, each audit fix among them
 	python3 mem/formal/mutate_dma.py
 
-ntt-moduli:                   ## the butterfly engine at every standardised modulus
-	@for Q in 12289 3329 8380417; do \
-	  HYDRA_NTT_Q=$$Q python3 engines/ntt/tb/ntt_model.py 4 > /dev/null; \
-	  sv2v --define=HYDRA_NTT_Q=$$Q engines/ntt/rtl/*.sv engines/ntt/tb/tb_ntt.sv \
-	    > /tmp/ntt_q$$Q.v; \
-	  iverilog -g2012 -o /tmp/ntt_q$$Q /tmp/ntt_q$$Q.v; \
-	  printf 'q=%-9s %s\n' "$$Q" "$$(vvp -n /tmp/ntt_q$$Q 2>/dev/null | grep -E 'PASS|FAIL' | head -1)"; \
-	done
-	@HYDRA_NTT_Q=12289 python3 engines/ntt/tb/ntt_model.py 4 > /dev/null
+ntt-moduli:                   ## the butterfly engine at every standardised modulus, alone and through memory
+	./scripts/ntt_moduli.sh
 
 ntt-mutate:                   ## break the butterfly engine nine ways
 	python3 engines/ntt/formal/mutate_ntt.py
@@ -389,24 +412,40 @@ systile-two:                  ## the dispatcher routing between TWO real engines
 	python3 sys/tb/tpu_pattern_model.py 4 > /dev/null
 	sv2v mom/rtl/*.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv \
 	  engines/simd/rtl/*.sv sys/rtl/hydra_engine_tpu.sv sys/rtl/hydra_engine_simd.sv \
-	  sys/rtl/hydra_sys_tile.sv sys/tb/tb_sys_tile_two.sv > /tmp/hydra_two.v
-	iverilog -g2012 -o /tmp/hydra_two /tmp/hydra_two.v
-	vvp -n /tmp/hydra_two 2>/dev/null | tail -3
+	  sys/rtl/hydra_sys_tile.sv sys/tb/tb_sys_tile_two.sv > $(SIMTMP)/hydra_two.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_two $(SIMTMP)/hydra_two.v
+	$(SIM) --tail 3 -- vvp -n $(SIMTMP)/hydra_two
+
+uart-baud:                    ## every board image's serial port against an independently timed host, +-2% (audit R4)
+	./scripts/uart_baud.sh
+
+ci-selftest:                  ## break the design one stage at a time; every break must fail its target
+	./scripts/ci_selftest.sh
+
+systile-mem:                  ## the dispatcher and the memory-fed array, two jobs back to back (audit R1)
+	sv2v mom/rtl/*.sv common/rtl/hydra_rst_sync.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv \
+	  engines/simd/rtl/*.sv mem/rtl/*.sv sys/rtl/hydra_engine_tpu.sv sys/rtl/hydra_engine_simd.sv \
+	  sys/rtl/hydra_engine_tpu_dma.sv sys/rtl/hydra_sys_tile.sv sys/tb/tb_sys_tile_mem.sv > $(SIMTMP)/hydra_systile_mem.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_systile_mem $(SIMTMP)/hydra_systile_mem.v
+	$(SIM) --show '^(PASS|FAIL|job)' -- vvp -n $(SIMTMP)/hydra_systile_mem
 
 systile-tpu:                  ## the dispatcher scheduling the REAL array
 	python3 sys/tb/tpu_pattern_model.py 4 > /dev/null
 	sv2v mom/rtl/*.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv \
 	  sys/rtl/hydra_engine_tpu.sv sys/rtl/hydra_sys_tile.sv \
-	  sys/tb/tb_sys_tile_tpu.sv > /tmp/hydra_systile_tpu.v
-	iverilog -g2012 -o /tmp/hydra_systile_tpu /tmp/hydra_systile_tpu.v
-	vvp -n /tmp/hydra_systile_tpu 2>/dev/null | tail -4
+	  sys/tb/tb_sys_tile_tpu.sv > $(SIMTMP)/hydra_systile_tpu.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_systile_tpu $(SIMTMP)/hydra_systile_tpu.v
+	$(SIM) --tail 4 -- vvp -n $(SIMTMP)/hydra_systile_tpu
+
+lint:                         ## Verilator -Wall: the tile netlist and the OpenFrame chip, zero warnings
+	SIMTMP=$(SIMTMP) ./tools/lint/lint.sh
 
 sky130:                       ## the chip through its pads: pad mux, bring-up, SPI
 	sv2v mom/rtl/*.sv mom/hydra_mom_pins.sv common/rtl/hydra_rst_sync.sv \
 	  common/rtl/hydra_padmux.sv \
-	  sky130/rtl/hydra_openframe_top.sv > /tmp/hydra_of.v
-	iverilog -g2012 -o /tmp/hydra_of /tmp/hydra_of.v sky130/tb/tb_openframe.sv
-	vvp -n /tmp/hydra_of | tail -2
+	  sky130/rtl/hydra_openframe_top.sv > $(SIMTMP)/hydra_of.v
+	iverilog -g2012 -o $(SIMTMP)/hydra_of $(SIMTMP)/hydra_of.v sky130/tb/tb_openframe.sv
+	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_of
 
 area:                         ## sky130 cell area of the tile, v1 against v2
 	./tools/sky130_area.sh HEAD b179c6b
@@ -429,6 +468,8 @@ capacity:                     ## which board holds what
 
 tools:                        ## PLL solver vs the vendor calculators, host encodings
 	python3 -m pytest tools/test_pllcalc.py tools/test_hydra_host.py -q
+	python3 tools/drt_progress.py --selftest
+	python3 tools/harden_ladder.py --selftest
 
 boards:                       ## board files still match their vendor sources
 	python3 tools/import_boards.py check
@@ -438,6 +479,8 @@ bind:                         ## generated board files still match plan + RTL
 
 mutate:                       ## slow: every test must be able to fail
 	cd common/formal && python3 mutate_targets.py
+	python3 mem/formal/mutate_dma.py
+	python3 tools/mutate_mom.py
 	cd $(TILE) && python3 test/mutate_sim.py
 
 clean:

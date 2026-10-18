@@ -74,6 +74,54 @@ def core_ports(sources, top):
     return {n: (v["direction"].lower(), len(v["bits"])) for n, v in mod["ports"].items()}
 
 
+# Timing parameters derived from the ACTUAL system clock (audit R4,
+# 2026-10-11). The harnesses default to CLKS_PER_BIT = 104, right only at
+# 12 MHz, and this generator used to instantiate them with no override: the
+# ULX3S image (12.5 MHz) ran its serial port 4.3% fast, and the Arty (25 MHz)
+# and Tang Nano (27 MHz) images at roughly twice the plan's baud rate.
+UART_ERROR_BUDGET = 0.02   # this end's share; the host's oscillator has its own
+
+
+def core_params(sources, top):
+    """Names of the parameters the core's module header declares."""
+    for s in sources:
+        text = (ROOT / s).read_text()
+        m = re.search(rf"\bmodule\s+{re.escape(top)}\b(.*?)\)\s*;", text, re.S)
+        if m:
+            return set(re.findall(r"parameter\s+(?:int\s+(?:unsigned\s+)?|bit\s+)?(\w+)\s*=", m.group(1)))
+    return set()
+
+
+def uart_divisor(f_hz, baud):
+    """(clocks per bit, achieved baud, relative error). Rounded to nearest."""
+    n = max(1, round(f_hz / baud))
+    achieved = f_hz / n
+    return n, achieved, (achieved - baud) / baud
+
+
+def timing_overrides(plan, f_hz, params):
+    """{parameter: value} for the core, plus a comment line for each."""
+    out, notes = {}, []
+    baud = plan.get("baud")
+    if baud:
+        if "CLKS_PER_BIT" not in params:
+            raise SystemExit(f"plan {plan['_name']} sets baud {baud}, but {plan['core']} has no "
+                             f"CLKS_PER_BIT parameter to carry it")
+        n, achieved, err = uart_divisor(f_hz, baud)
+        if abs(err) > UART_ERROR_BUDGET:
+            raise SystemExit(f"plan {plan['_name']}: {f_hz / 1e6:g} MHz / {baud} baud needs "
+                             f"{f_hz / baud:.2f} clocks per bit; {n} gives {achieved:.0f} baud, "
+                             f"{err * 100:+.2f}% -- outside the {UART_ERROR_BUDGET * 100:g}% budget. "
+                             f"Choose a clock that divides better.")
+        out["CLKS_PER_BIT"] = n
+        notes.append(f"// UART: {f_hz / 1e6:g} MHz / {n} = {achieved:.1f} baud, "
+                     f"{err * 100:+.2f}% against {baud} (budget {UART_ERROR_BUDGET * 100:g}%)")
+    if "TICK" in params:
+        out["TICK"] = round(f_hz / 1000)
+        notes.append(f"// TICK: {out['TICK']} clocks per millisecond")
+    return out, notes
+
+
 # ----------------------------------------------------------------- expansion
 def m_reads(entry):
     return bool(entry.get("in"))
@@ -232,7 +280,10 @@ def emit_top(plan, board, ports, mapped, sol, module):
     lines.append("")
 
     conns = ",\n".join(f"    .{n}(c_{n})" for n in sorted(ports))
-    lines += [f"  {plan['core']} u_core (", conns, "  );", "", "endmodule",
+    ov, notes = timing_overrides(plan, sol["fout"] * 1e6, core_params(plan["sources"], plan["core"]))
+    lines += ["  " + n for n in notes]
+    pov = (" #(" + ", ".join(f".{k}({v})" for k, v in ov.items()) + ")") if ov else ""
+    lines += [f"  {plan['core']}{pov} u_core (", conns, "  );", "", "endmodule",
               "`default_nettype wire", ""]
     return "\n".join(lines)
 
@@ -283,11 +334,30 @@ def emit_constraints(plan, board, mapped):
         out.append(f'FREQUENCY PORT "{clk_port}" {board["clock"]["hz"] / 1e6:g} MHZ;')
     elif fmt == "cst":
         out.append(f"// clock period {period_ns:.3f} ns; see the generated .sdc")
+
+    # A clock that arrives on a general-purpose pin from outside, unrelated to
+    # the board oscillator: the JTAG probe's TCK. It gets its own clock, is
+    # declared asynchronous to the system clock (the crossing is
+    # hydra_jtag_bridge's toggle handshake, not a timed path), and may use
+    # general routing, since a Pmod pin is not clock-capable.
+    for ac in plan.get("async_clocks") or []:
+        pins = [m for m in mapped if m["core"] == ac["core"]]
+        if len(pins) != 1:
+            raise SystemExit(f"async clock {ac['core']!r} must be mapped to exactly one pin")
+        if fmt != "xdc":
+            raise SystemExit(f"async_clocks are written for Vivado constraints only so far, "
+                             f"not {fmt}")
+        port = sanitize(pins[0]["board"])
+        out.append(f"create_clock -period {1e3 / ac['mhz']:.3f} -name {ac['core']} "
+                   f"[get_ports {{ {port} }}]")
+        out.append(f"set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets {port}_IBUF]")
+        out.append(f"set_clock_groups -asynchronous -group [get_clocks {ac['core']}] "
+                   f"-group [get_clocks -include_generated_clocks sys_clk_pin]")
     return "\n".join(out) + "\n", fmt
 
 
 
-def _content_stamp(module, out):
+def _content_stamp(module, out, cons, tools, plan_name):
     """Make fragment that rebuilds on source CONTENT, not timestamps.
 
     The first board Makefiles compared timestamps only. Files that arrive by
@@ -296,13 +366,32 @@ def _content_stamp(module, out):
     nothing could say whether the bitstream on disk matched the RTL. Now a hash
     of the source list and contents is kept in .srchash, rewritten only when it
     changes (so its timestamp moves exactly then), and copied next to the
-    bitstream. `make provenance` compares the two."""
+    bitstream. `make provenance` compares the two.
+
+    Audit R6 (2026-10-11): the hash used to cover the RTL only. A pin-only
+    change to the constraints, a different flag in this Makefile or a new
+    tool version produced a "current" bitstream that was not. Now all three
+    are in it, the place-and-route step depends on it, and every image gets
+    a manifest beside it: the image's own sha256, every input's sha256, and
+    the tool versions that made it.
+
+    SkyWater 130 audit BUILD-02 (2026-10-11): the plan the build was
+    generated from is now an input too, and every place-and-route call names
+    its seed (1) so the manifest records it rather than relying on a tool
+    default."""
     return (
-        "# Rebuild on CONTENT: .srchash changes only when the sources do.\n"
-        "SRCHASH := $(shell { echo '$(SRC)'; cat $(SRC); } | sha256sum | cut -c1-16)\n"
+        "# Rebuild on CONTENT: .srchash changes only when an input does -- the RTL,\n"
+        "# the pin constraints, this Makefile (the flags) or a tool version.\n"
+        f"CONS  := {cons}\n"
+        f"PLAN  := ../../../plans/{plan_name}\n"
+        f"TOOLS := $(shell {{ {tools}; }} 2>&1 | tr '\\n' ' ')\n"
+        "SRCHASH := $(shell { echo '$(SRC) $(CONS) $(TOOLS)'; cat $(SRC) $(CONS) $(PLAN) Makefile; } | sha256sum | cut -c1-16)\n"
         "$(shell [ \"$$(cat .srchash 2>/dev/null)\" = \"$(SRCHASH)\" ] || "
         "echo \"$(SRCHASH)\" > .srchash)\n\n",
-        f"\n\tcp .srchash {module}.{out}.srchash",
+        f"\n\tcp .srchash {module}.{out}.srchash"
+        f"\n\t{{ echo \"image   $$(sha256sum {module}.{out})\"; echo \"srchash $(SRCHASH)\"; "
+        f"echo \"tools   $(TOOLS)\"; echo \"built   $$(date -u +%Y-%m-%dT%H:%M:%SZ)\"; "
+        f"echo \"seed    1\"; sha256sum $(SRC) $(CONS) $(PLAN) Makefile; }} > {module}.{out}.manifest",
         f"provenance:\n\t@if [ \"$$(cat {module}.{out}.srchash 2>/dev/null)\" = \"$(SRCHASH)\" ]; "
         f"then echo \"{module}.{out}: built from the current sources ($(SRCHASH))\"; "
         f"else echo \"{module}.{out}: STALE or unknown -- sources are $(SRCHASH), "
@@ -315,26 +404,31 @@ def emit_build(plan, board, module, sol, srcs):
             synth = f"synth_ice40 -top {module} -json {module}.json"
             pnr = (f"nextpnr-ice40 --{board['device']} --package {board['package']} "
                    f"--json {module}.json --pcf {module}.pcf --asc {module}.asc "
-                   f"--freq {plan['sys_hz'] / 1e6:g}")
+                   f"--freq {plan['sys_hz'] / 1e6:g}" + " --seed 1")
             pack = f"icepack {module}.asc {module}.bin"
         else:
             synth = f"synth_ecp5 -top {module} -json {module}.json"
             pnr = (f"nextpnr-ecp5 {board['nextpnr_device']} --package {board['package']} "
                    f"--json {module}.json --lpf {module}.lpf --textcfg {module}.config "
-                   f"--freq {plan['sys_hz'] / 1e6:g}")
+                   f"--freq {plan['sys_hz'] / 1e6:g}" + " --seed 1")
             pack = f"ecppack {module}.config {module}.bit"
         mid = "asc" if v == "ice40" else "config"
         out = "bin" if v == "ice40" else "bit"
-        head, tail, prov = _content_stamp(module, out)
+        cons = f"{module}.pcf" if v == "ice40" else f"{module}.lpf"
+        npr = "nextpnr-ice40" if v == "ice40" else "nextpnr-ecp5"
+        head, tail, prov = _content_stamp(module, out, cons,
+                                          f"sv2v --version; yosys -V; {npr} --version", plan["_name"])
         return (f"# GENERATED by tools/hydra_bind.py\n"
                 f"SRC = {' '.join(srcs)}\n\n" + head +
                 f"all: {module}.{out}\n\n"
                 f"{module}.v: $(SRC) .srchash\n\tsv2v $(SRC) > $@\n\n"
                 f"{module}.json: {module}.v\n\tyosys -p 'read_verilog $<; {synth}'\n\n"
-                f"{module}.{mid}: {module}.json\n\t{pnr}\n\n"
+                f"# nextpnr is run WITHOUT --timing-allow-fail: a design that misses\n"
+                f"# {plan['sys_hz'] / 1e6:g} MHz stops the build here.\n"
+                f"{module}.{mid}: {module}.json $(CONS) .srchash\n\t{pnr}\n\n"
                 f"{module}.{out}: {module}.{mid}\n\t{pack}{tail}\n\n" + prov +
                 f"clean:\n\trm -f {module}.v {module}.json {module}.{mid} {module}.{out} "
-                f"{module}.{out}.srchash .srchash\n")
+                f"{module}.{out}.srchash {module}.{out}.manifest .srchash\n")
     if v == "xilinx7":
         return (f"# GENERATED by tools/hydra_bind.py -- Vivado batch script\n"
                 f"# vivado -mode batch -source build.tcl\n"
@@ -344,6 +438,13 @@ def emit_build(plan, board, module, sol, srcs):
                 f"opt_design\nplace_design\nroute_design\n"
                 f"report_timing_summary -file {module}_timing.rpt\n"
                 f"report_utilization -file {module}_util.rpt\n"
+                f"report_drc -file {module}_drc.rpt\n"
+                f"# No bitstream from a design that misses timing (audit R6, 2026-10-11).\n"
+                f"set wns [get_property SLACK [get_timing_paths -delay_type max]]\n"
+                f"set whs [get_property SLACK [get_timing_paths -delay_type min]]\n"
+                f"if {{$wns eq \"\" || $wns < 0 || $whs eq \"\" || $whs < 0}} {{\n"
+                f"  error \"timing not met: setup slack $wns ns, hold slack $whs ns (see {module}_timing.rpt)\"\n"
+                f"}}\n"
                 f"write_bitstream -force {module}.bit\n")
     if v == "intel":
         return (f"# GENERATED by tools/hydra_bind.py -- Quartus project\n"
@@ -353,15 +454,17 @@ def emit_build(plan, board, module, sol, srcs):
                 + "".join(f"set_global_assignment -name SYSTEMVERILOG_FILE {s}\n" for s in srcs)
                 + f"source {module}.qsf.pins\n")
     if v == "gowin":
-        head, tail, prov = _content_stamp(module, "fs")
+        head, tail, prov = _content_stamp(module, "fs", f"{module}.cst",
+                                          "sv2v --version; yosys -V; nextpnr-himbaechel --version",
+                                          plan["_name"])
         return (f"# GENERATED by tools/hydra_bind.py -- open flow (apicula)\n"
                 f"SRC = {' '.join(srcs)}\n\n" + head +
                 f"all: {module}.fs\n\n" + prov +
                 f"{module}.v: $(SRC) .srchash\n\tsv2v $(SRC) > $@\n\n"
                 f"{module}.json: {module}.v\n\tyosys -p 'read_verilog $<; "
                 f"synth_gowin -top {module} -json $@'\n\n"
-                f"{module}_pnr.json: {module}.json\n\tnextpnr-himbaechel --device "
-                f"'{board['device']}' --json $< --write $@ --vopt cst={module}.cst\n\n"
+                f"{module}_pnr.json: {module}.json $(CONS) .srchash\n\tnextpnr-himbaechel --device "
+                f"'{board['device']}' --seed 1 --json $< --write $@ --vopt cst={module}.cst\n\n"
                 f"{module}.fs: {module}_pnr.json\n\tgowin_pack -d "
                 f"'{board['device']}' -o $@ $<{tail}\n")
     raise SystemExit(f"no build script for vendor {board['vendor']!r}")

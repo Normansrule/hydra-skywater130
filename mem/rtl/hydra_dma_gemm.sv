@@ -45,6 +45,7 @@
 module hydra_dma_gemm #(
   parameter int unsigned AW    = 10,     // bank address width
   parameter int unsigned DW    = 32,     // one operand slice per bank word
+  parameter int unsigned CAW   = AW,     // result bank address width (see hydra_dma_agen)
   parameter int unsigned CNTW  = 16
 ) (
   input  wire              clk,
@@ -54,7 +55,7 @@ module hydra_dma_gemm #(
   input  wire              start,
   input  wire [AW-1:0]     base_a,
   input  wire [AW-1:0]     base_b,
-  input  wire [AW-1:0]     base_c,
+  input  wire [CAW-1:0]    base_c,
   input  wire [CNTW-1:0]   k_slices,
   // How many results this job produces. An input rather than a parameter:
   // the array always writes N*N, but the vector unit writes one per lane
@@ -74,7 +75,7 @@ module hydra_dma_gemm #(
   // leave it unconnected.
   output logic [AW-1:0]    w_addr,
   input  wire [DW-1:0]     w_rdata,
-  output logic [AW-1:0]    c_addr,
+  output logic [CAW-1:0]   c_addr,
   output logic             c_we,
   output logic [31:0]      c_wdata,
 
@@ -147,7 +148,7 @@ module hydra_dma_gemm #(
   wire bank_ok = (st_q == S_STREAM) && (cur < k_q);
   wire capture = bank_ok && (!hold_valid_q || xfer);
 
-  hydra_dma_agen #(.AW(AW), .CNTW(CNTW)) u_agen (
+  hydra_dma_agen #(.AW(AW), .CAW(CAW), .CNTW(CNTW)) u_agen (
     .clk(clk), .rst_n(rst_n), .load(go),
     .base_a(base_a), .base_b(base_b), .base_c(base_c),
     .step_rd(capture), .peek(capture), .step_wr(res_valid),

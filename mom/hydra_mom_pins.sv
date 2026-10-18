@@ -155,7 +155,7 @@ module hydra_mom_pins
 
   logic [WD_W-1:0] sr;
   always_ff @(posedge clk or negedge rst_n_sync)
-    if (!rst_n_sync)                  sr <= '0;
+    if (!rst_n_sync)                  sr <= {WD_W{1'b0}};
     else if (!reg_mode && shift) sr <= {sr[WD_W-2:0], sdi};
 
   logic go_q, comp_q;
@@ -213,6 +213,7 @@ module hydra_mom_pins
     .rx_byte(rx_byte), .rx_index(rx_index), .tx_load(tx_load), .tx_byte(tx_byte),
     .wd_valid(r_wd_valid), .wd_ready(wd_ready), .wd(r_wd),
     .disp_valid(disp_valid), .disp_accept(r_disp_accept),
+    .disp_fire(disp_valid & (reg_mode ? r_disp_accept : 1'b1)),  // the handshake mom_top sees
     .disp_engine(disp_engine), .disp_tag(disp_tag), .disp_wd(disp_wd),
     .comp_valid(r_comp_valid), .comp_tag(r_comp_tag),
     .fence_tag(r_fence_tag), .fence_busy(fence_busy),
