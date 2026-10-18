@@ -176,12 +176,26 @@ def hero():
              'area, with an illustrative dispatch from the dispatcher to the systolic array. '
              f'Sign-off facts are the Tiny Tapeout tile\'s: {t["period_ns"]} ns at every corner, with '
              'design rules, layout versus schematic and antenna clean. No full chip has been placed or routed.</desc>')
+    # Animated again (2026-10-18, at the owner's request): the cost engine
+    # visits each engine in turn, the route to the winner draws, the winner
+    # lights. One 6 s loop. Under prefers-reduced-motion the figure shows the
+    # final state only, which is complete on its own.
     s.append(f'''<style>
   .pulse {{ offset-path: path("{{PATH}}"); offset-distance: 100%; opacity: 0; }}
-  .sweep {{ opacity: 0; }}
-  .route {{ stroke-dashoffset: 0; }}
-  .win   {{ opacity: 1; }}
+  .sweep {{ opacity: 0; animation: sw 6s linear infinite; }}
+  .s1 {{ animation-delay: 0s; }} .s2 {{ animation-delay: .6s; }}
+  .s3 {{ animation-delay: 1.2s; }} .s4 {{ animation-delay: 1.8s; }}
+  .route {{ stroke-dashoffset: 0; animation: rt 6s ease-in-out infinite; }}
+  .win   {{ opacity: 1; animation: wn 6s ease-in-out infinite; }}
   .tag   {{ opacity: 1; }}
+  @keyframes sw {{ 0% {{ opacity: 0 }} 3% {{ opacity: 1 }} 9% {{ opacity: 1 }} 12% {{ opacity: 0 }} 100% {{ opacity: 0 }} }}
+  @keyframes rt {{ 0%, 40% {{ stroke-dashoffset: 400 }} 55%, 100% {{ stroke-dashoffset: 0 }} }}
+  @keyframes wn {{ 0%, 52% {{ opacity: .15 }} 60%, 92% {{ opacity: 1 }} 100% {{ opacity: .15 }} }}
+  @media (prefers-reduced-motion: reduce) {{
+    .sweep {{ animation: none; opacity: 0; }}
+    .route {{ animation: none; stroke-dashoffset: 0; }}
+    .win   {{ animation: none; opacity: 1; }}
+  }}
 </style>''')
     s.append('<defs>'
              f'<pattern id="rows" width="8" height="7" patternUnits="userSpaceOnUse">'
@@ -250,14 +264,17 @@ def hero():
                                f"DRC, LVS, antenna and slew clean ({ver})") if clean else "sign-off NOT clean"),
         (DIFF, "Gate level", f'{gl.replace(" / ", " of ")} tile tests, hardened netlist' if gl else "gate-level simulation pending"),
         (DIFF, "Proofs", f'{n_sby} proof tasks, run by make verify'),
-        (MET2, "Security IP", "vault, SHA-256, measurement: simulated only"),
     ]
-    y = 330
+    gpu = next((v["result"] for v in m["verification"] if v.get("target") == "gpu"), None)
+    if gpu:
+        rows.append((DIFF, "GPU engine", f"{gpu} match Pixelstorm's own model"))
+    rows.append((MET2, "Security IP", "vault, SHA-256, measurement: simulated only"))
+    y = 322
     for col, k, v in rows:
         s.append(f'<rect x="58" y="{y-13}" width="14" height="14" rx="2" fill="{col}"/>'
                  f'<text x="86" y="{y}" style="{FONT};font-size:19px;font-weight:650" fill="{TXT}">{escape(k)}</text>'
                  f'<text x="226" y="{y}" style="{FONT};font-size:17px" fill="{TXT2}">{escape(v)}</text>')
-        y += 42
+        y += 36 if len(rows) > 5 else 42
     s.append(f'<text x="58" y="{H-54}" style="{FONT};font-size:14px" fill="{TXT2}" opacity=".85">'
              f'Area chart, not a floorplan: separately synthesized cell area, {total/1e6:.2f} mm² in all.</text>'
              f'<text x="58" y="{H-32}" style="{FONT};font-size:14px" fill="{TXT2}" opacity=".85">'

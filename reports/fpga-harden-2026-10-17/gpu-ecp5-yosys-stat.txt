@@ -1,0 +1,25 @@
+
+10. Printing statistics.
+
+=== hydra_engine_gpu ===
+
+   Number of wires:              60172
+   Number of wire bits:         182365
+   Number of public wires:       60172
+   Number of public wire bits:  182365
+   Number of ports:                 22
+   Number of port bits:            341
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:              82600
+     $scopeinfo                     24
+     CCU2C                        2773
+     DP16KD                          6
+     L6MUX21                       867
+     LUT4                        62625
+     MULT18X18D                    112
+     PFUMX                        9852
+     TRELLIS_DPR16X4              2320
+     TRELLIS_FF                   4021
+

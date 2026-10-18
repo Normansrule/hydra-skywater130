@@ -29,7 +29,7 @@ provenance:                   ## which board bitstreams were built from the curr
 	@for d in fpga/build/*/; do grep -q '^provenance:' $$d/Makefile 2>/dev/null || continue; \
 	  $(MAKE) -s --no-print-directory -C $$d provenance 2>/dev/null || true; done
 
-verify: site-check readme-check tt-ready rst-sync-copy tile-shared lint basys3-selftest check-tile cost-mux cost-cal keyvault mailbox sha256 sha256-stream measure pcr selftest xsec jtag jtag-bridge padmux xbar xbar-bound tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-mem systile-two tile diff harness jtag-harness sky130 tools boards bind uart-baud isa-check
+verify: site-check readme-check tt-ready rst-sync-copy tile-shared lint basys3-selftest check-tile cost-mux cost-cal keyvault mailbox sha256 sha256-stream measure pcr selftest xsec jtag jtag-bridge padmux xbar xbar-bound tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-mem systile-two tile diff harness jtag-harness gpu sky130 tools boards bind uart-baud isa-check
 	@echo "=== all checks passed ==="
 
 # All three targets from the one source, in one command. Each depends on the
@@ -254,9 +254,11 @@ release-dry:                  ## show exactly what release would do
 readme-art:                   ## regenerate every README figure from the repository's data
 	python3 tools/gen_readme_art.py
 	python3 tools/gen_readme_hero.py
+	python3 tools/gen_readme_visuals.py
 
 readme-check:                 ## lead figures current; README numbers match the latest harden
 	@python3 tools/gen_readme_hero.py --check
+	@python3 tools/gen_readme_visuals.py --check
 
 site:                         ## regenerate the project page and the architecture diagram
 	python3 tools/gen_site.py
@@ -308,6 +310,20 @@ jtag-harness:                 ## two host paths (UART and JTAG) into one tile, e
 	  rtl/hydra_fpga_tt_jtag_harness.sv > $(SIMTMP)/hydra_jharness.v && \
 	  iverilog -g2012 -o $(SIMTMP)/hydra_jharness $(SIMTMP)/hydra_jharness.v tb_fpga_jtag_harness.sv && \
 	  $(SIM) --tail 4 -- vvp -n $(SIMTMP)/hydra_jharness
+
+PIXELSTORM := ext/pixelstorm-gpu
+gpu:                          ## the Pixelstorm GPU over a HYDRA bank: real kernels vs Pixelstorm's own model
+	@test -f $(PIXELSTORM)/rtl/ps_gpu_top.v || { echo "FAIL gpu: $(PIXELSTORM) missing -- git submodule update --init"; exit 1; }
+	rm -rf $(SIMTMP)/gpuvec
+	node tools/gpu_vectors.js $(PIXELSTORM) $(SIMTMP)/gpuvec 4096 sys/tb/gpu_kernels
+	sv2v sys/rtl/hydra_engine_gpu.sv mem/rtl/hydra_spram.sv > $(SIMTMP)/hydra_gpu.v
+	iverilog -g2012 -I $(PIXELSTORM)/rtl -o $(SIMTMP)/hydra_gpu $(SIMTMP)/hydra_gpu.v \
+	  $(PIXELSTORM)/rtl/ps_*.v sys/tb/tb_hydra_engine_gpu.sv
+	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_gpu +dir=$(SIMTMP)/gpuvec/01_vector_add +neg
+	@n=0; while read -r k; do \
+	  $(SIM) --tail 1 --show '^PASS' -- vvp -n $(SIMTMP)/hydra_gpu +dir=$(SIMTMP)/gpuvec/$$k || exit 1; \
+	  n=$$((n+1)); done < $(SIMTMP)/gpuvec/kernels.txt; \
+	  echo "PASS gpu: $$n kernels match Pixelstorm's model over a HYDRA bank; refusals, ownership and range checked"
 
 xbar:                         ## the engine crossbar against its model and proofs
 	cd common/tb && python3 xbar_model.py xbar_vectors.hex 20000 179 && \

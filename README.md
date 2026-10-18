@@ -19,30 +19,58 @@ engineering records. **What runs depends on the build you choose.**
 
 > **Development status.** This is not yet a complete or board-qualified
 > CPU/GPU/TPU system. No image has been run on a physical board. The public
-> ULX3S build is the scheduler and its serial bridge. No CPU or GPU is
-> integrated. Fully homomorphic encryption (FHE) and sequestered execution
+> ULX3S build is the scheduler and its serial bridge. The GPU engine runs real
+> kernels in simulation but is not yet a scheduler slot; no CPU is integrated. Fully homomorphic encryption (FHE) and sequestered execution
 > (SE) are written specifications, and the host driver refuses jobs that ask
 > for them. The separate Tiny Tapeout chip is the scheduler alone.
 
 <p align="center">
-  <img src="docs/img/hero.svg" width="100%" alt="HYDRA-130 lead figure. Left: the Tiny Tapeout tile's sign-off facts from its v3.4 harden (timing met at all nine corners, design rules, LVS and antenna clean, 4,197 slew warnings still open), the gate-level result, the number of proof tasks make verify runs, and a note that the security blocks are simulated only. Right: an area chart, not a floorplan, with each separately synthesized block drawn to its standard-cell area and an illustrative dispatch to the systolic array.">
+  <img src="docs/img/hero.svg" width="100%" alt="HYDRA-130 lead figure, animated. Left: the Tiny Tapeout tile's sign-off facts from its v3.6 harden (timing met at all nine corners, design rules, LVS and antenna clean, 775 slow-corner slew warnings), the gate-level result, the proof tasks, the GPU engine's kernel count and a note that the security blocks are simulated only. Right: an area chart, not a floorplan, with each separately synthesized block drawn to its standard-cell area and an illustrative dispatch to the systolic array.">
 </p>
 
 ## What works now
 
 | part | what it is | evidence reached | how to check |
 |---|---|---|---|
-| Scheduler (Mathematical Operation MUX, MOM) | cost model over five engine slots, tags, self-calibration | simulated against models; proofs on its interfaces; the tile version has been hardened (v3.4, 2026-10-17) | `make systile`, `make cost-cal`, `make tile` |
+| Scheduler (Mathematical Operation MUX, MOM) | cost model over five engine slots, tags, self-calibration | simulated against models; proofs on its interfaces; the tile version has been hardened (v3.6, 2026-10-17) | `make systile`, `make cost-cal`, `make tile` |
 | TPU | 4×4 INT8 systolic array, also fed from scratchpad memory | simulated against an independent model; mutation-tested | `make tpu`, `make dma` |
 | Vector unit | 4 lanes × 32-bit integer. **Not a GPU** | simulated; mutation-tested | `make simd`, `make dma-simd` |
 | Number-theoretic transform (NTT) butterflies | 4 Barrett butterflies at q = 3329, 8380417, 12289. **Not a transform, not FHE** | simulated at all three moduli, core and memory path | `make ntt-moduli` |
 | Security IP | key vault, mailbox, SHA-256, measurement register, security instructions | simulated and proved **as separate blocks**; not integrated into any build | `make keyvault sha256-stream pcr xsec` |
-| CPU, GPU | Sixfold (64-bit RISC-V) and Pixelstorm (single-instruction, multiple-thread, SIMT) | separate repositories; **not integrated** | [plan](docs/architecture/heterogeneous-system.md) |
+| GPU engine | Pixelstorm (single-instruction, multiple-thread, SIMT), 2 multiprocessors × 4 warps × 8 lanes, on a HYDRA scratchpad bank | simulated: 14 real kernels leave the bank exactly as Pixelstorm's own model does; malformed launches refused; synthesized for ECP5. **Not yet a scheduler slot** | `make gpu` |
+| CPU | Sixfold (64-bit RISC-V) | separate repository; **not integrated** | [plan](docs/architecture/heterogeneous-system.md) |
 | FHE, SE, mode switching | specifications only | **UNSUPPORTED** in every build | [FHE](docs/security/fhe-profile.md), [SE](docs/security/se-contract.md), [transition](docs/security/mode-transition.md) |
 
 Each of these levels is defined in the
 [capability matrix](docs/verification/capability-matrix.md), which also
 records what is missing.
+
+## CPU, GPU and TPU on FPGA
+
+![Engines against the evidence ladder: simulated, synthesized, placed and routed, on a board](docs/img/capabilities.svg)
+
+Each filled cell names the command that reproduces it. The TPU, the vector unit and the scheduler are placed and
+routed on ECP5 with timing met; the GPU runs 14 real kernels against Pixelstorm's own model and is synthesized for
+ECP5; the CPU is not integrated yet; nothing has run on a board.
+
+## What connects to what
+
+![Hosts, bridge, register map, scheduler, crossbar, engines and memory, each marked with its evidence](docs/img/connections.svg)
+
+In text: a PC reaches the bridge over serial or over JTAG; the bridge drives the SPI register map, which feeds the
+scheduler; the scheduler costs each eligible engine and dispatches through the crossbar; scratchpad banks hold
+operands and results and are filled by the host through the bridge. The GPU engine is built but is not yet
+connected to the crossbar (dashed).
+
+## Every pin
+
+![The SkyWater 130 chip after tapeout, a projection: every pad labelled with its function](docs/img/chip_package.svg)
+
+The SkyWater 130 OpenFrame chip, drawn as it would look packaged. Every pad's function is read from
+`sky130/rtl/hydra_openframe_top.sv` and the tile's `info.yaml`. It is an illustration, not a layout: the chip has
+not been hardened and no package has been chosen. The Tiny Tapeout tile, a separate chip, has its own 24 pins:
+
+![The Tiny Tapeout tile's 24 pins](docs/img/pinout.svg)
 
 ## As built: the memory-fed FPGA image
 
@@ -107,7 +135,7 @@ behaviour on purpose, so that a change to it cannot go in silently.
 | mutation test | that the named deliberate breaks are caught | that every defect would be |
 | FPGA place and route | mapping and timing for that device and those constraints | that a board works |
 | board test | measured behaviour of one image on one board (none yet) | other configurations |
-| ASIC reports | the named checks on one exact layout (the tile, v3.4) | fabricated silicon, or the full chip |
+| ASIC reports | the named checks on one exact layout (the tile, v3.6) | fabricated silicon, or the full chip |
 
 Every simulation runs through `scripts/runsim.sh`, so a failure cannot pass
 quietly. `scripts/ci_selftest.sh` breaks the design on purpose and requires

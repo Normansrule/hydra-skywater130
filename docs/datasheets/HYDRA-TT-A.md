@@ -52,6 +52,7 @@ The register map and a worked example are in the tile's `docs/info.md`.
 | Clock, signed off | 66 ns (15.15 MHz), every corner, on the **v2** harden | LibreLane, 2026-10-05 |
 | Clock, v3.2 | 66 ns (15.15 MHz), every corner, worst setup slack +5.62 ns, hold +0.106 ns | LibreLane, 2026-10-14 (4×4) |
 | Clock, v3.4 | 66 ns (15.15 MHz), every corner, worst setup slack +11.14 ns, hold +0.107 ns | LibreLane, 2026-10-17 (4×4) |
+| Clock, v3.6 | 66 ns (15.15 MHz), every corner, worst setup slack +14.836 ns, hold +0.106 ns; slowest path 51.164 ns (19.54 MHz) | LibreLane, 2026-10-17 (4×4) |
 | Supply current, I/O levels, absolute maxima | TBD; Tiny Tapeout's shuttle documentation governs | not measured |
 | SPI SCK | at most clk/8 | design rule, simulated |
 
@@ -67,4 +68,4 @@ The register map and a worked example are in the tile's `docs/info.md`.
 | E6 | Before v3.1, a multi-byte read could mix values from before and after a dispatch | fixed in v3.1: registers up to 6 bytes are read as one snapshot (RTL-04) |
 | E7 | An engine the scheduler stops choosing is never re-measured, so its factor does not recover from a transient slowdown | known limitation, asserted by `make systile`; not changed |
 | E8 | v3.1 at 3×4 tiles did not route (detailed routing 10,085 → 4,190 violations, not converging) | fixed in v3.2: 4×4, hardened clean 2026-10-14, 21/21 tests on its netlist |
-| E9 | Every harden so far has about 5,000 max-slew warnings at the slow corner | v3.2's 50% margins: 3,665 (11 capacitance). Traced to fanout buffers built from the `clkdlybuf4s25_1` delay cell; v3.3 excludes that cell (its 50% run hung); v3.4 keeps the exclusion at 20% margins: hardened clean 2026-10-17 with 4,197 slew warnings at the slow corner (worst -1.551 ns) and 30 capacitance, now on `buf_1` fanout buffers; v3.5 excluding `buf_1` too failed setup (-2.403 ns, delay gates used instead). Open |
+| E9 | Every harden so far has about 5,000 max-slew warnings at the slow corner | v3.2's 50% margins: 3,665 (11 capacitance). Traced to fanout buffers built from the `clkdlybuf4s25_1` delay cell; v3.3 excludes that cell (its 50% run hung); v3.4 keeps the exclusion at 20% margins: hardened clean 2026-10-17 with 4,197 slew warnings at the slow corner (worst -1.551 ns) and 30 capacitance, now on `buf_1` fanout buffers; v3.5 excluding `buf_1` too failed setup (-2.403 ns, delay gates used instead); v3.6 excluding every weak and delay buffer: 775 (slow corners only), capacitance 0, setup +14.836 ns. Not yet 0 |

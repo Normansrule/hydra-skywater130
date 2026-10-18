@@ -147,7 +147,7 @@
       "target": "tile"
     },
     {
-      "what": "tile suite on the hardened netlist (v3.4, 2026-10-17)",
+      "what": "tile suite on the hardened netlist (v3.6, 2026-10-17)",
       "result": "21 / 21",
       "kind": "gate level",
       "target": "tile-gl"
@@ -325,11 +325,17 @@
       "result": "9 checks",
       "kind": "simulation",
       "target": "basys3-selftest"
+    },
+    {
+      "what": "GPU engine (Pixelstorm) over a HYDRA bank: real kernels against Pixelstorm's own model",
+      "result": "14 kernels",
+      "kind": "simulation",
+      "target": "gpu"
     }
   ],
   "pending": [
-    "v3.4 at 4x4 hardened clean on 2026-10-17 (make harden, first rung): DRC, LVS, antenna 0, setup +11.142 ns and hold +0.107 ns worst corner, 51.7%, 21/21 gate level; all nine corners are in docs/timing.json.",
-    "Slew: 5,039 on v2; 3,665 on v3.2 (50% margins, clkdlybuf4s25_1 fanout buffers); 4,197 on v3.4 at the slow corner (worst -1.551 ns) and 635 at typical (worst -0.633 ns), plus 30 capacitance. The worst nets are now buf_1 fanout buffers driving 10 to 13 loads. FIRST_TRY.md requires 0. v3.5 (2026-10-17) also excluded buf_1 and clkbuf_1: the resizer then used the dlygate4sd3_1 delay gate for every fanout buffer; slew 3,298 and capacitance 8, but setup failed by 2.403 ns, so it was rejected.",
+    "v3.6 at 4x4 hardened clean on 2026-10-17 (make harden, rung realbuf2): DRC, LVS, antenna 0, setup +14.836 ns and hold +0.106 ns worst corner, 48.9%, 21/21 gate level; all nine corners are in docs/timing.json.",
+    "Slew: 5,039 on v2; 3,665 on v3.2; 4,197 on v3.4; v3.5 (no buf_1) failed setup and was rejected; v3.6 (no weak or delay buffers at all) 775, only at the three slow corners (max_ss 775, nom_ss 559, min_ss 322), capacitance 0. FIRST_TRY.md requires 0.",
     "The butterfly engine's area at q=8380417 (ML-DSA) is not yet measured: its 46-bit products make it the slowest of the three to synthesise. q=12289 and q=3329 are measured.",
     "Never run on hardware. The bring-up image is built and simulated; docs/FPGA_BRINGUP.md is the procedure, and LED polarity is still an assumption until a board confirms it.",
     "Full SkyWater chip never hardened: no LibreLane run of the OpenFrame chip has completed, so it has no gate-level netlist, timing sign-off, DRC or LVS result. (The Tiny Tapeout tile HAS: v3.4 sign-off clean on 2026-10-17.)",

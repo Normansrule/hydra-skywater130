@@ -20,3 +20,6 @@ Tile harden ladder: `harden-ladder-20261017-212105.log.gz` -- rung drive2
 (v3.5) failed setup (-2.403 ns), rung buffers20 (v3.4 settings) signed off
 clean, then tile-gl 21/21. The v3.4 numbers in docs/timing.json come from
 `harden-ladder-20261017-115622-checks.out`.
+
+v3.6 (rung realbuf2) signed off clean: `harden-ladder-20261017-223414-v3.6.log.gz`, `harden-ladder-20261017-223414-v3.6-checks.out`.
+GPU engine synthesized for ECP5 with yosys 0.52 (synth_ecp5): `gpu-ecp5-yosys-stat.txt`.

@@ -69,6 +69,35 @@ MUTATIONS = [
      "      if (pop)  rp <= rp + 1'b1;",
      "      if (1'b0) rp <= rp + 1'b1;",
      "jtag-harness"),
+    # The GPU engine (Pixelstorm over a HYDRA bank, 2026-10-17).
+    ("GPU-01 a line write answered before its words are written", "sys/rtl/hydra_engine_gpu.sv",
+     "          if (w == 3'(LW - 1)) mst <= M_RESP;\n          w <= w + 3'd1;\n        end\n        M_AT_RD",
+     "          mst <= M_RESP;\n          w <= w + 3'd1;\n        end\n        M_AT_RD",
+     "gpu"),
+    ("GPU-02 atomic add answers with the new value, not the old", "sys/rtl/hydra_engine_gpu.sv",
+     "          if (op_q == 2'd2) m_resp_rdata <= {{(LW-1)*32{1'b0}}, ok_q ? old_q : 32'd0};",
+     "          if (op_q == 2'd2) m_resp_rdata <= {{(LW-1)*32{1'b0}}, ok_q ? old_q + wdata_q[31:0] : 32'd0};",
+     "gpu"),
+    ("GPU-03 a line past the end of the bank wraps instead of being refused", "sys/rtl/hydra_engine_gpu.sv",
+     "  wire line_ok = (m_req_addr < 32'(DEPTH)) && (m_req_addr + 32'(LW) <= 32'(DEPTH));",
+     "  wire line_ok = 1'b1;",
+     "gpu"),
+    ("GPU-04 a block larger than one SM is launched", "sys/rtl/hydra_engine_gpu.sv",
+     "                   (wd_block > 16'(WARPS * LANES)) || !prog_loaded;",
+     "                   !prog_loaded;",
+     "gpu"),
+    ("GPU-05 line read words land one slot late", "sys/rtl/hydra_engine_gpu.sv",
+     "          if (w != 3'd0 && ok_q) m_resp_rdata[(w - 3'd1) * 32 +: 32] <= b_rdata;",
+     "          if (w != 3'd0 && ok_q && w != 3'd3) m_resp_rdata[w * 32 +: 32] <= b_rdata;",
+     "gpu"),
+    ("GPU-06 a host bank write accepted during a job", "sys/rtl/hydra_engine_gpu.sv",
+     "  wire host_owns = (est == E_IDLE) && !accept;",
+     "  wire host_owns = 1'b1;",
+     "gpu"),
+    ("GPU-07 a launch accepted with no program loaded", "sys/rtl/hydra_engine_gpu.sv",
+     "      if (prog_we && eng_ready) prog_loaded <= 1'b1;",
+     "      prog_loaded <= 1'b1;",
+     "gpu"),
 ]
 
 
@@ -113,7 +142,7 @@ def main():
         if survived:
             print(f"=== {survived} MUTATION(S) SURVIVED ===")
             sys.exit(1)
-        print(f"=== ALL {len(MUTATIONS)} DISPATCHER AND BRIDGE MUTATIONS KILLED ===")
+        print(f"=== ALL {len(MUTATIONS)} DISPATCHER, BRIDGE AND GPU MUTATIONS KILLED ===")
 
 
 if __name__ == "__main__":

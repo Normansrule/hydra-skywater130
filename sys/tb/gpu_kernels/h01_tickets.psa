@@ -1,0 +1,28 @@
+; =============================================================================
+; h01 tickets -- the value an atomic RETURNS, made visible (HYDRA test kernel)
+; -----------------------------------------------------------------------------
+;   int t = atomicAdd(&count, 1);   // my ticket: the count BEFORE my add
+;   flags[t] = 1;
+;
+; Pixelstorm's own kernels use ATOM.ADD only for its side effect (06
+; histogram ignores the old value), so a memory system that answered with
+; the NEW value would pass all of them. Here the old value picks the word to
+; write: 64 threads must set flags[0..63] and leave flags[64] alone, in
+; whatever order the atomics land, so the result does not depend on timing.
+; =============================================================================
+.kernel tickets
+.grid 2
+.block 32
+.equ COUNT, 0x100
+.equ FLAGS, 0x200
+.param 0, COUNT
+.param 1, FLAGS
+.dump FLAGS, 65, one flag per ticket, then a word that must stay 0
+
+    LDC   R4, c[0]               ; &count
+    MOVI  R7, 1
+    ATOM.ADD R8, [R4], R7        ; R8 = count before this lane's add
+    LDC   R6, c[1]
+    ADD   R6, R6, R8             ; &flags[ticket]
+    STG   [R6], R7
+    EXIT

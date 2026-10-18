@@ -53,7 +53,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #     but setup -2.403 ns at max_ss_100C_1v60. Rejected by this ladder.
 RUNGS = [
     ("realbuf2",
-     "v3.6: no weak or delay buffers at all (buf_1, clkbuf_1, delay gates, delay buffers), so repair can only pick a _2 or stronger real buffer",
+     "v3.6, signed off 2026-10-17: no weak or delay buffers at all; slew 775 (slow corners only), cap 0, setup +14.84 ns",
      {"DESIGN_REPAIR_MAX_SLEW_PCT": 20, "DESIGN_REPAIR_MAX_CAP_PCT": 20,
       "EXTRA_EXCLUDED_CELLS": ["sky130_fd_sc_hd__clkdlybuf4s*", "sky130_fd_sc_hd__dlygate4sd*",
                                "sky130_fd_sc_hd__dlymetal6s*", "sky130_fd_sc_hd__buf_1",

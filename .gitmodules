@@ -1,3 +1,6 @@
 [submodule "tt/tile"]
 	path = tt/tile
 	url = https://github.com/Normansrule/tinytapeout-hydra.git
+[submodule "ext/pixelstorm-gpu"]
+	path = ext/pixelstorm-gpu
+	url = https://github.com/Normansrule/pixelstorm-gpu.git

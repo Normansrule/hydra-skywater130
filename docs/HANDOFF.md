@@ -91,7 +91,7 @@ Next (specified in `docs/architecture/heterogeneous-system.md`, not built):
   covers; counted from the Makefile, not from `.sby` files).
 - **Mutation testing**: every named deliberate break must be caught —
   `tt/tile/test/mutate_sim.py` (17/17), `mem/formal/mutate_dma.py` (26/26),
-  `tools/mutate_mom.py` (12/12: 8 dispatcher, 4 bridge host-path), `common/formal/mutate_targets.py`, and
+  `tools/mutate_mom.py` (19/19: 8 dispatcher, 4 bridge host-path, 7 GPU), `common/formal/mutate_targets.py`, and
   `scripts/ci_selftest.sh` (22 runs). When code changes, update the anchors;
   never delete a mutation to get green.
 - `make lint`: Verilator `-Wall` with LibreLane's settings, **0 warnings** on
