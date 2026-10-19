@@ -55,9 +55,9 @@ TARGETS = {
         "src": ROOT / "common/rtl/hydra_rst_sync.sv",
         "mutations": [
             ("release after one edge",
-             "sync_q <= {sync_q[STAGES-2:0], 1'b1};", "sync_q <= '1;"),
+             "rel_q  <= sync_q[STAGES-2];", "rel_q  <= 1'b1;"),
             ("asynchronous release",
-             ": sync_q[STAGES-1];", ": arst_n;"),
+             "scan_rst_n : rel_q;", "scan_rst_n : arst_n;"),
         ],
     },
     "mom_xbar": {
