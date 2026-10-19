@@ -28,7 +28,10 @@ will still open in ten years.
 
 import json
 import pathlib
+import re
 import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SITE = ROOT / "docs/site/index.html"
@@ -750,15 +753,50 @@ def architecture_md():
         "".join(f"| {l} | {w} | [{d}]({pathlib.Path(d).relative_to('docs')}) |\n" for l, w, d in ROADMAP))
 
 
+def check_cards():
+    """Every evidence target a block card names must be a make target, and
+    every card must belong to a block the atlas draws."""
+    import yaml
+    mk = (ROOT / "Makefile").read_text()
+    targets = set(re.findall(r"(?m)^([A-Za-z0-9_.-]+):", mk))
+    spec = yaml.safe_load((ROOT / "docs/atlas/atlas.yaml").read_text())
+    cards = yaml.safe_load((ROOT / "docs/atlas/cards.yaml").read_text())
+    ids = {b["id"] for b in spec["blocks"]}
+    bad = [f"card '{k}' has no block in atlas.yaml" for k in cards if not k.startswith("_") and k not in ids]
+    for k, c in cards.items():
+        if k.startswith("_"):
+            continue
+        for e in c.get("evidence", []):
+            for t in re.findall(r"(?:make\s+)?([a-z0-9][a-z0-9-]*)", str(e.get("target", "")).split(",")[0])[:1]:
+                if t not in targets and t not in ("mutation",):
+                    bad.append(f"card '{k}' names evidence 'make {t}', which the Makefile does not have")
+    return bad
+
+
 def render(m):
-    return html(m), architecture_md()
+    import atlas_site
+    page, stale = atlas_site.render(m)
+    return page, architecture_md(), stale
 
 
 def main():
     check_files()
     m = json.loads((ROOT / "docs/metrics.json").read_text())
     check_proof_count(m)
-    page, arch = render(m)
+    page, arch, stale = render(m)
+    bad = check_cards()
+    if bad:
+        print("gen_site: refusing to generate --")
+        for p in bad:
+            print(f"  {p}")
+        sys.exit(1)
+    if stale:
+        # The page would still render, with a warning banner; a check must not pass.
+        print("site: the atlas data is older than the sources it describes:")
+        for p in stale:
+            print(f"  {p}")
+        if "--check" in sys.argv:
+            sys.exit(1)
     if "--check" in sys.argv:
         # Compare without touching the tree (SkyWater 130 audit BUILD-03).
         stale = [str(p.relative_to(ROOT)) for p, txt in ((SITE, page), (ARCH, arch))

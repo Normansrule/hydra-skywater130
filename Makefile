@@ -116,6 +116,7 @@ tile-gl:                      ## the tile tests on the HARDENED netlist (needs a
 
 render-layout:                ## render the hardened tile into both READMEs' docs/img/layout.png
 	./scripts/render-layout.sh $(or $(RUN),$(HOME)/src/tinytapeout-hydra)
+	@mkdir -p docs/site/media && cp docs/img/layout.png docs/site/media/layout.png
 
 slew-report:                  ## group slew/capacitance warnings by net and name each driver
 	python3 tools/slew_report.py $(or $(RUN),$(HOME)/src/tinytapeout-hydra)
@@ -255,16 +256,31 @@ readme-art:                   ## regenerate every README figure from the reposit
 	python3 tools/gen_readme_art.py
 	python3 tools/gen_readme_hero.py
 	python3 tools/gen_readme_visuals.py
+	python3 tools/gen_readme_gifs.py
 
 readme-check:                 ## lead figures current; README numbers match the latest harden
 	@python3 tools/gen_readme_hero.py --check
 	@python3 tools/gen_readme_visuals.py --check
+	@python3 tools/gen_readme_gifs.py --check
 
 site:                         ## regenerate the project page and the architecture diagram
 	python3 tools/gen_site.py
 
 site-check:                   ## the page and diagram still match the repository (writes nothing)
 	@python3 tools/gen_site.py --check
+
+atlas:                        ## the atlas data: what each build elaborates, every trace re-recorded from passing tests
+	python3 tools/atlas_derive.py
+	python3 tools/atlas_traces.py
+	python3 tools/gen_site.py
+
+atlas-physical:               ## map a hardened run's placed cells to RTL instances (RUN= run dir, LADDER= its id)
+	python3 tools/atlas_physical.py $(or $(RUN),$(HOME)/src/tinytapeout-hydra/runs/wokwi) $(if $(LADDER),--ladder $(LADDER)) $(if $(NOTE),--note "$(NOTE)")
+	python3 tools/gen_site.py
+
+atlas-flow:                   ## one harden run, step by step, from its own logs (RUN= run dir, LABEL= what it is)
+	python3 tools/atlas_flow.py $(or $(RUN),$(HOME)/src/tinytapeout-hydra/runs/wokwi) --label "$(or $(LABEL),the last harden)"
+	python3 tools/gen_site.py
 
 cost-cal:                     ## cost and calibration arithmetic against exact products (MODEL-01/02)
 	sv2v mom/rtl/mom_pkg.sv mom/rtl/mom_cost_engine.sv mom/rtl/mom_calibrate.sv \

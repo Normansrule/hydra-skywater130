@@ -21,10 +21,12 @@ import json, pathlib, re, sys
 from xml.sax.saxutils import escape
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+import sys as _s; _s.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 OUT = [ROOT / "docs/img", ROOT / "tt/tile/docs/img"]      # both repositories
 
-INK, DIM, LINE, CARD = "#111827", "#5b6576", "#d6dce5", "#ffffff"
-TEAL, AMBER, VIOLET = "#0f766e", "#b45309", "#6d28d9"
+INK, DIM, LINE, CARD = "@ink", "@ink2", "@line", "@raised"
+# graphite/ivory atlas palette (tools/atlas_theme.py)
+TEAL, AMBER, VIOLET = "@memory", "@control", "@compute"
 FONT = "font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"
 MONO = "font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
 
@@ -39,9 +41,12 @@ def card(w, h, body, title=None):
 
 
 def write(name, svg, repos=OUT):
+    """Both themes: NAME.svg (ivory) and NAME.dark.svg (graphite)."""
+    import atlas_theme
     for d in repos:
         d.mkdir(parents=True, exist_ok=True)
-        (d / name).write_text(svg)
+        for fname, text in atlas_theme.variants(name, svg):
+            (d / fname).write_text(text)
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +78,7 @@ def pinout():
                 f'The research tile (v3) has one interface: an SPI register map on three pins, '
                 f'and status summaries on the outputs. The HYDRA-130 chip keeps the v1 serial pins as well.</text>')
     body.append(f'<rect x="{chip_x}" y="{top}" width="{chip_w}" height="{8*row+6}" rx="12" '
-                f'fill="#f3f6fa" stroke="{INK}" stroke-width="1.6"/>')
+                f'fill="@surface" stroke="{INK}" stroke-width="1.6"/>')
     body.append(f'<text x="{chip_x+chip_w/2}" y="{top+4*row-4}" text-anchor="middle" '
                 f'style="{FONT};font-size:21px;font-weight:700" fill="{INK}">tt_um_hydra_mom</text>')
     body.append(f'<text x="{chip_x+chip_w/2}" y="{top+4*row+20}" text-anchor="middle" '
@@ -158,7 +163,7 @@ def fpga_wiring():
     for i, (core, bs, vend, ball) in enumerate(rows):
         y = top + i * rh
         if i % 2 == 0:
-            body.append(f'<rect x="20" y="{y-16}" width="{w-40}" height="{rh}" fill="#f5f7fa"/>')
+            body.append(f'<rect x="20" y="{y-16}" width="{w-40}" height="{rh}" fill="@surface"/>')
         body.append(f'<text x="34" y="{y}" style="{MONO};font-size:12px" fill="{TEAL}">{escape(core)}</text>'
                     f'<text x="250" y="{y}" style="{MONO};font-size:12px" fill="{INK}">{escape(bs)}</text>'
                     f'<text x="470" y="{y}" style="{MONO};font-size:12px" fill="{DIM}">{escape(str(vend))}</text>'
@@ -181,23 +186,30 @@ def from_site():
 
     def restyle(svg):
         # The site's figures use CSS variables; a standalone file needs real colours.
-        style = (f"<style>.node rect{{fill:#f3f6fa;stroke:{LINE};stroke-width:1.5}}"
+        style = (f"<style>.node rect{{fill:@surface;stroke:{LINE};stroke-width:1.5}}"
                  f".n-label{{{FONT};font-size:14px;font-weight:600;fill:{INK};text-anchor:middle}}"
                  f".n-sub{{{MONO};font-size:11px;fill:{DIM};text-anchor:middle}}"
-                 f".edge{{fill:none;stroke:#9aa6b6;stroke-width:1.5}}"
+                 f".edge{{fill:none;stroke:@dim;stroke-width:1.5}}"
                  f".edge-label{{{MONO};font-size:10px;fill:{DIM};text-anchor:middle}}"
                  f".bar rect{{fill:{TEAL}}}.b-name{{{FONT};font-size:13px;font-weight:600;fill:{INK};text-anchor:end}}"
                  f".b-val{{{MONO};font-size:12px;fill:{DIM}}}</style>")
         svg = svg.replace('class="diagram" ', "").replace('class="bars" ', "")
-        svg = svg.replace("currentColor", "#9aa6b6")
+        svg = svg.replace("currentColor", "@dim")
         return svg.replace(">", ">" + style + f'<rect width="100%" height="100%" fill="{CARD}"/>', 1)
 
     # Each repository gets the as-built view of ITS OWN build: the memory
     # image here, the scheduler-only tile in the tile repository. (Until the
     # SkyWater 130 audit, 2026-10-11, both showed every IP block wired
     # together, which no build is.)
-    write("architecture.svg", restyle(gen_site.svg_graph(gen_site.AS_BUILT)), repos=[OUT[0]])
-    write("architecture.svg", restyle(gen_site.svg_graph(gen_site.TILE_BUILT)), repos=[OUT[1]])
+    # Since the Silicon Atlas (2026-10-18) the boxes come from the instance
+    # tree the compiler elaborated for that build (docs/atlas/derived.json),
+    # and gen_site's own instantiation check still refuses a wrong AS_BUILT.
+    import atlas_site
+    gen_site.check_files()
+    write("architecture.svg", atlas_site.logical_figure(
+        "fpga-ecp5-evn-mem", "As built: FPGA image ecp5-evn-mem, the scheduler and the memory-fed array"), repos=[OUT[0]])
+    write("architecture.svg", atlas_site.logical_figure(
+        "tile", "As built: the Tiny Tapeout tile tt_um_hydra_mom, the scheduler only"), repos=[OUT[1]])
     write("area.svg", restyle(gen_site.svg_area(m)), repos=[OUT[0]])
 
 
@@ -238,7 +250,7 @@ def anim_dispatch():
     b.append(f'<line x1="144" y1="198" x2="214" y2="198" stroke="{LINE}" stroke-width="1.4"/>')
 
     # descriptor arriving
-    b.append(f'<rect x="24" y="170" width="120" height="56" rx="9" fill="#f3f6fa" stroke="{LINE}"/>'
+    b.append(f'<rect x="24" y="170" width="120" height="56" rx="9" fill="@surface" stroke="{LINE}"/>'
              f'<text x="84" y="196" text-anchor="middle" style="{FONT};font-size:13px;font-weight:600" fill="{INK}">descriptor</text>'
              f'<text x="84" y="213" text-anchor="middle" style="{MONO};font-size:10.5px" fill="{DIM}">8×8×8 GEMM</text>')
     b.append(f'<circle r="6" fill="{TEAL}"><animate attributeName="opacity" values="1;1;0;0" '
@@ -247,7 +259,7 @@ def anim_dispatch():
              f'keyTimes="0;0.08;1" calcMode="linear" repeatCount="indefinite"/></circle>')
 
     # the shared cost engine
-    b.append(f'<rect x="214" y="150" width="170" height="96" rx="11" fill="#ecfdf5" stroke="{TEAL}" stroke-width="1.8"/>'
+    b.append(f'<rect x="214" y="150" width="170" height="96" rx="11" fill="@memory_t" stroke="{TEAL}" stroke-width="1.8"/>'
              f'<text x="299" y="186" text-anchor="middle" style="{FONT};font-size:14px;font-weight:700" fill="{INK}">cost engine</text>'
              f'<text x="299" y="206" text-anchor="middle" style="{MONO};font-size:11px" fill="{DIM}">one, shared</text>')
     # The phase alternates every cycle of the sweep: latch the first stage,
@@ -267,8 +279,8 @@ def anim_dispatch():
         stop = (3 + 2 * i) / 16.0
         b.append(f'<line x1="384" y1="198" x2="470" y2="{y+20}" stroke="{LINE}" stroke-width="1.4"/>'
                  f'<line x1="660" y1="{y+20}" x2="700" y2="198" stroke="{LINE}" stroke-width="1.4"/>')
-        b.append(f'<rect x="470" y="{y}" width="190" height="40" rx="8" fill="#f8fafc" stroke="{LINE}">'
-                 f'<animate attributeName="fill" values="#f8fafc;#f8fafc;#ccfbf1;#ccfbf1;#f8fafc;#f8fafc" '
+        b.append(f'<rect x="470" y="{y}" width="190" height="40" rx="8" fill="@surface" stroke="{LINE}">'
+                 f'<animate attributeName="fill" values="@surface;@surface;@memory_t;@memory_t;@surface;@surface" '
                  f'keyTimes="0;{start:.3f};{start+0.001:.3f};{stop:.3f};{stop+0.001:.3f};1" '
                  f'dur="{total}s" repeatCount="indefinite"/></rect>')
         b.append(f'<text x="488" y="{y+25}" style="{FONT};font-size:13px;font-weight:600" fill="{INK}">{n}</text>')
@@ -281,13 +293,13 @@ def anim_dispatch():
     win = costs.index(min(costs))
     wy = 96 + win * 54
     ts = 12 / 16.0
-    b.append(f'<rect x="700" y="170" width="110" height="56" rx="9" fill="#f3f6fa" stroke="{LINE}"/>'
+    b.append(f'<rect x="700" y="170" width="110" height="56" rx="9" fill="@surface" stroke="{LINE}"/>'
              f'<text x="755" y="196" text-anchor="middle" style="{FONT};font-size:13px;font-weight:600" fill="{INK}">argmin</text>'
              f'<text x="755" y="213" text-anchor="middle" style="{MONO};font-size:10.5px" fill="{DIM}">+ margin</text>')
     b.append(f'<rect x="466" y="{wy-4}" width="198" height="48" rx="10" fill="none" stroke="{AMBER}" stroke-width="3" opacity="0">'
              f'<animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;{ts:.3f};{ts+0.001:.3f};0.97;1" '
              f'dur="{total}s" repeatCount="indefinite"/></rect>')
-    b.append(f'<rect x="840" y="170" width="120" height="56" rx="9" fill="#fff7ed" stroke="{AMBER}" stroke-width="1.8" opacity="0.25">'
+    b.append(f'<rect x="840" y="170" width="120" height="56" rx="9" fill="@control_t" stroke="{AMBER}" stroke-width="1.8" opacity="0.25">'
              f'<animate attributeName="opacity" values="0.25;0.25;1;1;0.25" keyTimes="0;{(14/16):.3f};{(14/16)+0.001:.3f};0.97;1" '
              f'dur="{total}s" repeatCount="indefinite"/></rect>'
              f'<text x="900" y="196" text-anchor="middle" style="{FONT};font-size:13px;font-weight:700" fill="{INK}">dispatch</text>'
@@ -323,7 +335,7 @@ def anim_selftest():
             keys += [f"{on:.4f}", f"{on+0.0005:.4f}", f"{off:.4f}", f"{off+0.0005:.4f}"]
             vals += ["0.18", "1", "1", "0.18"]
         keys.append("1"); vals.append("0.18")
-        b.append(f'<circle cx="{x}" cy="128" r="22" fill="#fde68a" opacity="0.18">'
+        b.append(f'<circle cx="{x}" cy="128" r="22" fill="@control_t" opacity="0.18">'
                  f'<animate attributeName="opacity" values="{";".join(vals)}" keyTimes="{";".join(keys)}" '
                  f'dur="{total}s" repeatCount="indefinite"/></circle>'
                  f'<circle cx="{x}" cy="128" r="11" fill="{AMBER}" opacity="0.25">'
@@ -350,7 +362,7 @@ def timing_chart():
              f'<text x="{zero}" y="{top-20}" text-anchor="middle" style="{MONO};font-size:11px" fill="{INK}">0 ns</text>')
     for i, (name, s, hold, vio) in enumerate(cs):
         y = top + i * rh
-        col = "#dc2626" if s < 0 else TEAL
+        col = "@danger" if s < 0 else TEAL
         xa, xb = (sx(s), zero) if s < 0 else (zero, sx(s))
         b.append(f'<text x="{x0-12}" y="{y+15}" text-anchor="end" style="{MONO};font-size:12px" fill="{INK}">{escape(name)}</text>'
                  f'<rect x="{xa:.1f}" y="{y+3}" width="{max(2, xb-xa):.1f}" height="17" rx="3" fill="{col}"/>'
@@ -365,7 +377,7 @@ def timing_chart():
         # the figure says how far off it is instead of leaving it out
         worst = min(cs, key=lambda c: c[1])[0]
         sw = (r.get("slew_report") or {}).get(worst, {}).get("slew", [None, None])[1]
-        b.append(f'<text x="24" y="{fy+20}" style="{FONT};font-size:12.5px" fill="{"#b45309" if r["slew_violations"] else INK}">'
+        b.append(f'<text x="24" y="{fy+20}" style="{FONT};font-size:12.5px" fill="{"@control" if r["slew_violations"] else INK}">'
                  f'Slew warnings {r["slew_violations"]:,}, capacitance {r["cap_violations"]:,}'
                  + (f'; worst slew slack {sw:+.3f} ns ({escape(worst)})' if sw is not None else "")
                  + ('. Not sign-off; FIRST_TRY.md wants 0.' if r["slew_violations"] else ".")

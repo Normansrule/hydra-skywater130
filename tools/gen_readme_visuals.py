@@ -34,11 +34,14 @@ import json, pathlib, re, sys
 from xml.sax.saxutils import escape
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+import sys as _s; _s.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 OUT = ROOT / "docs/img"
 
-BG, PANEL, EDGE = "#0f1622", "#172131", "#2a3a52"
-TXT, TXT2, DIM = "#eef2f7", "#a9b6c6", "#6f7f95"
-BLUE, GREEN, PINK, GOLD, SLATE, RED = "#5b9cf5", "#3dbb8a", "#e061b0", "#d6a93c", "#7d8ea3", "#e5484d"
+BG, PANEL, EDGE = "@bg", "@surface", "@line"
+TXT, TXT2, DIM = "@ink", "@ink2", "@dim"
+# graphite/ivory atlas palette (tools/atlas_theme.py): amber control, violet compute,
+# rose security, cyan signal (pads, pins), slate infrastructure, red failure
+BLUE, GREEN, PINK, GOLD, SLATE, RED = "@control", "@compute", "@secure", "@signal", "@dim", "@danger"
 FONT = "font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"
 MONO = "font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
 
@@ -66,12 +69,15 @@ def svg(w, h, title, desc, body):
 
 
 def write(name, text):
-    f = OUT / name
-    if CHECK:
-        if not f.exists() or f.read_text() != text:
-            STALE.append(str(f.relative_to(ROOT)))
-        return
-    f.write_text(text)
+    """Both themes: NAME.svg (ivory) and NAME.dark.svg (graphite)."""
+    import atlas_theme
+    for fname, painted in atlas_theme.variants(name, text):
+        f = OUT / fname
+        if CHECK:
+            if not f.exists() or f.read_text() != painted:
+                STALE.append(str(f.relative_to(ROOT)))
+            continue
+        f.write_text(painted)
 
 
 def t(x, y, s, size=13, fill=TXT, anchor="start", weight=400, mono=False, cls=""):
@@ -123,14 +129,14 @@ def chip_package():
     b.append(t(48, 92, f"Every one of the {npads} OpenFrame pads, labelled from sky130/rtl/hydra_openframe_top.sv and the "
                        "tile's info.yaml. Illustration only: not hardened, no package chosen.", 13.5, TXT2))
     x0, y0 = cx - S / 2, cy - S / 2
-    b.append(f'<rect x="{x0-18}" y="{y0-18}" width="{S+36}" height="{S+36}" rx="26" fill="#0b0f16" stroke="{EDGE}" stroke-width="2"/>')
-    b.append(f'<rect x="{x0}" y="{y0}" width="{S}" height="{S}" rx="16" fill="#1b2433" stroke="{GOLD}" stroke-opacity=".45" stroke-width="1.5"/>')
+    b.append(f'<rect x="{x0-18}" y="{y0-18}" width="{S+36}" height="{S+36}" rx="26" fill="@bg" stroke="{EDGE}" stroke-width="2"/>')
+    b.append(f'<rect x="{x0}" y="{y0}" width="{S}" height="{S}" rx="16" fill="@surface" stroke="{GOLD}" stroke-opacity=".45" stroke-width="1.5"/>')
     b.append(f'<circle cx="{x0+24}" cy="{y0+24}" r="7" fill="{EDGE}"/>')            # pin-1 mark
     die = 230
     dx, dy = cx - die / 2, cy - die / 2
-    b.append(f'<rect x="{dx}" y="{dy}" width="{die}" height="{die}" rx="6" fill="#222f44" stroke="{BLUE}" stroke-opacity=".7"/>')
+    b.append(f'<rect x="{dx}" y="{dy}" width="{die}" height="{die}" rx="6" fill="@raised" stroke="{BLUE}" stroke-opacity=".7"/>')
     for i in range(1, 10):                                                        # cell rows, decorative
-        b.append(f'<line x1="{dx+10}" y1="{dy+i*die/10:.1f}" x2="{dx+die-10}" y2="{dy+i*die/10:.1f}" stroke="#ffffff" stroke-opacity=".05"/>')
+        b.append(f'<line x1="{dx+10}" y1="{dy+i*die/10:.1f}" x2="{dx+die-10}" y2="{dy+i*die/10:.1f}" stroke="@grid" stroke-opacity=".05"/>')
     b.append(t(cx, cy - 40, "HYDRA-130", 24, TXT, "middle", 800))
     b.append(t(cx, cy - 16, "OpenFrame · sky130", 12.5, TXT2, "middle", mono=True))
     for i, (n, c) in enumerate([("scheduler (MOM)", BLUE), ("pad multiplexer", GOLD), ("SPI register map", BLUE)]):
@@ -218,12 +224,12 @@ def connections():
     for i, s in enumerate(["roofline cost per engine", "eligibility before cost", "pick the cheapest", "calibrate on completion"]):
         b.append(t(856, 222 + i * 26, "• " + s, 12.5, TXT))
     b.append(box(840, 450, 230, 96, "Crossbar", "dispatch and completion", BLUE, "simulated, proved"))
-    engines = [("CPU (chip only)", "Sixfold RV64, 6 stages", PINK, "scheduled, simulated", False),
+    engines = [("CPU (system tile)", "Sixfold RV64, 6 stages", PINK, "scheduled, simulated", False),
                ("Vector unit", "4 lanes × 32-bit", GREEN, "simulated, P&R", False),
                ("TPU", "4×4 INT8 systolic + memory", GREEN, "simulated, P&R", False),
                ("NTT", "Barrett butterflies", GREEN, "simulated", False),
                ("Crypto slot", "latency model", SLATE, "model only", False),
-               ("GPU (chip only)", "Pixelstorm 2 SM × 4 × 8", PINK, "scheduled, simulated", False)]
+               ("GPU (system tile)", "Pixelstorm 2 SM × 4 × 8", PINK, "scheduled, simulated", False)]
     for i, (n, s, c, st, dash) in enumerate(engines):
         y = 126 + i * 92
         b.append(box(1140, y, 214, 80, n, s, c, st, dash))
@@ -247,7 +253,7 @@ def connections():
                            "P&R: placed and routed on ECP5. No block has run on a board yet.", 12.5, DIM))
     write("connections.svg", svg(W, H, "HYDRA-130 connections",
           "Host over serial or JTAG into one bridge, then the SPI register map, the scheduler, the crossbar and six engine "
-          "slots; scratchpad banks feed the engines and are loaded by the host. The GPU engine is built but not yet a slot.",
+          "slots of the system tile (simulation); scratchpad banks feed the engines and are loaded by the host. The OpenFrame chip top holds the scheduler alone.",
           "".join(b)))
 
 
@@ -257,9 +263,9 @@ LEVELS = ["simulated", "synthesized", "placed and routed", "on a board"]
 CAPS = [  # engine, what, {level: make target or None}, note
     ("TPU", "4×4 INT8 systolic array, memory-fed", {"simulated": "dma", "synthesized": "fpga", "placed and routed": "fpga"}, "ecp5-evn-tpu, ecp5-evn-mem"),
     ("Vector", "4 lanes × 32-bit integer", {"simulated": "dma-simd", "synthesized": "fpga", "placed and routed": "fpga"}, "ecp5-evn-two"),
-    ("GPU", "Pixelstorm SIMT, 2 SM × 4 warps × 8 lanes", {"simulated": "systile-gpu", "synthesized": "gpu"}, "the chip's sixth scheduler slot; 62,625 LUT4 on ECP5"),
+    ("GPU", "Pixelstorm SIMT, 2 SM × 4 warps × 8 lanes", {"simulated": "systile-gpu", "synthesized": "gpu"}, "sixth slot of the system tile, in simulation; 62,625 LUT4 on ECP5"),
     ("NTT", "Barrett butterflies, 3 moduli", {"simulated": "ntt-moduli"}, "not in an FPGA image yet"),
-    ("CPU", "Sixfold RV64IM + Zba/Zbb/Zbs + Zknh", {"simulated": "systile-cpu"}, "the chip's CPU slot; 24 programs cycle-exact against Sixfold's model"),
+    ("CPU", "Sixfold RV64IM + Zba/Zbb/Zbs + Zknh", {"simulated": "systile-cpu", "synthesized": "cpu-synth"}, "the system tile's CPU slot; the cached build synthesizes for ECP5 (make cpu-cached checks it)"),
     ("Scheduler", "cost model, calibration, tags", {"simulated": "systile", "synthesized": "fpga", "placed and routed": "fpga"}, "also hardened as the Tiny Tapeout tile"),
 ]
 
@@ -294,10 +300,10 @@ def capabilities():
             else:
                 b.append(f'<rect x="{x}" y="{y+12}" width="{cw-28}" height="{row-34}" rx="8" fill="none" stroke="{EDGE}" stroke-dasharray="5 5"/>')
     b.append(t(48, H - 30, "From docs/verification/capability-matrix.md. 'make fpga' places and routes the ECP5 images; "
-                           "'make systile-gpu' schedules a real GPU kernel on the six-slot chip.", 12.5, DIM))
+                           "'make systile-gpu' schedules a real GPU kernel on the six-slot system tile (simulation, not the chip top).", 12.5, DIM))
     write("capabilities.svg", svg(W, H, "Engine capabilities on FPGA",
           "A grid of engines against simulated, synthesized, placed and routed, and on a board. TPU, vector and scheduler "
-          "are placed and routed on ECP5; the GPU is simulated and synthesized; NTT simulated; the CPU not integrated; "
+          "are placed and routed on ECP5; the GPU and the cached CPU are simulated and synthesized; NTT simulated; "
           "nothing has run on a board.", "".join(b)))
 
 
@@ -322,9 +328,9 @@ def milestones():
         ]),
         ("SkyWater 130 chip", [
             ("scheduler, pad multiplexer, SPI through the pads", DONE, "sky130"),
-            ("GPU as the sixth scheduler slot", DONE, "systile-gpu"),
-            ("ABI version 2: modes, policy, contexts", DONE, "systile-abi"),
-            ("Sixfold RV64 CPU on the CPU slot", DONE, "systile-cpu"),
+            ("GPU as the sixth slot, system-tile simulation", DONE, "systile-gpu"),
+            ("ABI version 2: modes, policy, contexts, simulation", DONE, "systile-abi"),
+            ("Sixfold RV64 CPU on the CPU slot, simulation", DONE, "systile-cpu"),
             ("CPU, GPU and TPU in the OpenFrame top", PLAN, "they run in the system tile; the pad top has the scheduler"),
             ("harden the OpenFrame chip", BLOCK, "the CPU memory must become SRAM macros first"),
         ]),

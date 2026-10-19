@@ -1,0 +1,1108 @@
+{
+ "mom": {
+  "spi_protocol": {
+   "mode": "SPI mode 0 (CPOL 0, CPHA 0): COPI sampled on rising SCK, CIPO changes after falling SCK; SCK idles low",
+   "bit_order": "MSB first in both directions (mom/rtl/hydra_tt_spi.sv:22,119,133; cipo = tx_sr[7] line 91)",
+   "speed": "SCK below clk/8 (hydra_tt_spi.sv:14-15); the cocotb host uses clk/10 (tt/tile/test/test.py:71)",
+   "oversampling": "SCK, COPI and CSn are synchronised into clk (same depth, hydra_tt_spi.sv:62-80); edges are detected in clk, so COPI must be stable around the SCK rise and the host should sample CIPO at its rising edge, at least ~4 clk after the falling edge (DERIVED from 128-139)",
+   "command_byte": "byte 0 = {rw, addr[6:0]}; rw = 1 read, 0 write (tt/tile/src/rtl/hydra_tt_regs.sv:239-242). While it shifts in, CIPO returns STATUS[15:8] (386).",
+   "write_frame": "CSn low, command byte (rw=0), exactly LEN data bytes MSB first, CSn high. Length in bits = 8 + 8*LEN: ID n/a (RO), WD 136, CTRL 16, ACTION 16, COMP 16, FENCE 16, PARAM 56, GLOBAL 24. Commits at the cs_end pulse after CSn rises (205-208, 259-286).",
+   "read_frame": "CSn low, command byte (rw=1), then N dummy bytes; data byte k (k = 0 first) = value[(LEN-1-k)*8 +: 8] (369-376, 386-387). Length in bits = 8 + 8*LEN for a full read: ID 40, WD 136, CTRL 16, STATUS 24, RESULT 56, CALUPD 24, BUSY 24, FENCE 16, GLOBAL 24, INFO 16. Any length is legal; bytes past LEN read 0x00; COPI content after the command byte is ignored. Registers of <= 6 bytes are one snapshot taken when data byte 0 is loaded (380-387); WD (and chip LASTWD) are live.",
+   "data_bytes_in_write_frames_on_cipo": "0x00 (in_rng requires cmd_rd, 376, 388) - VERIFIED-SIM",
+   "csn_deassert_mid_frame": "Partial bits of the last byte are discarded (rx_valid only on the 8th bit, hydra_tt_spi.sv:121-127). For a write, the number of whole data bytes != LEN -> nothing committed, FRAME_ERR set (205-207, 262); for WD the bytes already shifted stay in wd_q but WD_OK was cleared at the command byte, so GO is refused with GO_ERR. A frame with no complete byte is ignored with no error. A read cut short has no side effect.",
+   "wrong_length": "Too short or too long write -> FRAME_ERR, no change (n_data must equal reg_len, 205-206; n_data saturates at 31, 248). Write to RO or unmapped address -> FRAME_ERR (161-163). Reads never error.",
+   "frame_errors_are_sticky": "FRAME_ERR (STATUS[8]) stays set until ACTION.CLEAR_STICKY (312-315) and drives IRQ (394).",
+   "copi_sample_edge": "synchronised rising SCK (hydra_tt_spi.sv:118-120)",
+   "cipo_change_edge": "synchronised falling SCK; first bit of each byte is loaded on CSn fall or on the falling edge after a byte boundary (hydra_tt_spi.sv:112-116, 128-135, 139)"
+  },
+  "worked_example": {
+   "scope": "Tile (tt_um_hydra_mom, NENG 5, NTAG 4). Every byte below is VERIFIED-SIM on tt/tile/src/project.v with SCK = clk/10; the cycle counts are from that run.",
+   "steps": [
+    {
+     "step": 1,
+     "action": "Reset",
+     "bytes": "Hold rst_n low >= 1 clk with CSn (ui[2]) high, release, wait >= 3 clk."
+    },
+    {
+     "step": 2,
+     "action": "Read ID (optional check)",
+     "tx": "80 00 00 00 00",
+     "rx": "80 48 59 4D 33",
+     "meaning": "first RX byte = STATUS[15:8] = 0x80 (READY); ID = 0x48594D33 'HYM3'"
+    },
+    {
+     "step": 3,
+     "action": "Stage the descriptor: GEMM, INT8, LAT_BALANCED, PWR_BALANCED, M=N=K=4, bytes=48, src_loc 0, tag 0",
+     "tx": "01 30 A0 00 80 00 80 00 80 00 06 00 00 00 00 00 00",
+     "rx": "80 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+     "meaning": "one 17-byte frame to WD (0x01): 16 data bytes MSB first = 0x30A00080008000800006000000000000. Field positions from mom_pkg.sv:143-155: op_class[127:124]=3, dtype[123:121]=0, lat[120:119]=1, pwr[118:117]=1, dim_m[116:101]=4, dim_n[100:85]=4, dim_k[84:69]=4, bytes[68:45]=48, tag[42:35]=0. WD is one 128-bit register; there is no per-word staging."
+    },
+    {
+     "step": 4,
+     "action": "Check WD_OK",
+     "tx": "85 00 00",
+     "rx": "90 90 00",
+     "meaning": "STATUS = 0x9000 = READY | WD_OK"
+    },
+    {
+     "step": 5,
+     "action": "GO",
+     "tx": "03 01",
+     "rx": "90 00",
+     "meaning": "ACTION bit 0. Commit at cs_end (cycle 2528); mom_features takes the descriptor at 2529; the shared cost engine sweeps 5 engines x 2 cycles; dispatch at 2541 (13 cycles after cs_end)."
+    },
+    {
+     "step": 6,
+     "action": "Poll STATUS",
+     "tx": "85 00 00",
+     "rx": "10 D8 40",
+     "meaning": "STATUS = 0xD840 = READY | ANY_BUSY | WD_OK | DISPATCHED | FENCE_BUSY (FENCE=0 = tag 0, busy). The leading 0x10 is the live STATUS[15:8] at frame start, taken mid-decision."
+    },
+    {
+     "step": 7,
+     "action": "Read RESULT",
+     "tx": "86 00 00 00 00 00 00",
+     "rx": "D8 20 00 00 00 20 00",
+     "meaning": "RESULT = 0x200000002000: engine = 0x20>>5 = 1 (SIMD), tag = (0x20>>1)&0xF = 0, margin = 0x00000020 = 32 (TPU 71 - SIMD 39), err_tag 0. Pins: uo_out 0xE6, uio_out 0x60 (margin nibble 6 = 1+floor(log2 32))."
+    },
+    {
+     "step": 8,
+     "action": "Read BUSY",
+     "tx": "89 00 00",
+     "rx": "D8 00 01",
+     "meaning": "tag 0 in flight"
+    },
+    {
+     "step": 9,
+     "action": "Report completion of tag 0 (COMP)",
+     "tx": "04 00",
+     "rx": "D8 00",
+     "meaning": "comp_valid at cs_end+1 (3829); scoreboard measured 3829 - 2541 = 1288 cycles vs t_pred 27; calibration raises k[SIMD][GEMM] 64 -> 68 at 3830."
+    },
+    {
+     "step": 10,
+     "action": "Read CALUPD",
+     "tx": "88 00 00",
+     "rx": "98 00 01",
+     "meaning": "one update; STATUS[15:8] 0x98 = READY | WD_OK | DISPATCHED (no tag busy)"
+    },
+    {
+     "step": 11,
+     "action": "Rejected malformed frame: two data bytes to the one-byte CTRL register",
+     "tx": "02 00 01",
+     "rx": "98 00 00",
+     "meaning": "n_data = 2 != reg_len 1 -> nothing committed (HOLD would have stayed 0 anyway, the 0x01 byte is NOT applied), FRAME_ERR set."
+    },
+    {
+     "step": 12,
+     "action": "See the error",
+     "tx": "85 00 00",
+     "rx": "99 99 00",
+     "meaning": "STATUS = 0x9900: FRAME_ERR (bit 8) set; CTRL reads 0 (TX 82 00 -> RX 99 00)"
+    },
+    {
+     "step": 13,
+     "action": "CLEAR_STICKY",
+     "tx": "03 02",
+     "rx": "99 00",
+     "meaning": "then STATUS reads 0x9000; IRQ low"
+    }
+   ],
+   "follow_on": "Same session, GEMM INT8 8x8x8 bytes 192 (TX 01 30 A0 01 00 01 00 01 00 00 18 00 00 00 00 00 00, then 03 01, then 86 x6): RX ... 40 00 00 00 91 00 -> engine 2 (TPU), tag 0, margin 145 (SIMD now 246 because k = 68; from a fresh reset the margin is 136). VERIFIED-SIM."
+  },
+  "calibration_rule": {
+   "format": "8-bit unsigned Q2.6 per (engine, op class); 64 = 1.0 (mom_pkg.sv:275-276; mom_calibrate.sv:146-148)",
+   "table_size": "NENG x 9 entries (5 x 9 = 45 bytes on the tile)",
+   "applied_in_cost": "t_cal = floor(m*k/64) << e, with t_pred normalised to a 16-bit mantissa m by e in {0, 8, 16}; exact below 2^16, at most 1/256 low above (mom_cost_engine.sv:278-303)",
+   "update_compare": "t_cal_ref = floor(t_predicted * k / 64) computed at 34 bits (40-bit product >> 6) (mom_calibrate.sv:179-180); too_slow = t_measured > t_cal_ref; too_fast = t_measured < t_cal_ref; equal -> no move (184-185, 220)",
+   "step": "step = k >> 4, floored at 1 (193-200)",
+   "bounds": "up: min(k + step, 255); down: max(k - step, 4) (202-216)",
+   "when_applied": "on scoreboard cal_valid (one cycle after an accepted completion), unless CAL_FREEZE, t_predicted == 0, or engine/op class out of range (224); CAL_RESET (level) has priority and forces all k = 64 and the count to 0 (233-237)",
+   "counter": "upd_count +1 per applied update (240), readable as CALUPD",
+   "numeric_example": "VERIFIED-SIM: k = 64, t_predicted = 27, t_measured = 1288: t_cal_ref = 27*64>>6 = 27 < 1288 -> k = 64 + (64>>4) = 68. DERIVED: k = 250 too slow -> 250 + 15 = 265 -> clamped 255; k = 4 too fast -> step max(0,1) = 1 -> 3 -> clamped 4; from 64, repeated too-slow updates give 68, 72, 76, 80, 85, 90, 95, 100, 106, 112, 119, 126, 133 (k reaches 2x = 128+ after 13 updates)."
+  },
+  "scoreboard_rules": {
+   "allocation_order": "lowest-numbered free tag (priority loop from NTAG-1 down to 0, last match wins; mom_scoreboard.sv:140-150); tile tags 0..3",
+   "exhaustion": "no free tag -> disp_ready 0 (177); the descriptor waits in mom_top's cost register; further GOs fill the features register and the pending request; READY drops; nothing is dropped and dispatch resumes by itself when a tag is freed (VERIFIED by test_tag_exhaustion_and_recovery and my sim)",
+   "engine_full": "queue_depth >= QMAX (214) blocks dispatch to that engine and marks it !valid at costing; on the tile QMAX = NTAG = 4. Because the mask is computed once per sweep, a descriptor whose only capable engines were full when costed is never dispatched (deadlock, see mom_top failure)",
+   "out_of_order_completion": "any busy tag may complete at any time, in any order (do_comp depends only on busy[comp_tag], 181); dispatch and completion on the same engine in the same cycle net to zero (208-211)",
+   "stale_or_invalid_completion": "tag >= NTAG or not busy: ignored (no tag freed, no counter change, no calibration sample) and err_stale_comp pulses next cycle -> STATUS.STALE sticky + IRQ (172, 181, 187-191; regs 310). VERIFIED-SIM: COMP tag 3 while free -> STATUS 0xC240",
+   "fence": "fence_busy = busy[FENCE] if FENCE < NTAG, else 0 (260)",
+   "measured_time": "now - t_start, 32-bit modulo (252); t_pred stored is the uncalibrated prediction of the chosen engine (mom_top.sv:411)"
+  },
+  "engine_rows": {
+   "walk_order": "idx 0 .. NENG-1, two cycles each, in shared mode (mom_top.sv:241-258)",
+   "tile": {
+    "neng": 5,
+    "rows": [
+     {
+      "id": 0,
+      "name": "CPU",
+      "row": "p 0, setup 0, bw 2, eps 80",
+      "note": "slot only; no engines on the tile, host completes everything"
+     },
+     {
+      "id": 1,
+      "name": "SIMD",
+      "row": "p 3, setup 8, bw 4, eps 20"
+     },
+     {
+      "id": 2,
+      "name": "TPU",
+      "row": "p 7, setup 64, bw 5, eps 2"
+     },
+     {
+      "id": 3,
+      "name": "NTT",
+      "row": "p 5, setup 32, bw 4, eps 8"
+     },
+     {
+      "id": 4,
+      "name": "CRYPTO",
+      "row": "p 4, setup 16, bw 4, eps 4"
+     }
+    ],
+    "cite": "tt/tile/src/tt_um_hydra_mom.sv:208-210; mom/rtl/mom_param_rom.sv:119-123"
+   },
+   "chip_openframe": {
+    "neng": 5,
+    "note": "sky130/rtl/hydra_openframe_top.sv:148 instantiates hydra_mom_pins, whose mom_top has no NENG override (mom/hydra_mom_pins.sv:232-234): same five rows as the tile, NTAG 8, QMAX 4, no engines attached (host COMP or legacy comp pins)"
+   },
+   "system_tile": {
+    "neng": "parameter, default 5 (sys/rtl/hydra_sys_tile.sv:55); 6 only where a bench sets it (sys/tb/tb_sys_tile_gpu.sv:38, tb_sys_tile_abi.sv:40, tb_sys_tile_cpu.sv:37)",
+    "rows": [
+     {
+      "id": 0,
+      "name": "CPU",
+      "latency_model": "unless CPU_ENGINE = 1 (Sixfold core)",
+      "cite": "sys/rtl/hydra_sys_tile.sv:94-103,498-501"
+     },
+     {
+      "id": 1,
+      "name": "SIMD",
+      "latency_model": "unless SIMD_ENGINE = 1 (vector unit, pattern operands)",
+      "cite": "hydra_sys_tile.sv:71-73,502-505"
+     },
+     {
+      "id": 2,
+      "name": "TPU",
+      "latency_model": "unless TPU_ENGINE = 1 (pattern) or 2 (memory-fed array)",
+      "cite": "hydra_sys_tile.sv:66-70,506-509"
+     },
+     {
+      "id": 3,
+      "name": "NTT",
+      "latency_model": "always (g_eng_model)",
+      "cite": "hydra_sys_tile.sv:514-517"
+     },
+     {
+      "id": 4,
+      "name": "CRYPTO",
+      "latency_model": "always (g_eng_model)",
+      "cite": "hydra_sys_tile.sv:514-517"
+     },
+     {
+      "id": 5,
+      "name": "GPU",
+      "latency_model": "NENG = 6 only; unless GPU_ENGINE = 1 (Pixelstorm)",
+      "row": "p 4, setup 128, bw 2, eps 16, INT32 only, ELEMENT/REDUCE/GEMM",
+      "cite": "hydra_sys_tile.sv:77-82,140,510-513; mom_param_rom.sv:131,151"
+     }
+    ],
+    "latency_model_cycles": "LAT_FAST + 7*e, or LAT_SLOW for TPU/SIMD when the ui_in[7:6] profile says slow (hydra_sys_tile.sv:475-477)"
+   }
+  },
+  "contradictions": [
+   {
+    "claim": "The SkyWater chip instantiates mom_top with NENG = 6 / the GPU is the chip's sixth scheduler slot",
+    "doc": "mom/rtl/mom_pkg.sv:43-44; mom/rtl/mom_param_rom.sv:82-84; README.md:48, README.md:71-72",
+    "rtl": "sky130/rtl/hydra_openframe_top.sv:148 uses hydra_mom_pins, whose mom_top has no NENG override (mom/hydra_mom_pins.sv:232-234), so NENG = ENG_N = 5 (mom/rtl/mom_top.sv:54). NENG = 6 exists only in hydra_sys_tile instances set by testbenches (sys/rtl/hydra_sys_tile.sv:55 default 5; sys/tb/tb_sys_tile_gpu.sv:38)."
+   },
+   {
+    "claim": "Dispatch takes three cycles",
+    "doc": "mom/rtl/mom_pkg.sv:11; mom/rtl/mom_top.sv:11-17; tt/tile/src/tt_um_hydra_mom.sv:19,35",
+    "rtl": "Shared build is the default (mom_top.sv:44-46,75): accept-to-dispatch is 2*NENG+2 = 12 cycles at NENG 5 (VERIFIED-SIM); mom_top.sv:305 itself says four for the parallel build. info.yaml:85,106, tile README:57 and docs/info.md:10 say about thirteen, which matches cs_end-to-dispatch (13)."
+   },
+   {
+    "claim": "Five cost engines run in parallel; a sequential version would put five cycles on the path",
+    "doc": "mom/rtl/mom_cost_engine.sv:9-15",
+    "rtl": "Default COST_SHARED = 1: one engine swept over the rows (mom_top.sv:44-46,234-288)."
+   },
+   {
+    "claim": "Calibration factor is Q1.7, T_cal = (k*T_hat) >> 7",
+    "doc": "mom/rtl/mom_pkg.sv:197-198; mom/rtl/mom_cost_engine.sv:48-50,110",
+    "rtl": "Q2.6, unity 64, shift 6 (mom_pkg.sv:275-276; mom_cost_engine.sv:296; mom_calibrate.sv:180)."
+   },
+   {
+    "claim": "eps_op is Q4.4 pJ",
+    "doc": "mom/rtl/mom_pkg.sv:165",
+    "rtl": "Defaults are in 0.25 pJ units (CPU 20 pJ -> 80) (mom_param_rom.sv:17,66-73,119); cost engine treats it as an integer (mom_cost_engine.sv:354)."
+   },
+   {
+    "claim": "Parameter rows are 34 bits, 5 x 34 = 170 flops, packed {p_peak, t_setup, bw, eps, dtype_msk}",
+    "doc": "mom/rtl/mom_param_rom.sv:11,28,103-104,160-168",
+    "rtl": "Rows are EPARAM_W = 43 bits with opc_msk[8:0] in the low bits (mom_pkg.sv:179-188; mom_param_rom.sv:119-131), and NENG may be 6."
+   },
+   {
+    "claim": "16 tags x 56 bits",
+    "doc": "mom/rtl/mom_scoreboard.sv:35-46",
+    "rtl": "Each entry is 1+3+4+32+32 = 72 bits (mom_scoreboard.sv:121-125); no instance uses 16 tags: tile 4 (tt_um_hydra_mom.sv:146), chip 8 (mom/hydra_mom_pins.sv:136; hydra_sys_tile.sv:54)."
+   },
+   {
+    "claim": "The all-invalid case is transient by construction; there is no livelock / a full engine's descriptor is re-evaluated next cycle",
+    "doc": "mom/rtl/mom_select.sv:39-46; mom/rtl/mom_cost_engine.sv:134-136; mom/rtl/mom_top.sv:422-424",
+    "rtl": "valid bits are computed once per sweep and held in cvalid_q (mom_top.sv:350-363); a new sweep starts only when the cost register is free (249); c_ready needs a dispatch or 'unsupported' (430). If every capable engine was full when costed the descriptor is held forever. VERIFIED-SIM on the tile (NTT/POLY_Q x5, two tags then freed, no dispatch, c_valid=1, cvalid_q=0)."
+   },
+   {
+    "claim": "The CPU handles every dtype; it is only ever masked when its queue is full",
+    "doc": "mom/rtl/mom_select.sv:26-27,44-45",
+    "rtl": "DEF_CPU dtype_msk = 011111 excludes POLY_Q (mom_param_rom.sv:119,138-139); eligibility can also mask it (mom_top.sv:382)."
+   },
+   {
+    "claim": "OPC_HASH work = ceil(bytes/64) * CPBLK",
+    "doc": "mom/rtl/mom_features.sv:53",
+    "rtl": "log2 W = log2(bytes), same as CIPHER (mom_features.sv:152-153)."
+   },
+   {
+    "claim": "Feature-stage property checked with SymbiYosys in tb/formal/; formal proofs on five modules",
+    "doc": "mom/rtl/mom_features.sv:194-196; tt/tile/src/tt_um_hydra_mom.sv:12-14",
+    "rtl": "Only mom/formal/mom_select.sby, tt/formal/hydra_tt_spi.sby and common/formal/mom_xbar.sby exist for these blocks (Makefile:221,294-297,373-377). The FORMAL blocks in mom_features, mom_param_rom, mom_cost_engine, mom_scoreboard and mom_calibrate are run by no target, and mom_calibrate.sv:320 asserts on an undeclared signal 'step'."
+   },
+   {
+    "claim": "The tile's descriptor is shifted in serially, one bit per clock",
+    "doc": "tt/tile/src/tt_um_hydra_mom.sv:30-37",
+    "rtl": "The v3 tile is SPI only (tt_um_hydra_mom.sv:157-163, 229); the serial personality exists only in mom/hydra_mom_pins.sv:150-167."
+   },
+   {
+    "claim": "The tile's register map sees the descriptor as dispatched",
+    "doc": "tt/tile/src/tt_um_hydra_mom.sv:52-53",
+    "rtl": "LASTWD removed on the tile; 0x07 reads 0 and writes are FRAME_ERR (tt/tile/src/rtl/hydra_tt_regs.sv:67,157,363; tt_um_hydra_mom.sv:233-235)."
+   },
+   {
+    "claim": "System tile: COMP writes are IGNORED and reported through the crossbar's error outputs",
+    "doc": "sys/rtl/hydra_sys_tile.sv:34-36",
+    "rtl": "hydra_tt_regs with HOST_COMP = 0 refuses COMP as FRAME_ERR in STATUS (sys/rtl/hydra_sys_tile.sv:190; mom/rtl/hydra_tt_regs.sv:76-80,162); no crossbar error is involved."
+   },
+   {
+    "claim": "ENG_CPU is a latency model only, no core integrated",
+    "doc": "mom/rtl/mom_pkg.sv:54",
+    "rtl": "hydra_sys_tile CPU_ENGINE = 1 puts the Sixfold core on slot 0 (sys/rtl/hydra_sys_tile.sv:94-103,498-501), tested by systile-cpu."
+   },
+   {
+    "claim": "The GPU and CPU are roadmap items, specified, not built",
+    "doc": "docs/ARCHITECTURE.md:120-121",
+    "rtl": "GPU slot and row in mom_pkg.sv:59, mom_param_rom.sv:131; sys/rtl/hydra_engine_gpu.sv and hydra_engine_cpu.sv are instantiated by hydra_sys_tile (targets gpu, systile-gpu, cpu, systile-cpu)."
+   },
+   {
+    "claim": "Tile Pins block is '(software)'",
+    "doc": "docs/ARCHITECTURE.md:89",
+    "rtl": "tt/tile/src/tt_um_hydra_mom.sv:107 is the RTL module tt_um_hydra_mom."
+   },
+   {
+    "claim": "Tile size 3 x 4 / 12 tiles",
+    "doc": "tt/tile/README.md:4,30,60",
+    "rtl": "tt/tile/info.yaml:116 tiles: \"4x4\" (also datasheet line 12, info.md:152)."
+   },
+   {
+    "claim": "clock_hz is now 18 MHz",
+    "doc": "tt/tile/info.yaml:72 (and 90-104 discuss 25/20 MHz); hydra_tt_spi.sv:13 '18 MHz domain'",
+    "rtl": "tt/tile/info.yaml:107 clock_hz 15151515 (66 ns), the period the tests use (tt/tile/test/test.py:50)."
+   },
+   {
+    "claim": "18 cocotb tests; 15 deliberate breaks",
+    "doc": "tt/tile/docs/info.md:136,140",
+    "rtl": "21 tests (8 in tt/tile/test/test.py, 13 in test_regs.py; Makefile:223) and 17 mutations (tt/tile/test/mutate_sim.py:33-88)."
+   },
+   {
+    "claim": "v3 harden pending / not yet hardened",
+    "doc": "tt/tile/docs/info.md:149-153; docs/datasheets/HYDRA-TT-A.md:12",
+    "rtl": "Not an RTL fact: the same datasheet (lines 53-55, E8) and tt/tile/README.md:126-203 report v3.2-v3.8 hardens signed off. Documents disagree with each other."
+   },
+   {
+    "claim": "The cost model chooses between ... a 4x4 INT8 systolic array",
+    "doc": "tt/tile/README.md:54",
+    "rtl": "The TPU row models 128 ops/cycle, i.e. an 8x8 array (mom_param_rom.sv:48,121); the built array is 4x4 (mom_pkg.sv:56). The row is nominal by design (mom_param_rom.sv:39-43)."
+   },
+   {
+    "claim": "J = k*T + lambda*E",
+    "doc": "tt/tile/docs/info.md:29",
+    "rtl": "J = floor(k*T/64) + ((lambda*E) >> e_shift), with E built from eps_op<<log2W and bytes*eps_mem (mom_cost_engine.sv:342-369,408-421). Simplification, not wrong in shape; the e_shift normalisation is missing."
+   },
+   {
+    "claim": "upd_count / calibration array sized 5 engines x 9 x 8 = 360 flops",
+    "doc": "mom/rtl/mom_calibrate.sv:28",
+    "rtl": "NENG x 9 x 8 (mom_calibrate.sv:148); 432 at NENG 6. Minor."
+   }
+  ]
+ },
+ "engines": {
+  "meta": {
+   "repo_head": "112e1c4 (2026-10-18 16:20:57 -0700)",
+   "submodules": [
+    "ext/pixelstorm-gpu @ 4801c8c",
+    "ext/sixfold-cpu @ a642bd6"
+   ],
+   "method": "RTL read line by line. Examples simulated with private benches (tb_c_tpu, tb_c_simd, tb_c_ntt at\nq = 3329 / 8380417 / 12289, tb_c_tdma, tb_c_sdma, tb_c_ndma). No repository make target was run\n(several of them write vectors and formal netlists into the repository tree).\n"
+  },
+  "systolic_dataflow": {
+   "summary": "Output-stationary 4 x 4 (N_PE = 4) INT8 array. Each processing element PE(r,c) owns one 32-bit accumulator\n(tpu_pe.sv:29) and computes one result element; A operands enter on the WEST edge (one per physical row) and\nmove east one PE per array step; B operands enter on the NORTH edge (one per column) and move south one PE per\nstep (tpu_array.sv:31-35,41-44). Nothing enters from the south or east.\n",
+   "operand_order": "Slice k (one per handshake) = column k of A (op_a[i] = a[i][k]) and row k of B (op_b[j] = b[k][j]) (tpu_top.sv:30, 57-58).\ntpu_top reverses the A lanes: logical row i drives physical row N-1-i (tpu_top.sv:121-124), because the drain\nempties the bottom physical row first and that must be logical row 0.\n",
+   "skew": "tpu_feeder delays west lane r by r steps and north lane c by c steps; lane 0 is combinational (tpu_feeder.sv:30-62).\nEach PE hop adds one more registered step (tpu_pe.sv:40-41). Slice k therefore reaches PE(r,c) r + c steps after it\nis consumed, from both directions at once: a[N-1-r][k] meets b[k][c] there and PE(r,c) accumulates\nC[N-1-r][c]. Steps happen only when arr_en = 1 (op_valid in STREAM, always in FLUSH) (tpu_ctrl.sv:153), so a stall\nfreezes feeder, operand registers and accumulators together.\n",
+   "cycle_timeline_4x4_K4": "Simulated (tb_c_tpu), +n = edges after the accept cycle, operand every cycle:\n  +0 accept (IDLE); +1 CLEAR (all accumulators 0, feeder flushed) (tpu_ctrl.sv:148,156; tpu_pe.sv:46)\n  +2..+5 STREAM: slice k=0..3 consumed at +2+k\n  PE(r,c) performs its MAC for slice k at +2+k+r+c. PE(0,0): +2..+5; far corner PE(3,3): +8..+11.\n  Observed west edge (lanes 0..3) at +2: 10,0,0,0; +3: -10,-1,0,0; +4: 20,-2,5,0; +5: -20,-3,6,1;\n  +6: 0,-4,7,2; +7: 0,0,8,3; +8: 0,0,0,4 (logical row 3 = [10,-10,20,-20] on physical row 0, logical row 0 = [1,2,3,4] on row 3).\n  Observed north edge at +2: 1,0,0,0; +3: 0,0,0,0; +4: 4,1,2,0; +5: -5,-2,-3,-1; +6: 0,3,1,2; +7: 0,0,0,0; +8: 0,0,0,1.\n  +6..+11 FLUSH: 2N-2 = 6 more steps, zeros injected (feed_valid = 0), so the last operands reach PE(3,3) (tpu_ctrl.sv:113-126).\n  +12 first DRAIN shift: every accumulator copies the one above, top row gets 0 (tpu_pe.sv:47, tpu_array.sv:37); the\n  bottom row's old values (logical row 0) are captured by tpu_drain the same edge.\n  +13..+16 results C[0][0..3]; shifts at +17, +22, +27 (N+1 = 5 cycles per row); results +18..+21, +23..+26, +28..+31.\n  +28..+32 TAIL until the serialiser is empty; +33 DONE pulse; +34 ready.\n",
+   "cycles_for_N_by_N_tile": "No stalls: K + N^2 + 3N + 1 cycles from acceptance to the done pulse (CLEAR 1, STREAM K, FLUSH 2N-2, DRAIN\n(N-1)(N+1)+1, TAIL N+1, DONE). N=4, K=4 -> 33 (simulated). Last MAC at +(K + 2N - 1); first result at +(K + 2N + 1).\nEach cycle op_valid is low during STREAM adds one cycle.\n",
+   "accumulators": "In each PE (acc_q, tpu_pe.sv:29), 32-bit, cleared by CLEAR; never move during compute.",
+   "drain": "Column shift south, bottom row out (tpu_array.sv:47-49) -> tpu_drain serialises lane 0..3, so the stream is row-major\nC[0][0], C[0][1], ... C[3][3] with res_last on the 16th (tpu_drain.sv:45-47). All N*N results are always drained,\neven for M or N < 4 (lanes outside must be zero-fed).\n",
+   "citations": [
+    "engines/tpu/rtl/tpu_feeder.sv:6-12 - element k of row i reaches PE(i,*) at k+i",
+    "engines/tpu/rtl/tpu_ctrl.sv:113-118 - far corner 2N-2 behind the near one",
+    "engines/tpu/rtl/tpu_top.sv:115-124 - row reversal reason"
+   ]
+  },
+  "simd_ops": {
+   "field": "descriptor bits [2:0] (reserved field) (simd_pkg.sv:13-21, simd_top.sv:69)",
+   "element_width": "32-bit signed, 4 lanes",
+   "ops": [
+    {
+     "encoding": 0,
+     "name": "ADD",
+     "semantics": "a + b, wraps mod 2^32"
+    },
+    {
+     "encoding": 1,
+     "name": "SUB",
+     "semantics": "a - b, wraps"
+    },
+    {
+     "encoding": 2,
+     "name": "MUL",
+     "semantics": "low 32 bits of the signed 64-bit product"
+    },
+    {
+     "encoding": 3,
+     "name": "MAX",
+     "semantics": "signed maximum"
+    },
+    {
+     "encoding": 4,
+     "name": "MIN",
+     "semantics": "signed minimum"
+    },
+    {
+     "encoding": 5,
+     "name": "AND",
+     "semantics": "bitwise"
+    },
+    {
+     "encoding": 6,
+     "name": "OR",
+     "semantics": "bitwise"
+    },
+    {
+     "encoding": 7,
+     "name": "XOR",
+     "semantics": "bitwise"
+    }
+   ],
+   "op_classes": [
+    {
+     "op_class": 0,
+     "name": "SCALAR",
+     "behaviour": "accepted; identical to ELEMENT (no scalar broadcast)"
+    },
+    {
+     "op_class": 1,
+     "name": "ELEMENT",
+     "behaviour": "M results, lane-wise"
+    },
+    {
+     "op_class": 2,
+     "name": "REDUCE",
+     "behaviour": "one 32-bit wrapping SUM of the lane results of the chosen op over all groups"
+    }
+   ],
+   "dtype": "must be 2 (INT32); anything else refused with status 2",
+   "count": "dim_m elements, non-zero multiple of 4, else status 3",
+   "citations": [
+    "engines/simd/rtl/simd_pkg.sv:34-43",
+    "engines/simd/rtl/simd_alu.sv:27-37",
+    "engines/simd/rtl/simd_top.sv:57-69,95-97",
+    "engines/simd/rtl/simd_reduce.sv:31-40"
+   ]
+  },
+  "ntt_butterfly": {
+   "form": "Cooley-Tukey (decimation-in-time style) butterfly: twiddle multiplies b BEFORE the add/subtract.",
+   "equations": "v  = b * w mod q            (ntt_modmul, Barrett)\ny0 = (a + v) mod q          sum = a + v; y0 = sum >= q ? sum - q : sum\ny1 = (a - v) mod q          diff = a + q - v; y1 = diff >= q ? diff - q : diff\nBarrett: t = b*w; u = (t * BM) >> BSH; r = t - u*q; v = r >= q ? r - q : r, with BSH = 2*QW, BM = floor(2^BSH / q).\n",
+   "constants": [
+    {
+     "q": 3329,
+     "scheme": "ML-KEM (Kyber)",
+     "QW": 12,
+     "BSH": 24,
+     "BM": 5039,
+     "BM_bits": 13
+    },
+    {
+     "q": 8380417,
+     "scheme": "ML-DSA (Dilithium)",
+     "QW": 23,
+     "BSH": 46,
+     "BM": 8396807,
+     "BM_bits": 24
+    },
+    {
+     "q": 12289,
+     "scheme": "Falcon / NewHope (default)",
+     "QW": 14,
+     "BSH": 28,
+     "BM": 21843,
+     "BM_bits": 15
+    }
+   ],
+   "worked_examples": [
+    {
+     "q": 3329,
+     "inputs": {
+      "a": 1234,
+      "b": 2345,
+      "w": 17
+     },
+     "arithmetic": "t = 2345*17 = 39865; t*BM = 39865*5039 = 200879735; u = 200879735 >> 24 = 11; r = 39865 - 11*3329 = 39865 - 36619 = 3246 (< q) -> v = 3246. sum = 1234 + 3246 = 4480 >= 3329 -> y0 = 1151. diff = 1234 + 3329 - 3246 = 1317 < q -> y1 = 1317.",
+     "outputs": {
+      "y0": 1151,
+      "y1": 1317
+     },
+     "checked": "Python ((1234 + 39865) % 3329 = 1151, (1234 - 39865) % 3329 = 1317) and RTL simulation at q=3329"
+    },
+    {
+     "q": 8380417,
+     "inputs": {
+      "a": 1234567,
+      "b": 7654321,
+      "w": 1753
+     },
+     "arithmetic": "t = 7654321*1753 = 13418024713; t*BM = 112668563836291391; u = >> 46 = 1601; r = 13418024713 - 1601*8380417 = 977096 -> v = 977096. sum = 1234567 + 977096 = 2211663 < q -> y0 = 2211663. diff = 1234567 + 8380417 - 977096 = 8637888 >= q -> y1 = 257471.",
+     "outputs": {
+      "y0": 2211663,
+      "y1": 257471
+     },
+     "checked": "Python and RTL simulation at q=8380417"
+    },
+    {
+     "q": 12289,
+     "inputs": {
+      "a": 1234,
+      "b": 5678,
+      "w": 49
+     },
+     "arithmetic": "t = 5678*49 = 278222; t*BM = 278222*21843 = 6077203146; u = >> 28 = 22; r = 278222 - 22*12289 = 7864 -> v = 7864. sum = 9098 < q -> y0 = 9098. diff = 1234 + 12289 - 7864 = 5659 -> y1 = 5659.",
+     "outputs": {
+      "y0": 9098,
+      "y1": 5659
+     },
+     "checked": "Python and RTL simulation at q=12289"
+    }
+   ],
+   "edge_cases_simulated": "At each modulus: (0, q-1, 1) -> (q-1, 1); (q-1, q-1, q-1) -> (0, q-2); (1, q-1, q-1) -> (2, 0).",
+   "barrett_margin": "Exhaustive C sweep over all residue pairs: max r = 4865 (q=3329, limit 2q=6658) and 16089 (q=12289, limit 24578).\nWith BM-1 (the 'equivalent' mutation): q=12289 max r = 22862 < 24578 (still equivalent), but q=3329 max r = 7058 > 6658\non 4541 pairs - the mutation is a real fault at 3329. The suite only runs it at the default modulus (mutate_ntt.py:12-19).\n",
+   "citations": [
+    "engines/ntt/rtl/ntt_butterfly.sv:6-8,30-41",
+    "engines/ntt/rtl/ntt_modmul.sv:12-15,29-36",
+    "engines/ntt/rtl/ntt_pkg.sv:12-14,52-64"
+   ]
+  },
+  "chip_slots": {
+   "sky130_chip_top": {
+    "top": "openframe_project_wrapper (sky130/rtl/hydra_openframe_top.sv:69)",
+    "instantiated_hierarchy": "openframe_project_wrapper\n  u_rst    hydra_rst_sync (:125)\n  u_tile   hydra_mom_pins (:148)\n             u_rst_sync hydra_rst_sync; u_spi hydra_tt_spi; u_regs hydra_tt_regs;\n             u_mom mom_top (NENG = ENG_N = 5, NTAG 8, QMAX 4) -> mom_features, mom_param_rom, mom_calibrate,\n             mom_cost_engine, mom_select, mom_scoreboard (mom/rtl/mom_top.sv:143-406)\n  u_padmux hydra_padmux (:211)\n",
+    "engines_instantiated": "NONE. No tpu_*, simd_*, ntt_*, hydra_dma_*, hydra_spram, hydra_engine_*, hydra_abi_v2, hydra_sys_tile, mom_xbar, Pixelstorm or Sixfold module is in the chip hierarchy; `make sky130` compiles only mom/rtl, hydra_mom_pins, rst_sync, padmux and the top (Makefile:522-527).",
+    "slots": [
+     {
+      "slot": 0,
+      "engine": "CPU",
+      "on_chip": "decision only - no engine, no latency model; host reports completion"
+     },
+     {
+      "slot": 1,
+      "engine": "SIMD",
+      "on_chip": "decision only"
+     },
+     {
+      "slot": 2,
+      "engine": "TPU",
+      "on_chip": "decision only"
+     },
+     {
+      "slot": 3,
+      "engine": "NTT",
+      "on_chip": "decision only"
+     },
+     {
+      "slot": 4,
+      "engine": "CRYPTO",
+      "on_chip": "decision only"
+     },
+     {
+      "slot": 5,
+      "engine": "GPU",
+      "on_chip": "does not exist (NENG = 5)"
+     }
+    ],
+    "citations": [
+     "mom/hydra_mom_pins.sv:232-240 - mom_top with ENG_N eligibility and host completions",
+     "mom/rtl/mom_pkg.sv:47 - ENG_N = 5"
+    ]
+   },
+   "six_slot_system_tile_simulation_only": {
+    "instance": "hydra_sys_tile #(.NENG(6), .TPU_ENGINE(2), .GPU_ENGINE(1), .CPU_ENGINE(1), .ABI_V2(1)) in sys/tb/tb_sys_tile_cpu.sv:37 (testbench only)",
+    "slots": [
+     {
+      "slot": 0,
+      "engine": "CPU",
+      "kind": "real: hydra_engine_cpu (Sixfold RV64)",
+      "cite": "sys/rtl/hydra_sys_tile.sv:281-289,498-501"
+     },
+     {
+      "slot": 1,
+      "engine": "SIMD",
+      "kind": "latency model, 37 cycles fast / 2000 slow (SIMD_ENGINE default 0; only a pattern-fed real option exists, no memory-fed one)",
+      "cite": "sys/rtl/hydra_sys_tile.sv:136,502-505"
+     },
+     {
+      "slot": 2,
+      "engine": "TPU",
+      "kind": "real: hydra_engine_tpu_dma, 4x4, 3 x 1024-word banks",
+      "cite": "sys/rtl/hydra_sys_tile.sv:382-392,506-509"
+     },
+     {
+      "slot": 3,
+      "engine": "NTT",
+      "kind": "latency model only, 51 cycles (no real NTT option)",
+      "cite": "sys/rtl/hydra_sys_tile.sv:514-518"
+     },
+     {
+      "slot": 4,
+      "engine": "CRYPTO",
+      "kind": "latency model only, 58 cycles",
+      "cite": "sys/rtl/hydra_sys_tile.sv:514-518"
+     },
+     {
+      "slot": 5,
+      "engine": "GPU",
+      "kind": "real: hydra_engine_gpu (Pixelstorm), 4096-word bank",
+      "cite": "sys/rtl/hydra_sys_tile.sv:446-458,510-513"
+     }
+    ]
+   },
+   "fpga_images": [
+    {
+     "image": "ecp5-evn-sys",
+     "config": "hydra_sys_tile defaults: 5 latency models",
+     "cite": "fpga/rtl/hydra_fpga_sys_harness.sv:51"
+    },
+    {
+     "image": "ecp5-evn-tpu",
+     "config": "TPU_ENGINE=1 (pattern-fed array), others models",
+     "cite": "fpga/rtl/hydra_fpga_tpu_harness.sv:50"
+    },
+    {
+     "image": "ecp5-evn-two",
+     "config": "TPU_ENGINE=1, SIMD_ENGINE=1",
+     "cite": "fpga/rtl/hydra_fpga_two_harness.sv:50"
+    },
+    {
+     "image": "ecp5-evn-mem",
+     "config": "TPU_ENGINE=2 (memory-fed array)",
+     "cite": "fpga/rtl/hydra_fpga_mem_harness.sv:55"
+    }
+   ],
+   "never_instantiated_outside_testbenches": [
+    "hydra_engine_simd_dma",
+    "hydra_engine_ntt_dma",
+    "ntt_top (and all ntt_*)"
+   ]
+  },
+  "contradictions": [
+   {
+    "claim": "The SkyWater chip has CPU, GPU and TPU scheduler slots / a sixth GPU slot.",
+    "docs": [
+     "README.md:22-23",
+     "README.md:48",
+     "README.md:50",
+     "README.md:71-72",
+     "docs/verification/capability-matrix.md:47-48",
+     "docs/architecture/heterogeneous-system.md:3,86,92-95",
+     "mom/rtl/mom_pkg.sv:43-44 (RTL comment: chip instantiates mom_top with NENG = 6)"
+    ],
+    "rtl": [
+     "sky130/rtl/hydra_openframe_top.sv:148-150 instantiates only hydra_mom_pins",
+     "mom/hydra_mom_pins.sv:232 mom_top without NENG override -> mom/rtl/mom_top.sv:54 NENG = ENG_N = 5 (mom_pkg.sv:47)",
+     "Makefile:522-527 sky130 target compiles no engine"
+    ],
+    "note": "The six-slot configuration exists only as hydra_sys_tile parameters in testbenches (tb_sys_tile_cpu.sv:37, tb_sys_tile_gpu.sv:38, tb_sys_tile_abi.sv:40). capability-matrix.md:60 itself says the OpenFrame chip has no engines, contradicting its own line 48."
+   },
+   {
+    "claim": "TPU array is 16 x 16 on the sky130 chip.",
+    "docs": [
+     "engines/tpu/rtl/tpu_pkg.sv:16 (RTL comment)"
+    ],
+    "rtl": [
+     "no TPU in the chip top (sky130/rtl/hydra_openframe_top.sv:148)",
+     "sys/rtl/hydra_sys_tile.sv:383,405 instantiate N = 4",
+     "sys/rtl/hydra_engine_tpu_dma.sv:150-153 packs only 4 lanes per 32-bit word, so N > 4 is not supported by the memory path"
+    ]
+   },
+   {
+    "claim": "The CPU is not integrated / CPU is roadmap.",
+    "docs": [
+     "README.md:63",
+     "README.md:184",
+     "docs/ARCHITECTURE.md:120",
+     "docs/architecture/heterogeneous-system.md:3",
+     "mom/rtl/mom_pkg.sv:54 (ENG_CPU: latency model only, no core integrated)"
+    ],
+    "rtl": [
+     "sys/rtl/hydra_engine_cpu.sv:43-189 exists",
+     "sys/rtl/hydra_sys_tile.sv:281-289,498-501 slot 0 = Sixfold when CPU_ENGINE = 1"
+    ],
+    "note": "Also internally contradicted by README.md:50 and heterogeneous-system.md:92-95."
+   },
+   {
+    "claim": "GPU is roadmap, 'specified, not built'; or 'giving it a sixth slot is a separate change'.",
+    "docs": [
+     "docs/ARCHITECTURE.md:121",
+     "sys/rtl/hydra_engine_gpu.sv:24-26 (RTL comment)"
+    ],
+    "rtl": [
+     "sys/rtl/hydra_engine_gpu.sv:66-293",
+     "sys/rtl/hydra_sys_tile.sv:446-458,510-513"
+    ]
+   },
+   {
+    "claim": "ENG_N grows to 6.",
+    "docs": [
+     "docs/architecture/heterogeneous-system.md:24"
+    ],
+    "rtl": [
+     "mom/rtl/mom_pkg.sv:47-48 ENG_N = 5, ENG_N_CHIP = 6 (separate constant)"
+    ]
+   },
+   {
+    "claim": "Unreduced NTT inputs are refused by the controller.",
+    "docs": [
+     "engines/ntt/rtl/ntt_butterfly.sv:11-13 (RTL comment: see ntt_ctrl)"
+    ],
+    "rtl": [
+     "engines/ntt/rtl/ntt_ctrl.sv:39-42 checks only op class, dtype, group count",
+     "check exists only at hydra_engine_ntt_dma.sv:138-139 (load port)"
+    ]
+   },
+   {
+    "claim": "NTT element count is dim_m, matching what the dispatcher's cost model prices.",
+    "docs": [
+     "engines/ntt/rtl/ntt_top.sv:11-14 (RTL comment)"
+    ],
+    "rtl": [
+     "mom/rtl/mom_features.sv:147 prices OPC_NTT from lg_n (dim_n): W = (N/2)*log2(N)*CBF",
+     "engines/ntt/rtl/ntt_top.sv:49-51 runs dim_m/4 groups"
+    ]
+   },
+   {
+    "claim": "TPU latency is K + 2N - 2 + N(N+1) cycles per tile.",
+    "docs": [
+     "engines/tpu/README.md:30"
+    ],
+    "rtl": [
+     "engines/tpu/rtl/tpu_ctrl.sv:92-141; simulated done at +33 for N=K=4 (formula gives 30); RTL-derived K + N^2 + 3N + 1 (the README omits CLEAR, the final TAIL cycle and DONE)"
+    ]
+   },
+   {
+    "claim": "Barrett BM-1 largest remainder 22,887 at q=12289.",
+    "docs": [
+     "engines/ntt/README.md:52",
+     "engines/ntt/formal/mutate_ntt.py:12-15"
+    ],
+    "rtl": [
+     "exhaustive sweep of the RTL arithmetic (ntt_modmul.sv:29-36) over all residue pairs gives 22,862 (23,042 over every t <= (q-1)^2); the conclusion (< 2q) holds, the number does not match. At q=3329 BM-1 is NOT equivalent (max 7058 > 6658)."
+    ]
+   },
+   {
+    "claim": "Memory path mutation suite: thirteen breaks, 13 killed.",
+    "docs": [
+     "mem/README.md:16"
+    ],
+    "rtl": [
+     "mem/formal/mutate_dma.py:20-97 lists 26 mutations",
+     "Makefile:459 'break the memory path 26 ways'"
+    ]
+   },
+   {
+    "claim": "Bank width checked against the 10-bit descriptor field by an elaboration assertion; bank of 1024 'instantiated below'.",
+    "docs": [
+     "mem/rtl/hydra_dma_gemm.sv:28-31 (RTL comment)"
+    ],
+    "rtl": [
+     "hydra_dma_gemm instantiates no bank and has no assertion; hydra_engine_tpu_dma.sv has no such check (AW is a free parameter, :23); only hydra_engine_simd_dma.sv:83 and hydra_engine_ntt_dma.sv:100 have $error checks"
+    ]
+   },
+   {
+    "claim": "Memory port 'used only when TPU_FROM_MEM is set'; tile has 'five engines' that are 'LATENCY MODELS'.",
+    "docs": [
+     "sys/rtl/hydra_sys_tile.sv:4,21-23,123 (RTL comments)"
+    ],
+    "rtl": [
+     "sys/rtl/hydra_sys_tile.sv:244-289,444-458 also use the port for ABI v2, CPU and GPU; NENG up to 6 and real engines by parameter (:54,75-103)"
+    ]
+   },
+   {
+    "claim": "TPU and vector unit placed and routed on ECP5 with timing met.",
+    "docs": [
+     "README.md:61-62"
+    ],
+    "rtl": [
+     "docs/verification/capability-matrix.md:63 gives 'simulated' as the highest level for ecp5-evn-tpu and ecp5-evn-two (doc vs doc; not checkable from RTL)"
+    ]
+   },
+   {
+    "claim": "tiles_done counts tiles.",
+    "docs": [
+     "sys/rtl/hydra_engine_tpu_dma.sv:48 (port name)"
+    ],
+    "rtl": [
+     "sys/rtl/hydra_engine_tpu_dma.sv:181-185 increments on every completion including range and core refusals (simulated: tiles=2 and 3 after two refusals)"
+    ]
+   }
+  ]
+ },
+ "secdbg": {
+  "builds": [
+   {
+    "name": "arty-a7-35",
+    "plan": "plans/arty-a7-35.yaml",
+    "board_device": "Digilent Arty A7-35, xc7a35ticsg324-1L (fpga/build/arty-a7-35/build.tcl:20)",
+    "generated_top": "hydra_arty_a7_35_tt (plans/arty-a7-35.yaml:3)",
+    "core": "hydra_fpga_tt_harness (plans/arty-a7-35.yaml:2)",
+    "clocks": "100 MHz oscillator -> 25 MHz MMCM (fpga/build/arty-a7-35/hydra_arty_a7_35_tt.sv:3; plan sys_hz 25000000 line 20)",
+    "reset": "ck_rst & pll_lock -> hydra_rst_sync (hydra_arty_a7_35_tt.sv:43-45)",
+    "host_paths": "UART 115200 only (plan lines 21, 25-26); JTAG tied off (fpga/rtl/hydra_fpga_tt_harness.sv:37-38)",
+    "instantiates": "hydra_rst_sync, hydra_fpga_tt_harness > hydra_fpga_bridge (hydra_fpga_uart_rx, hydra_fpga_uart_tx), hydra_mom_pins > hydra_rst_sync, hydra_tt_spi, hydra_tt_regs, mom_top > mom_features, mom_param_rom, mom_calibrate, mom_cost_engine, mom_select, mom_scoreboard",
+    "defined_not_instantiated": "none from the plan list (hydra_rst_sync is appended by tools/hydra_bind.py, build.tcl:17)",
+    "security_blocks": "none"
+   },
+   {
+    "name": "basys3",
+    "plan": "plans/basys3.yaml",
+    "board_device": "Digilent Basys 3, xc7a35tcpg236-1 (fpga/build/basys3/build.tcl:23)",
+    "generated_top": "hydra_basys3_tt (plans/basys3.yaml:13)",
+    "core": "hydra_fpga_tt_jtag_harness (plans/basys3.yaml:12)",
+    "clocks": "100 MHz -> 25 MHz MMCM (hydra_basys3_tt.sv:3, 38-44); asynchronous TCK declared at 10 MHz (plans/basys3.yaml:37-38)",
+    "reset": "~btnC & pll_lock -> hydra_rst_sync (hydra_basys3_tt.sv:47-50)",
+    "host_paths": "UART on FTDI channel B (plan 2, 40-41); JTAG probe on Pmod JA pins 1-4 (plan 3-5, 42-45; hydra_basys3_tt.sv:69-72)",
+    "instantiates": "hydra_rst_sync, hydra_fpga_tt_jtag_harness > hydra_fpga_jtag_host (hydra_jtag_tap, hydra_jtag_bridge), hydra_fpga_bridge (HAS_JTAG=1; uart rx/tx), hydra_mom_pins > (hydra_rst_sync, hydra_tt_spi, hydra_tt_regs, mom_top > mom_* )",
+    "defined_not_instantiated": "none",
+    "security_blocks": "none; the JTAG bridge's far side is hydra_fpga_jtag_host's 3-register map"
+   },
+   {
+    "name": "ecp5-evn",
+    "plan": "plans/ecp5-evn.yaml",
+    "board_device": "Lattice ECP5-5G Evaluation Board LFE5UM5G-85F-EVN (plans/ecp5-evn.yaml:1)",
+    "generated_top": "hydra_ecp5_evn_tt",
+    "core": "hydra_fpga_tt_harness",
+    "clocks": "12 MHz direct, no PLL (hydra_ecp5_evn_tt.sv:3, 21-25)",
+    "reset": "button_10 -> hydra_rst_sync (hydra_ecp5_evn_tt.sv:28-31)",
+    "host_paths": "UART only (plan 27-28)",
+    "instantiates": "same hierarchy as arty-a7-35",
+    "defined_not_instantiated": "none",
+    "security_blocks": "none"
+   },
+   {
+    "name": "ecp5-evn-mem",
+    "plan": "plans/ecp5-evn-mem.yaml",
+    "board_device": "ECP5 evaluation board",
+    "generated_top": "hydra_ecp5_evn_mem",
+    "core": "hydra_fpga_mem_harness (plan line 6)",
+    "clocks": "12 MHz direct (hydra_ecp5_evn_mem.sv:3)",
+    "reset": "button_10 -> hydra_rst_sync (hydra_ecp5_evn_mem.sv:30-32)",
+    "host_paths": "UART incl. memory commands 4D/52 (HAS_MEM=1, hydra_fpga_mem_harness.sv:39); DIP profile[1:0] (plan 46)",
+    "instantiates": "hydra_rst_sync, hydra_fpga_mem_harness > hydra_fpga_bridge (uart), hydra_sys_tile(TPU_ENGINE=2) > hydra_tt_spi, hydra_tt_regs, mom_top > mom_*, mom_xbar, hydra_engine_tpu_dma > hydra_spram x3, hydra_dma_gemm > hydra_dma_agen, tpu_top > tpu_ctrl, tpu_feeder, tpu_array > tpu_pe, tpu_drain",
+    "defined_not_instantiated": "mom/hydra_mom_pins.sv (plan line 20; hydra_sys_tile does not instantiate it); sys/rtl/hydra_engine_tpu.sv (plan 33; only the TPU_ENGINE==1 branch uses it, hydra_sys_tile.sv:403-405)",
+    "security_blocks": "none; the CRYPTO slot is a latency model (docs/verification/capability-matrix.md:173)"
+   },
+   {
+    "name": "ecp5-evn-selftest",
+    "plan": "plans/ecp5-evn-selftest.yaml",
+    "board_device": "ECP5 evaluation board",
+    "generated_top": "hydra_ecp5_evn_selftest",
+    "core": "hydra_fpga_selftest (plan line 8)",
+    "clocks": "12 MHz direct; TICK 12000 (hydra_ecp5_evn_selftest.sv:3, 72)",
+    "reset": "button_10 -> hydra_rst_sync (hydra_ecp5_evn_selftest.sv:36-39)",
+    "host_paths": "UART banner/echo",
+    "instantiates": "hydra_rst_sync, hydra_fpga_selftest > hydra_fpga_uart_rx, hydra_fpga_uart_tx",
+    "defined_not_instantiated": "none",
+    "security_blocks": "none (no HYDRA logic)"
+   },
+   {
+    "name": "ecp5-evn-sys",
+    "plan": "plans/ecp5-evn-sys.yaml",
+    "board_device": "ECP5 evaluation board",
+    "generated_top": "hydra_ecp5_evn_sys",
+    "core": "hydra_fpga_sys_harness (plan line 5)",
+    "clocks": "12 MHz direct (hydra_ecp5_evn_sys.sv:3)",
+    "reset": "button_10 -> hydra_rst_sync (hydra_ecp5_evn_sys.sv:30-32)",
+    "host_paths": "UART; DIP profile",
+    "instantiates": "hydra_rst_sync, hydra_fpga_sys_harness > hydra_fpga_bridge (uart), hydra_sys_tile (all engine slots are latency models) > hydra_tt_spi, hydra_tt_regs, mom_top > mom_*, mom_xbar",
+    "defined_not_instantiated": "mom/hydra_mom_pins.sv (plan line 19)",
+    "security_blocks": "none"
+   },
+   {
+    "name": "ecp5-evn-tpu",
+    "plan": "plans/ecp5-evn-tpu.yaml",
+    "board_device": "ECP5 evaluation board",
+    "generated_top": "hydra_ecp5_evn_tpu",
+    "core": "hydra_fpga_tpu_harness (plan line 6)",
+    "clocks": "12 MHz direct (hydra_ecp5_evn_tpu.sv:3)",
+    "reset": "button_10 -> hydra_rst_sync (hydra_ecp5_evn_tpu.sv:30-32)",
+    "host_paths": "UART; DIP profile",
+    "instantiates": "hydra_rst_sync, hydra_fpga_tpu_harness > hydra_fpga_bridge, hydra_sys_tile(TPU_ENGINE=1) > hydra_tt_spi, hydra_tt_regs, mom_top > mom_*, mom_xbar, hydra_engine_tpu > tpu_top > tpu_ctrl, tpu_feeder, tpu_array > tpu_pe, tpu_drain",
+    "defined_not_instantiated": "mom/hydra_mom_pins.sv (plan line 20)",
+    "security_blocks": "none"
+   },
+   {
+    "name": "ecp5-evn-two",
+    "plan": "plans/ecp5-evn-two.yaml",
+    "board_device": "ECP5 evaluation board",
+    "generated_top": "hydra_ecp5_evn_two",
+    "core": "hydra_fpga_two_harness (plan line 6)",
+    "clocks": "12 MHz direct (hydra_ecp5_evn_two.sv:3)",
+    "reset": "button_10 -> hydra_rst_sync (hydra_ecp5_evn_two.sv:30-32)",
+    "host_paths": "UART; DIP profile",
+    "instantiates": "hydra_rst_sync, hydra_fpga_two_harness > hydra_fpga_bridge, hydra_sys_tile(TPU_ENGINE=1, SIMD_ENGINE=1) > hydra_tt_spi, hydra_tt_regs, mom_top > mom_*, mom_xbar, hydra_engine_tpu > tpu_*, hydra_engine_simd > simd_top > simd_ctrl, simd_lanes > simd_alu, simd_reduce, simd_serial",
+    "defined_not_instantiated": "mom/hydra_mom_pins.sv (plan line 20)",
+    "security_blocks": "none"
+   },
+   {
+    "name": "tangnano20k",
+    "plan": "plans/tangnano20k.yaml",
+    "board_device": "Sipeed Tang Nano 20K, Gowin GW2AR-18 (plan line 1)",
+    "generated_top": "hydra_tangnano20k_tt",
+    "core": "hydra_fpga_tt_harness",
+    "clocks": "27 MHz direct (hydra_tangnano20k_tt.sv:3); CLKS_PER_BIT 234 (line 52)",
+    "reset": "~s1 & pll_lock -> hydra_rst_sync (hydra_tangnano20k_tt.sv:26-28)",
+    "host_paths": "UART only; LEDs inverted (plan 25-27)",
+    "instantiates": "same hierarchy as arty-a7-35",
+    "defined_not_instantiated": "none",
+    "security_blocks": "none"
+   },
+   {
+    "name": "ulx3s-85f",
+    "plan": "plans/ulx3s-85f.yaml",
+    "board_device": "Radiona ULX3S, ECP5-85F (plan line 1)",
+    "generated_top": "hydra_ulx3s_tt",
+    "core": "hydra_fpga_tt_harness",
+    "clocks": "25 MHz -> 12.5 MHz ECP5 PLL (hydra_ulx3s_tt.sv:3; plan 24); CLKS_PER_BIT 109 (hydra_ulx3s_tt.sv:81)",
+    "reset": "btn_0 & pll_lock -> hydra_rst_sync (hydra_ulx3s_tt.sv:44-46)",
+    "host_paths": "UART only (plan 29-30)",
+    "instantiates": "same hierarchy as arty-a7-35",
+    "defined_not_instantiated": "none",
+    "security_blocks": "none"
+   },
+   {
+    "name": "basys3-selftest (no plan file)",
+    "plan": "none: fpga/build/basys3-selftest/build.tcl is hand-written",
+    "board_device": "Basys 3, xc7a35tcpg236-1 (build.tcl:7)",
+    "generated_top": "hydra_basys3_selftest",
+    "core": "hydra_basys3_selftest",
+    "clocks": "100 MHz direct (hydra_basys3_selftest.sv:41)",
+    "reset": "internal POR counter + synchronised btnC; no hydra_rst_sync (hydra_basys3_selftest.sv:60-67)",
+    "host_paths": "UART",
+    "instantiates": "hydra_basys3_selftest > hydra_fpga_selftest > hydra_fpga_uart_rx, hydra_fpga_uart_tx",
+    "defined_not_instantiated": "none",
+    "security_blocks": "none"
+   },
+   {
+    "name": "sky130 OpenFrame chip",
+    "plan": "none; sources in Makefile sky130 target (Makefile:522-525)",
+    "board_device": "SkyWater 130 nm, ChipFoundry OpenFrame, 44 pads; never hardened (README.md:118)",
+    "generated_top": "openframe_project_wrapper (sky130/rtl/hydra_openframe_top.sv:69)",
+    "core": "hydra_mom_pins (line 148)",
+    "clocks": "one clock from pad 0 (line 121), frequency not constrained here",
+    "reset": "pad1 & porb_l & resetb_l -> hydra_rst_sync (lines 122-126), tile held until padmux lock + 3 cycles (142-146)",
+    "host_paths": "SPI on pads 3 (SCK), 4 (COPI), 5 (CSn), 11 (CIPO) in register personality, or the legacy serial-shift pin protocol (lines 33-35; mom/hydra_mom_pins.sv:38-65). No UART, no JTAG",
+    "instantiates": "hydra_rst_sync, hydra_padmux, hydra_mom_pins > hydra_rst_sync, hydra_tt_spi, hydra_tt_regs, mom_top > mom_features, mom_param_rom, mom_calibrate, mom_cost_engine, mom_select, mom_scoreboard",
+    "defined_not_instantiated": "none in the sky130 source list",
+    "security_blocks": "none"
+   },
+   {
+    "name": "Tiny Tapeout tile",
+    "plan": "tt/tile/info.yaml (source_files: project.v, lines 120-121; generated by tt/tile/src/regen.sh)",
+    "board_device": "Tiny Tapeout, SkyWater 130, 4x4 tiles (tt/tile/info.yaml:116)",
+    "generated_top": "tt_um_hydra_mom (tt/tile/src/tt_um_hydra_mom.sv:107)",
+    "core": "mom_top with NTAG=4 (tt_um_hydra_mom.sv:146, 208-224)",
+    "clocks": "clk, clock_hz 15151515 (tt/tile/info.yaml:107)",
+    "reset": "rst_n pin -> hydra_rst_sync STAGES=2 (tt_um_hydra_mom.sv:140-143)",
+    "host_paths": "SPI mode 0 on ui[0..2]/uo[0], SCK <= clk/8 (tt_um_hydra_mom.sv:63-72; info.yaml:125-134)",
+    "instantiates": "hydra_rst_sync, hydra_tt_spi, hydra_tt_regs (tile variant, tt/tile/src/rtl), mom_top > mom_features, mom_param_rom, mom_calibrate, mom_cost_engine, mom_select, mom_scoreboard",
+    "defined_not_instantiated": "n/a (single flattened project.v)",
+    "security_blocks": "none; no TAP or JTAG pins"
+   }
+  ],
+  "reset_and_cdc": {
+   "rst_sync": {
+    "module": "hydra_rst_sync (common/rtl/hydra_rst_sync.sv:16-48)",
+    "design": "STAGES=2 flops, both cleared asynchronously by arst_n; on each clk edge sync_q shifts in a constant 1; rst_n = sync_q[1] (lines 27-32). Assertion is immediate (combinational path from arst_n through the async clear); release happens on the 2nd rising clk edge after arst_n rises.",
+    "where_used": "Every generated FPGA top (e.g. fpga/build/basys3/hydra_basys3_tt.sv:49-50), the OpenFrame top (hydra_openframe_top.sv:125-126), inside hydra_mom_pins (mom/hydra_mom_pins.sv:132-134) and the TT tile (tt_um_hydra_mom.sv:141-143). Not used by hydra_basys3_selftest (own POR counter, lines 60-67) or inside hydra_sys_tile (reset comes from the bridge's registered tile_rst_n, hydra_fpga_bridge.sv:172).",
+    "animation_sequence": [
+     "t0: arst_n=0 -> sync_q=00, rst_n=0 immediately",
+     "t1: arst_n rises between clock edges; sync_q still 00",
+     "edge 1: sync_q=01 (flop 0 sampled the constant 1; this is the flop that may go metastable if arst_n release is near the edge)",
+     "edge 2: sync_q=11 -> rst_n=1, released synchronously to clk"
+    ],
+    "proof": "hydra_rst_sync.sby prove depth 8: immediate assert and release only after STAGES clean edges, scan_mode assumed 0 (hydra_rst_sync.sv:34-47)"
+   },
+   "jtag_handshake": {
+    "modules": "hydra_jtag_tap -> hydra_jtag_bridge (dbg/rtl/hydra_jtag_bridge.sv:52-171), as wired in fpga/rtl/hydra_fpga_jtag_host.sv:71-86",
+    "protocol": "toggle request / toggle acknowledge (not 4-phase req-ack); one transfer in flight; payload not synchronised",
+    "synchroniser_flops": "4 in total: req_sync[1:0] in the clk domain (line 125) and ack_sync[1:0] in the TCK domain (line 90). Payload (rw_q, addr_q, wdata_q TCK->clk; rdata_sys clk->TCK) crosses with no synchroniser, held stable by the handshake.",
+    "signals": {
+     "tck_domain": "user_update (from TAP), req_tog, busy, rw_q, addr_q, wdata_q, ack_sync[1:0], ack_tog, rdata_q, user_capture={busy,addr_q,rdata_q}",
+     "clk_domain": "req_sync[1:0], req_seen, req_edge=req_sync[1]^req_seen, reg_we/reg_re/reg_addr/reg_wdata, reg_we_q/reg_re_q, rdata_sys, ack_tog_sys"
+    },
+    "sequence": [
+     "TCK edge T0: TAP in UPDATE_DR with IR=USER -> user_dr <= shifted value, user_update <= 1 (hydra_jtag_tap.sv:155-159)",
+     "TCK edge T1: bridge sees user_update && !busy -> rw_q/addr_q/wdata_q captured, req_tog flips, busy=1 (bridge 97-105)",
+     "clk edge C1: req_sync[0] <= req_tog (first synchroniser flop) (line 125)",
+     "clk edge C2: req_sync[1] <= req_sync[0]; now req_edge = req_sync[1] ^ req_seen = 1 (line 117)",
+     "clk edge C3: req_seen <= req_sync[1]; reg_addr/reg_wdata <= payload; reg_we <= rw_q or reg_re <= !rw_q, for one clk (lines 129-134)",
+     "clk edge C4: reg_we_q/reg_re_q <= 1 (lines 145-149); the register file has answered reg_rdata",
+     "clk edge C5: read: rdata_sys <= reg_rdata and ack_tog_sys flips; write: ack_tog_sys flips (lines 135-141)",
+     "TCK edge T2: ack_sync[0] <= ack_tog_sys (line 90)",
+     "TCK edge T3: ack_sync[1] <= ack_sync[0]; ack_edge = ack_sync[1] ^ ack_tog = 1 (line 83)",
+     "TCK edge T4: ack_tog <= ack_sync[1], rdata_q <= rdata_sys, busy <= 0 (lines 92-96)",
+     "Next DR scan: CAPTURE_DR loads user_capture = {busy=0, addr_q, rdata_q} for the probe (hydra_jtag_tap.sv:147-149; bridge 109)"
+    ],
+    "not_handled": "Stopped system clock -> busy stays 1 forever; TCK stopped -> result parks until TCK resumes (bridge 42-48). TAP reset can produce one phantom read of addr 0 (see jtag_bridge.failure).",
+    "verification": "Simulation with tck 35 ns and clk 10 ns (fixed 7:2 ratio) (dbg/tb/tb_jtag_bridge.sv:21-22); structural text check dbg/formal/cdc_check.py; the bridge's in-RTL FORMAL asserts are not run by any .sby"
+   },
+   "animation_caveat": "An animation of these sequences shows the intended logical order of events only. It is not evidence about metastability: event simulation (and these formal models) treat flops as resolving instantly, which is exactly why removing a synchroniser stage is invisible to simulation (dbg/formal/cdc_check.py:7-18). Real resolution time, MTBF and the safety of the unsynchronised payload depend on silicon/FPGA timing and constraints, which nothing here proves."
+  },
+  "contradictions": [
+   {
+    "id": "keyvault_not_simulated",
+    "doc": "docs/verification/capability-matrix.md:200 - key vault evidence 'simulated (make keyvault)'",
+    "rtl": "Makefile:207-213 - keyvault runs only sv2v + sby (prove, ni, ni_full, cover); sec/tb has no key-vault testbench",
+    "note": "Evidence is formal-only. The matrix's row 4 also omits the proofs for every security block (lines 200-204), while README.md:47 says 'simulated and proved'."
+   },
+   {
+    "id": "readme_alt_simulated_only",
+    "doc": "README.md:28 - hero alt text: 'the security blocks are simulated only'",
+    "rtl": "sec/formal/key_vault.sby, mailbox.sby, pcr.sby, measure.sby, sha256_stream.sby; isa/formal/xsec.sby - formal proofs exist; key vault has no simulation at all"
+   },
+   {
+    "id": "nist_vectors",
+    "doc": "docs/verification/capability-matrix.md:202 - SHA-256 'NIST test vectors'",
+    "rtl": "sec/tb/sha256_model.py:31-39 and sec/tb/sha256_stream_model.py:19 - expected digests come from Python hashlib over chosen and random messages; only 'abc' (and the empty message) are standard published vectors"
+   },
+   {
+    "id": "cdc_into_register_map",
+    "doc": "docs/ARCHITECTURE.md:108 - 'Clock crossing: test port into the register map'; docs/SECURITY_PLAN.md:166-167 'bridge into the register map'",
+    "rtl": "fpga/rtl/hydra_fpga_jtag_host.sv:26-32, 81-86 - the only instance feeds a 3-register command-byte map; no chip or tile register map is reachable from it, and sky130/rtl/hydra_openframe_top.sv:125-216 has no TAP"
+   },
+   {
+    "id": "tap_cost_in_tile",
+    "doc": "docs/SECURITY_PLAN.md:157-158 - 'four pins and 491 standard cells ... three percent of the tile'",
+    "rtl": "tt/tile/src/tt_um_hydra_mom.sv:141-224 and tt/tile/info.yaml:124-132 - the tile instantiates no TAP and has no JTAG pins"
+   },
+   {
+    "id": "tap_proof_kind",
+    "doc": "docs/SECURITY_PLAN.md:150-151 - escape hatch 'checked exhaustively over all sixteen states'; dbg/rtl/hydra_jtag_tap.sv:28 'proved'",
+    "rtl": "dbg/formal/jtag_tap.sby lines 18-25 - bounded model check (bmc depth 10) with a written completeness argument, not k-induction",
+    "note": "Probably sound for this 5-step property, but it is a BMC, and it should be described as such."
+   },
+   {
+    "id": "bridge_assertions_unproved",
+    "doc": "dbg/rtl/hydra_jtag_bridge.sv:151-170 FORMAL block; docs/FPGA_BASYS3.md:196-197 'verified clock-crossing handshake'",
+    "rtl": "dbg/formal/ contains only jtag_tap.sby and cdc_check.py; Makefile:71-75 jtag-bridge runs simulation and cdc_check.py only",
+    "note": "The bridge's assertions are never checked by a solver; 'verified' means simulated plus a text check."
+   },
+   {
+    "id": "tb_ratio",
+    "doc": "dbg/tb/tb_jtag_bridge.sv:22 - TCK period 'deliberately not a ratio'",
+    "rtl": "dbg/tb/tb_jtag_bridge.sv:21-22 - 10 ns vs 35 ns is a fixed rational 7:2 ratio (phases do sweep, but the ratio is fixed)"
+   },
+   {
+    "id": "openframe_csn_idle",
+    "doc": "sky130/rtl/hydra_openframe_top.sv:33 (pad plan: CSn on pad 5 = ui_in[2]) and comment 169-170 ('An unconnected SPI chip-select must read high')",
+    "rtl": "sky130/rtl/hydra_openframe_top.sv:171 - idle-high applied when mux index i==5, i.e. ui_in[5] on pad 8; tb_openframe.sv:49 confirms CSn = P_FIRST+2",
+    "note": "Low impact today because the tile is held in reset until the pads are connected and locked (lines 142-146), but the comment's intent is not implemented."
+   },
+   {
+    "id": "openframe_strap_resampled",
+    "doc": "sky130/rtl/hydra_openframe_top.sv:29-30 - connect strap 'Sampled after reset, then locked'",
+    "rtl": "sky130/rtl/hydra_openframe_top.sv:196-202 - with the strap low no lock occurs and the 4-bit boot_cnt wraps, re-sampling every 16 cycles; a later strap rise connects without reset. sky130/tb/tb_openframe.sv:93-102 re-asserts reset before step 2, so this path is untested"
+   },
+   {
+    "id": "dm_mode",
+    "doc": "THREE_TARGETS.md:191-192 - muxed pads 'must be mode 5 (bidirectional)'",
+    "rtl": "sky130/rtl/hydra_openframe_top.sv:235-237 - dm = 110 while driving, 001 while receiving, switched per pad by oeb; lines 52-61 say these encodings are unverified"
+   },
+   {
+    "id": "keystore_lock",
+    "doc": "THREE_TARGETS.md:189-190 'lock the selection before the keystore is used'; common/rtl/hydra_padmux.sv:31-32 lock protects 'debug or keystore pins'",
+    "rtl": "sky130/rtl/hydra_openframe_top.sv:125-216 - the chip has no keystore, key vault or debug port"
+   },
+   {
+    "id": "padmux_mutation_script_name",
+    "doc": "common/rtl/hydra_padmux.sv:34-37 - 'formal/mutate_padmux.py'",
+    "rtl": "common/formal/mutate_targets.py:29-52 - the padmux mutations live here; no mutate_padmux.py exists in common/formal"
+   },
+   {
+    "id": "padmux_proof_size",
+    "doc": "sky130/rtl/hydra_openframe_top.sv:43-44 and THREE_TARGETS.md:187-188 - padmux 'proved'",
+    "rtl": "common/formal/hydra_padmux.sby (chparam NPAD 3, NALT 3, SELW 2) - proved at a small configuration, not the shipped NPAD=24, NALT=2"
+   },
+   {
+    "id": "kv_slot_field",
+    "doc": "docs/ISA_SECURITY.md:47-49 - kvstat 'status of key slot rs1' and kvlock 'seal slot rs1'",
+    "rtl": "isa/rtl/hydra_xsec_unit.sv:133 kv_slot = rs1[4:3] (kvwrite/kvlock); line 136 kv_rd_slot = rs1[1:0] (kvstat)",
+    "note": "The same slot needs different rs1 encodings for kvstat and kvlock; the doc explains the split only for kvwrite (lines 56-58)."
+   },
+   {
+    "id": "measw_no_consumer",
+    "doc": "docs/ISA_SECURITY.md:51-52 and isa/rtl/hydra_xsec_unit.sv:36-37 - measw 'stage 32 bits of a measurement', pcrext 'fold the staged measurement in'",
+    "rtl": "No RTL in the repository consumes meas_we/meas_word/meas_wdata/pcr_extend; hydra_pcr takes a 256-bit meas and an extend pulse with no staging (sec/rtl/hydra_pcr.sv:46-47), and hydra_measure has no such port (sec/rtl/hydra_measure.sv:36-57)"
+   },
+   {
+    "id": "xsec_ni_scope",
+    "doc": "isa/rtl/hydra_xsec_unit.sv:44-45 '(a) ... PROVED by non-interference over this unit and the vault together'; docs/ISA_SECURITY.md:91",
+    "rtl": "isa/formal/xsec_ni.sv:54, 61, 65, 67 - pcr_value, host_wipe and eng_req tied to 0; line 90 non-vacuity cover uses a hierarchical reference and xsec.sby has no cover task (lines 7-9)",
+    "note": "The doc partly states this (ISA_SECURITY.md:104-106 mentions the PCR tie-off) but not the wipe/engine tie-offs or the missing cover run."
+   },
+   {
+    "id": "user_can_extend",
+    "doc": "docs/verification/capability-matrix.md:203 'measurement register (PCR) extend-only measurement'",
+    "rtl": "isa/rtl/hydra_xsec_unit.sv:124, 160-161 - measw/pcrext need no privilege, so any mode may extend; extend-only is not the same as access-controlled",
+    "note": "Not a contradiction in wording, but the bound should be stated next to the 'extend-only' claim."
+   },
+   {
+    "id": "readme_jtag_host_path",
+    "doc": "README.md:69 - 'a PC reaches the bridge over serial or over JTAG'",
+    "rtl": "Only plans/basys3.yaml:12 uses hydra_fpga_tt_jtag_harness; every other harness ties jb_* off (e.g. fpga/rtl/hydra_fpga_tt_harness.sv:37-38, hydra_fpga_sys_harness.sv:40-41)"
+   },
+   {
+    "id": "arch_tile_pins_software",
+    "doc": "docs/ARCHITECTURE.md:89 - tile 'Pins' block listed with module '(software)'",
+    "rtl": "tt/tile/src/tt_um_hydra_mom.sv:107 - it is the RTL top module tt_um_hydra_mom"
+   },
+   {
+    "id": "selftest_led_switch_numbering",
+    "doc": "docs/FPGA_BRINGUP.md:197 - 'LED n follows switch n'",
+    "rtl": "fpga/rtl/hydra_fpga_selftest.sv:39, 167-168 - LED i (0-based) follows dip[i], i.e. silkscreen switch i+1; LED 7 is the heartbeat",
+    "note": "Off-by-one wording; the RTL header (line 39) says 'LEDs 0-6 follow switches 1-7'."
+   },
+   {
+    "id": "mailbox_root_of_trust",
+    "doc": "docs/verification/capability-matrix.md:201 - mailbox is 'the host-to-root-of-trust command path'",
+    "rtl": "sec/rtl/hydra_mailbox.sv:30-40 - protocol shape only, no root of trust behind it; not instantiated anywhere"
+   }
+  ]
+ }
+}

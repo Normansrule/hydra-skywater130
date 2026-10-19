@@ -1,0 +1,3217 @@
+# Block cards for the Silicon Atlas, keyed by the block ids in atlas.yaml.
+# Written from the RTL with file:line citations (2026-10-18), not from prose docs.
+# Statements marked VERIFIED-SIM were checked in a scratch simulation of the repository RTL;
+# UNVERIFIED marks what could not be checked. `_contradictions` lists where documents and RTL
+# disagree; the page shows them on the Evidence tab.
+_cited_at:
+  changed_since:
+  - common/rtl/hydra_rst_sync.sv
+  - mom/rtl/mom_top.sv
+  - sys/rtl/hydra_engine_cpu.sv
+  - sys/tb/tb_hydra_engine_cpu.sv
+  - sys/tb/tb_sys_tile_gpu.sv
+  - tt/tile/src/rtl/hydra_rst_sync.sv
+  - tt/tile/src/rtl/mom_top.sv
+  repo: 112e1c4
+  tile: 963420d
+_contradictions:
+- claim: The SkyWater chip instantiates mom_top with NENG = 6 / the GPU is the chip's sixth scheduler slot
+  rtl: sky130/rtl/hydra_openframe_top.sv:148 uses hydra_mom_pins, whose mom_top has no NENG override (mom/hydra_mom_pins.sv:232-234),
+    so NENG = ENG_N = 5 (mom/rtl/mom_top.sv:54). NENG = 6 exists only in hydra_sys_tile instances set by testbenches
+    (sys/rtl/hydra_sys_tile.sv:55 default 5; sys/tb/tb_sys_tile_gpu.sv:38).
+  status: reported, not changed here
+- claim: Dispatch takes three cycles
+  rtl: 'Shared build is the default (mom_top.sv:44-46,75): accept-to-dispatch is 2*NENG+2 = 12 cycles at NENG 5
+    (VERIFIED-SIM); mom_top.sv:305 itself says four for the parallel build. info.yaml:85,106, tile README:57 and
+    docs/info.md:10 say about thirteen, which matches cs_end-to-dispatch (13).'
+  status: reported, not changed here
+- claim: Five cost engines run in parallel; a sequential version would put five cycles on the path
+  rtl: 'Default COST_SHARED = 1: one engine swept over the rows (mom_top.sv:44-46,234-288).'
+  status: reported, not changed here
+- claim: Calibration factor is Q1.7, T_cal = (k*T_hat) >> 7
+  rtl: Q2.6, unity 64, shift 6 (mom_pkg.sv:275-276; mom_cost_engine.sv:296; mom_calibrate.sv:180).
+  status: reported, not changed here
+- claim: eps_op is Q4.4 pJ
+  rtl: Defaults are in 0.25 pJ units (CPU 20 pJ -> 80) (mom_param_rom.sv:17,66-73,119); cost engine treats it as
+    an integer (mom_cost_engine.sv:354).
+  status: reported, not changed here
+- claim: Parameter rows are 34 bits, 5 x 34 = 170 flops, packed {p_peak, t_setup, bw, eps, dtype_msk}
+  rtl: Rows are EPARAM_W = 43 bits with opc_msk[8:0] in the low bits (mom_pkg.sv:179-188; mom_param_rom.sv:119-131),
+    and NENG may be 6.
+  status: reported, not changed here
+- claim: 16 tags x 56 bits
+  rtl: 'Each entry is 1+3+4+32+32 = 72 bits (mom_scoreboard.sv:121-125); no instance uses 16 tags: tile 4 (tt_um_hydra_mom.sv:146),
+    chip 8 (mom/hydra_mom_pins.sv:136; hydra_sys_tile.sv:54).'
+  status: reported, not changed here
+- claim: The all-invalid case is transient by construction; there is no livelock / a full engine's descriptor is
+    re-evaluated next cycle
+  rtl: valid bits are computed once per sweep and held in cvalid_q (mom_top.sv:350-363); a new sweep starts only
+    when the cost register is free (249); c_ready needs a dispatch or 'unsupported' (430). If every capable engine
+    was full when costed the descriptor is held forever. VERIFIED-SIM on the tile (NTT/POLY_Q x5, two tags then
+    freed, no dispatch, c_valid=1, cvalid_q=0).
+  status: 'FIXED in v3.10 by the build thread: the selector reads the live engine_full (mom/rtl/mom_top.sv), test_full_only_engine_recovers
+    covers it, tile 22/22 on RTL and gate level'
+- claim: The CPU handles every dtype; it is only ever masked when its queue is full
+  rtl: DEF_CPU dtype_msk = 011111 excludes POLY_Q (mom_param_rom.sv:119,138-139); eligibility can also mask it (mom_top.sv:382).
+  status: reported, not changed here
+- claim: OPC_HASH work = ceil(bytes/64) * CPBLK
+  rtl: log2 W = log2(bytes), same as CIPHER (mom_features.sv:152-153).
+  status: reported, not changed here
+- claim: Feature-stage property checked with SymbiYosys in tb/formal/; formal proofs on five modules
+  rtl: Only mom/formal/mom_select.sby, tt/formal/hydra_tt_spi.sby and common/formal/mom_xbar.sby exist for these
+    blocks (Makefile:221,294-297,373-377). The FORMAL blocks in mom_features, mom_param_rom, mom_cost_engine, mom_scoreboard
+    and mom_calibrate are run by no target, and mom_calibrate.sv:320 asserts on an undeclared signal 'step'.
+  status: reported, not changed here
+- claim: The tile's descriptor is shifted in serially, one bit per clock
+  rtl: The v3 tile is SPI only (tt_um_hydra_mom.sv:157-163, 229); the serial personality exists only in mom/hydra_mom_pins.sv:150-167.
+  status: reported, not changed here
+- claim: The tile's register map sees the descriptor as dispatched
+  rtl: LASTWD removed on the tile; 0x07 reads 0 and writes are FRAME_ERR (tt/tile/src/rtl/hydra_tt_regs.sv:67,157,363;
+    tt_um_hydra_mom.sv:233-235).
+  status: reported, not changed here
+- claim: 'System tile: COMP writes are IGNORED and reported through the crossbar''s error outputs'
+  rtl: hydra_tt_regs with HOST_COMP = 0 refuses COMP as FRAME_ERR in STATUS (sys/rtl/hydra_sys_tile.sv:190; mom/rtl/hydra_tt_regs.sv:76-80,162);
+    no crossbar error is involved.
+  status: reported, not changed here
+- claim: ENG_CPU is a latency model only, no core integrated
+  rtl: hydra_sys_tile CPU_ENGINE = 1 puts the Sixfold core on slot 0 (sys/rtl/hydra_sys_tile.sv:94-103,498-501),
+    tested by systile-cpu.
+  status: reported, not changed here
+- claim: The GPU and CPU are roadmap items, specified, not built
+  rtl: GPU slot and row in mom_pkg.sv:59, mom_param_rom.sv:131; sys/rtl/hydra_engine_gpu.sv and hydra_engine_cpu.sv
+    are instantiated by hydra_sys_tile (targets gpu, systile-gpu, cpu, systile-cpu).
+  status: reported, not changed here
+- claim: Tile Pins block is '(software)'
+  rtl: tt/tile/src/tt_um_hydra_mom.sv:107 is the RTL module tt_um_hydra_mom.
+  status: reported, not changed here
+- claim: Tile size 3 x 4 / 12 tiles
+  rtl: 'tt/tile/info.yaml:116 tiles: "4x4" (also datasheet line 12, info.md:152).'
+  status: reported, not changed here
+- claim: clock_hz is now 18 MHz
+  rtl: tt/tile/info.yaml:107 clock_hz 15151515 (66 ns), the period the tests use (tt/tile/test/test.py:50).
+  status: reported, not changed here
+- claim: 18 cocotb tests; 15 deliberate breaks
+  rtl: 21 tests (8 in tt/tile/test/test.py, 13 in test_regs.py; Makefile:223) and 17 mutations (tt/tile/test/mutate_sim.py:33-88).
+  status: reported, not changed here
+- claim: v3 harden pending / not yet hardened
+  rtl: 'Not an RTL fact: the same datasheet (lines 53-55, E8) and tt/tile/README.md:126-203 report v3.2-v3.8 hardens
+    signed off. Documents disagree with each other.'
+  status: reported, not changed here
+- claim: The cost model chooses between ... a 4x4 INT8 systolic array
+  rtl: The TPU row models 128 ops/cycle, i.e. an 8x8 array (mom_param_rom.sv:48,121); the built array is 4x4 (mom_pkg.sv:56).
+    The row is nominal by design (mom_param_rom.sv:39-43).
+  status: reported, not changed here
+- claim: J = k*T + lambda*E
+  rtl: J = floor(k*T/64) + ((lambda*E) >> e_shift), with E built from eps_op<<log2W and bytes*eps_mem (mom_cost_engine.sv:342-369,408-421).
+    Simplification, not wrong in shape; the e_shift normalisation is missing.
+  status: reported, not changed here
+- claim: upd_count / calibration array sized 5 engines x 9 x 8 = 360 flops
+  rtl: NENG x 9 x 8 (mom_calibrate.sv:148); 432 at NENG 6. Minor.
+  status: reported, not changed here
+- claim: The SkyWater chip has CPU, GPU and TPU scheduler slots / a sixth GPU slot.
+  rtl: '[''sky130/rtl/hydra_openframe_top.sv:148-150 instantiates only hydra_mom_pins'', ''mom/hydra_mom_pins.sv:232
+    mom_top without NENG override -> mom/rtl/mom_top.sv:54 NENG = ENG_N = 5 (mom_pkg.sv:47)'', ''Makefile:522-527
+    sky130 target compiles no engine''] Note: The six-slot configuration exists only as hydra_sys_tile parameters
+    in testbenches (tb_sys_tile_cpu.sv:37, tb_sys_tile_gpu.sv:38, tb_sys_tile_abi.sv:40). capability-matrix.md:60
+    itself says the OpenFrame chip has no engines, contradicting its own line 48.'
+  status: reported, not changed here
+- claim: TPU array is 16 x 16 on the sky130 chip.
+  rtl: '[''no TPU in the chip top (sky130/rtl/hydra_openframe_top.sv:148)'', ''sys/rtl/hydra_sys_tile.sv:383,405
+    instantiate N = 4'', ''sys/rtl/hydra_engine_tpu_dma.sv:150-153 packs only 4 lanes per 32-bit word, so N > 4
+    is not supported by the memory path'']'
+  status: reported, not changed here
+- claim: The CPU is not integrated / CPU is roadmap.
+  rtl: '[''sys/rtl/hydra_engine_cpu.sv:43-189 exists'', ''sys/rtl/hydra_sys_tile.sv:281-289,498-501 slot 0 = Sixfold
+    when CPU_ENGINE = 1''] Note: Also internally contradicted by README.md:50 and heterogeneous-system.md:92-95.'
+  status: reported, not changed here
+- claim: GPU is roadmap, 'specified, not built'; or 'giving it a sixth slot is a separate change'.
+  rtl: '[''sys/rtl/hydra_engine_gpu.sv:66-293'', ''sys/rtl/hydra_sys_tile.sv:446-458,510-513'']'
+  status: reported, not changed here
+- claim: ENG_N grows to 6.
+  rtl: '[''mom/rtl/mom_pkg.sv:47-48 ENG_N = 5, ENG_N_CHIP = 6 (separate constant)'']'
+  status: reported, not changed here
+- claim: Unreduced NTT inputs are refused by the controller.
+  rtl: '[''engines/ntt/rtl/ntt_ctrl.sv:39-42 checks only op class, dtype, group count'', ''check exists only at
+    hydra_engine_ntt_dma.sv:138-139 (load port)'']'
+  status: reported, not changed here
+- claim: NTT element count is dim_m, matching what the dispatcher's cost model prices.
+  rtl: '[''mom/rtl/mom_features.sv:147 prices OPC_NTT from lg_n (dim_n): W = (N/2)*log2(N)*CBF'', ''engines/ntt/rtl/ntt_top.sv:49-51
+    runs dim_m/4 groups'']'
+  status: reported, not changed here
+- claim: TPU latency is K + 2N - 2 + N(N+1) cycles per tile.
+  rtl: '[''engines/tpu/rtl/tpu_ctrl.sv:92-141; simulated done at +33 for N=K=4 (formula gives 30); RTL-derived K
+    + N^2 + 3N + 1 (the README omits CLEAR, the final TAIL cycle and DONE)'']'
+  status: reported, not changed here
+- claim: Barrett BM-1 largest remainder 22,887 at q=12289.
+  rtl: '[''exhaustive sweep of the RTL arithmetic (ntt_modmul.sv:29-36) over all residue pairs gives 22,862 (23,042
+    over every t <= (q-1)^2); the conclusion (< 2q) holds, the number does not match. At q=3329 BM-1 is NOT equivalent
+    (max 7058 > 6658).'']'
+  status: reported, not changed here
+- claim: 'Memory path mutation suite: thirteen breaks, 13 killed.'
+  rtl: '[''mem/formal/mutate_dma.py:20-97 lists 26 mutations'', "Makefile:459 ''break the memory path 26 ways''"]'
+  status: reported, not changed here
+- claim: Bank width checked against the 10-bit descriptor field by an elaboration assertion; bank of 1024 'instantiated
+    below'.
+  rtl: '[''hydra_dma_gemm instantiates no bank and has no assertion; hydra_engine_tpu_dma.sv has no such check (AW
+    is a free parameter, :23); only hydra_engine_simd_dma.sv:83 and hydra_engine_ntt_dma.sv:100 have $error checks'']'
+  status: reported, not changed here
+- claim: Memory port 'used only when TPU_FROM_MEM is set'; tile has 'five engines' that are 'LATENCY MODELS'.
+  rtl: '[''sys/rtl/hydra_sys_tile.sv:244-289,444-458 also use the port for ABI v2, CPU and GPU; NENG up to 6 and
+    real engines by parameter (:54,75-103)'']'
+  status: reported, not changed here
+- claim: TPU and vector unit placed and routed on ECP5 with timing met.
+  rtl: '["docs/verification/capability-matrix.md:63 gives ''simulated'' as the highest level for ecp5-evn-tpu and
+    ecp5-evn-two (doc vs doc; not checkable from RTL)"]'
+  status: reported, not changed here
+- claim: tiles_done counts tiles.
+  rtl: '[''sys/rtl/hydra_engine_tpu_dma.sv:181-185 increments on every completion including range and core refusals
+    (simulated: tiles=2 and 3 after two refusals)'']'
+  status: reported, not changed here
+- claim: docs/verification/capability-matrix.md:200 - key vault evidence 'simulated (make keyvault)'
+  rtl: 'Makefile:207-213 - keyvault runs only sv2v + sby (prove, ni, ni_full, cover); sec/tb has no key-vault testbench
+    Note: Evidence is formal-only. The matrix''s row 4 also omits the proofs for every security block (lines 200-204),
+    while README.md:47 says ''simulated and proved''.'
+  status: reported, not changed here
+- claim: 'README.md:28 - hero alt text: ''the security blocks are simulated only'''
+  rtl: sec/formal/key_vault.sby, mailbox.sby, pcr.sby, measure.sby, sha256_stream.sby; isa/formal/xsec.sby - formal
+    proofs exist; key vault has no simulation at all
+  status: reported, not changed here
+- claim: docs/verification/capability-matrix.md:202 - SHA-256 'NIST test vectors'
+  rtl: sec/tb/sha256_model.py:31-39 and sec/tb/sha256_stream_model.py:19 - expected digests come from Python hashlib
+    over chosen and random messages; only 'abc' (and the empty message) are standard published vectors
+  status: reported, not changed here
+- claim: 'docs/ARCHITECTURE.md:108 - ''Clock crossing: test port into the register map''; docs/SECURITY_PLAN.md:166-167
+    ''bridge into the register map'''
+  rtl: fpga/rtl/hydra_fpga_jtag_host.sv:26-32, 81-86 - the only instance feeds a 3-register command-byte map; no
+    chip or tile register map is reachable from it, and sky130/rtl/hydra_openframe_top.sv:125-216 has no TAP
+  status: reported, not changed here
+- claim: docs/SECURITY_PLAN.md:157-158 - 'four pins and 491 standard cells ... three percent of the tile'
+  rtl: tt/tile/src/tt_um_hydra_mom.sv:141-224 and tt/tile/info.yaml:124-132 - the tile instantiates no TAP and has
+    no JTAG pins
+  status: reported, not changed here
+- claim: docs/SECURITY_PLAN.md:150-151 - escape hatch 'checked exhaustively over all sixteen states'; dbg/rtl/hydra_jtag_tap.sv:28
+    'proved'
+  rtl: 'dbg/formal/jtag_tap.sby lines 18-25 - bounded model check (bmc depth 10) with a written completeness argument,
+    not k-induction Note: Probably sound for this 5-step property, but it is a BMC, and it should be described as
+    such.'
+  status: reported, not changed here
+- claim: dbg/rtl/hydra_jtag_bridge.sv:151-170 FORMAL block; docs/FPGA_BASYS3.md:196-197 'verified clock-crossing
+    handshake'
+  rtl: 'dbg/formal/ contains only jtag_tap.sby and cdc_check.py; Makefile:71-75 jtag-bridge runs simulation and
+    cdc_check.py only Note: The bridge''s assertions are never checked by a solver; ''verified'' means simulated
+    plus a text check.'
+  status: reported, not changed here
+- claim: dbg/tb/tb_jtag_bridge.sv:22 - TCK period 'deliberately not a ratio'
+  rtl: dbg/tb/tb_jtag_bridge.sv:21-22 - 10 ns vs 35 ns is a fixed rational 7:2 ratio (phases do sweep, but the ratio
+    is fixed)
+  status: reported, not changed here
+- claim: 'sky130/rtl/hydra_openframe_top.sv:33 (pad plan: CSn on pad 5 = ui_in[2]) and comment 169-170 (''An unconnected
+    SPI chip-select must read high'')'
+  rtl: 'sky130/rtl/hydra_openframe_top.sv:171 - idle-high applied when mux index i==5, i.e. ui_in[5] on pad 8; tb_openframe.sv:49
+    confirms CSn = P_FIRST+2 Note: Low impact today because the tile is held in reset until the pads are connected
+    and locked (lines 142-146), but the comment''s intent is not implemented.'
+  status: reported, not changed here
+- claim: sky130/rtl/hydra_openframe_top.sv:29-30 - connect strap 'Sampled after reset, then locked'
+  rtl: sky130/rtl/hydra_openframe_top.sv:196-202 - with the strap low no lock occurs and the 4-bit boot_cnt wraps,
+    re-sampling every 16 cycles; a later strap rise connects without reset. sky130/tb/tb_openframe.sv:93-102 re-asserts
+    reset before step 2, so this path is untested
+  status: reported, not changed here
+- claim: THREE_TARGETS.md:191-192 - muxed pads 'must be mode 5 (bidirectional)'
+  rtl: sky130/rtl/hydra_openframe_top.sv:235-237 - dm = 110 while driving, 001 while receiving, switched per pad
+    by oeb; lines 52-61 say these encodings are unverified
+  status: reported, not changed here
+- claim: THREE_TARGETS.md:189-190 'lock the selection before the keystore is used'; common/rtl/hydra_padmux.sv:31-32
+    lock protects 'debug or keystore pins'
+  rtl: sky130/rtl/hydra_openframe_top.sv:125-216 - the chip has no keystore, key vault or debug port
+  status: reported, not changed here
+- claim: common/rtl/hydra_padmux.sv:34-37 - 'formal/mutate_padmux.py'
+  rtl: common/formal/mutate_targets.py:29-52 - the padmux mutations live here; no mutate_padmux.py exists in common/formal
+  status: reported, not changed here
+- claim: sky130/rtl/hydra_openframe_top.sv:43-44 and THREE_TARGETS.md:187-188 - padmux 'proved'
+  rtl: common/formal/hydra_padmux.sby (chparam NPAD 3, NALT 3, SELW 2) - proved at a small configuration, not the
+    shipped NPAD=24, NALT=2
+  status: reported, not changed here
+- claim: docs/ISA_SECURITY.md:47-49 - kvstat 'status of key slot rs1' and kvlock 'seal slot rs1'
+  rtl: 'isa/rtl/hydra_xsec_unit.sv:133 kv_slot = rs1[4:3] (kvwrite/kvlock); line 136 kv_rd_slot = rs1[1:0] (kvstat)
+    Note: The same slot needs different rs1 encodings for kvstat and kvlock; the doc explains the split only for
+    kvwrite (lines 56-58).'
+  status: reported, not changed here
+- claim: docs/ISA_SECURITY.md:51-52 and isa/rtl/hydra_xsec_unit.sv:36-37 - measw 'stage 32 bits of a measurement',
+    pcrext 'fold the staged measurement in'
+  rtl: No RTL in the repository consumes meas_we/meas_word/meas_wdata/pcr_extend; hydra_pcr takes a 256-bit meas
+    and an extend pulse with no staging (sec/rtl/hydra_pcr.sv:46-47), and hydra_measure has no such port (sec/rtl/hydra_measure.sv:36-57)
+  status: reported, not changed here
+- claim: isa/rtl/hydra_xsec_unit.sv:44-45 '(a) ... PROVED by non-interference over this unit and the vault together';
+    docs/ISA_SECURITY.md:91
+  rtl: 'isa/formal/xsec_ni.sv:54, 61, 65, 67 - pcr_value, host_wipe and eng_req tied to 0; line 90 non-vacuity cover
+    uses a hierarchical reference and xsec.sby has no cover task (lines 7-9) Note: The doc partly states this (ISA_SECURITY.md:104-106
+    mentions the PCR tie-off) but not the wipe/engine tie-offs or the missing cover run.'
+  status: reported, not changed here
+- claim: docs/verification/capability-matrix.md:203 'measurement register (PCR) extend-only measurement'
+  rtl: 'isa/rtl/hydra_xsec_unit.sv:124, 160-161 - measw/pcrext need no privilege, so any mode may extend; extend-only
+    is not the same as access-controlled Note: Not a contradiction in wording, but the bound should be stated next
+    to the ''extend-only'' claim.'
+  status: reported, not changed here
+- claim: README.md:69 - 'a PC reaches the bridge over serial or over JTAG'
+  rtl: Only plans/basys3.yaml:12 uses hydra_fpga_tt_jtag_harness; every other harness ties jb_* off (e.g. fpga/rtl/hydra_fpga_tt_harness.sv:37-38,
+    hydra_fpga_sys_harness.sv:40-41)
+  status: reported, not changed here
+- claim: docs/ARCHITECTURE.md:89 - tile 'Pins' block listed with module '(software)'
+  rtl: tt/tile/src/tt_um_hydra_mom.sv:107 - it is the RTL top module tt_um_hydra_mom
+  status: reported, not changed here
+- claim: docs/FPGA_BRINGUP.md:197 - 'LED n follows switch n'
+  rtl: 'fpga/rtl/hydra_fpga_selftest.sv:39, 167-168 - LED i (0-based) follows dip[i], i.e. silkscreen switch i+1;
+    LED 7 is the heartbeat Note: Off-by-one wording; the RTL header (line 39) says ''LEDs 0-6 follow switches 1-7''.'
+  status: reported, not changed here
+- claim: docs/verification/capability-matrix.md:201 - mailbox is 'the host-to-root-of-trust command path'
+  rtl: sec/rtl/hydra_mailbox.sv:30-40 - protocol shape only, no root of trust behind it; not instantiated anywhere
+  status: reported, not changed here
+abi:
+  _from: hydra_abi_v2
+  citations:
+  - sys/rtl/hydra_abi_v2.sv:128-142 - policy to mask
+  - sys/rtl/hydra_abi_v2.sv:145-155 - first failing check wins
+  clock_reset: posedge clk, async active-low rst_n clears context table and FSM (hydra_abi_v2.sv:113-116,162-165).
+  evidence:
+  - target: abi-v2
+    what: 4000 random cases vs sys/tb/abi_v2_model.py plus proof (Makefile:286-292)
+  - target: systile-abi
+    what: end to end on six slots
+  example: 'Header for AUTO, PUBLIC_DEBUG, context 1 epoch 7: [63:60]=2, [54:47]=1, [46:31]=7 -> 0x2000_8003_8000_0000
+    (2<<60 | 1<<47 | 7<<31 = 0x2000800380000000, Python-checked). With context 1 owned at epoch 7 and all slots
+    healthy: elig = 6''b111111 & PRESENT & healthy. Policy 3 (TPU) -> elig = 6''b000100. Epoch 8 in the table ->
+    err_code 5. UNVERIFIED by my own simulation.'
+  expert:
+    assumptions: []
+    memory_map: 'Header bits: [63:60] version, [59:58] mode, [57:55] policy, [54:47] context, [46:31] epoch, [30:23]
+      key, [22:15] profile, [14:0] reserved (:101-108).'
+    params:
+    - meaning: slots
+      name: NENG
+      value: ENG_N_CHIP = 6
+    - meaning: contexts
+      name: NCTX
+      value: 16
+    - meaning: slots that exist
+      name: PRESENT
+      value: 8'b0011_1111
+    timing: 'Registered verdict: out_valid or err_valid the cycle after in_valid; next job only after sched_done
+      (:169-177).'
+  failure: 'Codes: 1 version, 2 reserved, 3 mode (FHE/SE refused), 4 policy > 5, 5 context/epoch, 6 key or profile
+    non-zero, 7 empty mask (:97-98,145-155). PRESENT defaults to 6''b111111 including slots 3 (NTT) and 4 (CRYPTO),
+    which in hydra_sys_tile are only latency models, so a forced-NTT job goes to a latency model (:66, hydra_sys_tile.sv:514-518).'
+  inputs:
+  - desc: job in
+    name: in_valid, in_hdr, in_body
+    width: 1/64/128
+  - desc: scheduler took it / dispatched or refused it
+    name: out_ready, sched_done
+    width: 1
+  - desc: context table write
+    name: ctx_we, ctx_id, ctx_owned, ctx_epoch
+    width: 1/8/1/16
+  - desc: healthy-engine mask
+    name: healthy
+    width: NENG
+  job: Checks a 64-bit header placed in front of each 128-bit descriptor (version, reserved bits, security mode,
+    engine policy, context and epoch, key/profile) and turns it into an engine-eligibility mask that the scheduler
+    applies before comparing costs; refuses with a code otherwise. Forwards one job at a time.
+  outputs:
+  - desc: IDLE
+    name: in_ready
+    width: 1
+  - desc: to scheduler
+    name: out_valid, out_body, out_elig
+    width: 1/128/NENG
+  - desc: refusal (tag = body[42:35])
+    name: err_valid, err_code, err_tag
+    width: 1/4/8
+bridge:
+  _from: hydra_fpga_bridge
+  citations:
+  - fpga/rtl/hydra_fpga_bridge.sv:14-32 - protocol
+  - fpga/rtl/hydra_fpga_bridge.sv:42-52 - second host rules
+  - fpga/rtl/hydra_fpga_bridge.sv:139-148 - arbitration and reply routing
+  - fpga/rtl/hydra_fpga_bridge.sv:162-172 - pins and tile reset
+  clock_reset: One domain; async active-low reset (line 174); rst_cnt=16 holds the tile in reset for 16 cycles with
+    the strap applied (lines 163, 172, 181).
+  evidence:
+  - target: make harness
+    what: PC protocol end to end (Makefile:344-349)
+  - target: make jtag-harness
+    what: two hosts, separation (Makefile:351-358)
+  - target: make uart-baud
+    what: every board image's serial port vs an independently timed host (Makefile:480)
+  example: Host sends A5 02 81 00 -> CSn low, 16 SCK bits at HALF=8 clocks per half period, CSn high -> reply 5A
+    02 r0 r1 (lines 15-16, 202-206, 300-374).
+  expert:
+    assumptions:
+    - The bridge is not formally proved; evidence is simulation (make harness, make jtag-harness, make memboard)
+    params:
+    - meaning: UART divisor (line 57)
+      name: CLKS_PER_BIT
+      value: 104 default; set per board by the generator
+    - meaning: SPI half-period in clocks (line 58)
+      name: HALF
+      value: 8
+    - meaning: register personality at power-up (line 59)
+      name: DEFAULT_REG
+      value: 1
+    - meaning: enable 4D/52 (line 63)
+      name: HAS_MEM
+      value: 0
+    - meaning: accept second host (line 64)
+      name: HAS_JTAG
+      value: 0
+    registers:
+    - A5 N d0..dN-1 -> 5A N r0..; C3 M -> 3C M; 96 U -> 69 uo uio; 97 U -> 69 uo uio; 4D B Ah Al d3..d0 -> B2 S;
+      52 Ah Al -> A6 d3..d0; else EE cmd (lines 14-32)
+    timing: Strap ui_in=0xA4 (ui[7:4]=A, CSn=1) for 16 cycles on reset or C3 (lines 163, 181, 212).
+  failure: Unknown command -> EE cmd (lines 194-197). A5 length > 32 clamps to 32 (line 203). Memory commands without
+    HAS_MEM -> EE (lines 192-193). B2 01 = write refused by the design (lines 276-279). Bytes from the other host
+    during a command are dropped; on a same-cycle tie UART wins (lines 139-142, 191). Replies to JTAG wait on jb_tx_full
+    (line 146).
+  inputs:
+  - desc: system clock
+    name: clk
+    width: 1
+  - desc: synchronised board reset
+    name: rst_n
+    width: 1
+  - desc: serial in (2-flop synchronised in hydra_fpga_uart_rx)
+    name: uart_rx_i
+    width: 1
+  - desc: tile outputs
+    name: uo_out, uio_out
+    width: 8
+  - desc: scratchpad (HAS_MEM)
+    name: mem_rdata, mem_refused
+    width: 32, 1
+  - desc: second host (HAS_JTAG)
+    name: jb_rx_v, jb_rx_d, jb_tx_full
+    width: 1, 8, 1
+  job: 'Turns a byte protocol over a Universal Asynchronous Receiver-Transmitter (UART, 8N1) into tile pin activity:
+    SPI frames to the register personality, tile reset with personality strap, raw pin drive, and scratchpad word
+    load/read. With HAS_JTAG=1 the same command set also arrives as bytes from hydra_fpga_jtag_host.'
+  outputs:
+  - desc: serial out
+    name: uart_tx_o
+    width: 1
+  - desc: tile inputs
+    name: ui_in
+    width: 8
+  - desc: rst_n & (rst_cnt == 0)
+    name: tile_rst_n
+    width: 1
+  - desc: scratchpad port
+    name: mem_we, mem_bank, mem_addr, mem_wdata, mem_raddr
+    width: 1,2,16,32,16
+  - desc: replies to the JTAG host
+    name: jb_tx_v, jb_tx_d
+    width: 1, 8
+  - desc: strap_reg
+    name: reg_mode_o
+    width: 1
+  security_bounds:
+    claimed: n/a (a debug/bench host path).
+    not_claimed: No authentication; any host on the serial line or JTAG can reset the tile and read/write scratchpad.
+calibrate:
+  _from: mom_calibrate
+  citations:
+  - mom/rtl/mom_calibrate.sv:110-112 - ALPHA, K_MIN, K_MAX
+  - mom/rtl/mom_calibrate.sv:157-160 - read port with unity fallback
+  - mom/rtl/mom_calibrate.sv:172-185 - index guard, 34-bit t_cal, sign
+  - mom/rtl/mom_calibrate.sv:193-220 - step and clamps
+  - mom/rtl/mom_calibrate.sv:224 - update conditions
+  - mom/rtl/mom_calibrate.sv:226-243 - state update
+  - mom/rtl/mom_calibrate.sv:320 - assert on undeclared 'step'
+  clock_reset: clk rising; async active-low reset sets every k to 64, upd_count 0, last_dir 0 (226-232). reset_factors
+    (synchronous, priority over updates) sets k = 64 and upd_count = 0 but leaves last_dir (233-237).
+  evidence:
+  - target: cost-cal
+    what: 'MODEL-02: full-width comparison and out-of-range index guard (tb_cost_cal)'
+  - target: mom-mutate
+    what: MODEL-02 x2 reverted -> cost-cal must fail
+  - target: tile
+    what: test_reg_completion_calibration_and_fence (count, freeze, reset), test_reg_calibration_closes_the_loop
+      (slow TPU completions move LARGE off the TPU)
+  - target: system
+    what: loop closes with engine completions only (tb_mom_system)
+  - target: systile
+    what: slow TPU profile moves the decision; documents that it does not come back (E7)
+  example: 'VERIFIED-SIM: SIMD/GEMM, k = 64, t_pred 27, t_meas 1288: t_cal = (27*64) >> 6 = 27; 1288 > 27 -> too_slow;
+    step = 64>>4 = 4;
+
+    k = 68; CALUPD 0 -> 1.
+
+    '
+  expert:
+    assumptions:
+    - The FORMAL block (249-322) is not run by any Makefile target, and line 320 asserts on a signal 'step' that
+      is never declared (only the function step_of exists), so it would not elaborate with FORMAL defined.
+    params:
+    - meaning: engines
+      name: NENG
+      value: 5 or 6
+    - meaning: step = max(1, k >> 4)
+      name: ALPHA
+      value: 4
+    - meaning: lower clamp, 0.0625
+      name: K_MIN
+      value: 4
+    - meaning: upper clamp, 3.98
+      name: K_MAX
+      value: 255
+    registers:
+    - cite: mom/rtl/mom_calibrate.sv:146-148,226-230
+      name: k[NENG][9]
+      value: 8-bit Q2.6, reset 64
+    timing:
+    - Read port combinational (157-160). Update lands on the edge where upd_valid is high, i.e. two cycles after
+      the completion pulse reaches the scoreboard (scoreboard 249 + this 238).
+  failure: Update skipped when frozen, when t_predicted = 0, or when the engine/op class index is out of range (224,
+    172). Equal measured and calibrated time leaves k unchanged (220). Clamped to [4, 255] (206, 214). Only one
+    update per cycle; the scoreboard can produce at most one completion per cycle anyway.
+  inputs:
+  - desc: 'CTRL.CAL_FREEZE: no updates'
+    name: freeze
+    width: 1
+  - desc: 'CTRL.CAL_RESET (level): all k = 64, count = 0'
+    name: reset_factors
+    width: 1
+  - desc: op class of the descriptor in the features register
+    name: rd_opclass
+    width: 4
+  - desc: scoreboard cal_valid
+    name: upd_valid
+    width: 1
+  - desc: engine
+    name: upd_engine
+    width: 3
+  - desc: op class
+    name: upd_opclass
+    width: 4
+  - desc: cycles from dispatch to completion
+    name: upd_t_measured
+    width: 32
+  - desc: uncalibrated t_pred stored at dispatch
+    name: upd_t_predicted
+    width: 32
+  job: 'Keeps an 8-bit Q2.6 correction factor k for every (engine, op class) pair, serves the factors for the descriptor
+    being costed, and on each completion moves the matching k one proportional step up or down by the sign of (measured
+    - calibrated prediction): sign least-mean-squares with no divider.'
+  outputs:
+  - desc: k[e][rd_opclass], 64 if op class >= 9
+    name: rd_k
+    width: NENG x 8
+  - desc: CALUPD
+    name: upd_count
+    width: 16
+  - desc: 1 = last step raised k (unused)
+    name: last_dir
+    width: 1
+cost:
+  _from: mom_cost_engine
+  citations:
+  - mom/rtl/mom_cost_engine.sv:140-156 - capable and valid
+  - mom/rtl/mom_cost_engine.sv:166-172 - log-domain roofline
+  - mom/rtl/mom_cost_engine.sv:180-188 - compute cycles and clamp
+  - mom/rtl/mom_cost_engine.sv:198-206 - DMA term, setup shift
+  - mom/rtl/mom_cost_engine.sv:230-235 - 40-bit sum, t_pred saturation
+  - mom/rtl/mom_cost_engine.sv:278-303 - normalised calibration multiply
+  - mom/rtl/mom_cost_engine.sv:342-369 - energy terms
+  - mom/rtl/mom_cost_engine.sv:391-403 - stage-A register
+  - mom/rtl/mom_cost_engine.sv:408-421 - objective and invalid cost
+  clock_reset: clk rising; async active-low reset clears the stage-A register t_pred_q, e_ops_q, e_mem_q, valid_q,
+    capable_q, lambda_en_q (lines 391-394); stage B is combinational from it.
+  evidence:
+  - target: cost-cal
+    what: 'tb_cost_cal: calibrated product vs exact floor(t_pred*k/64) at every exponent boundary and every k; MODEL-01'
+  - target: cost-mux
+    what: shared build decisions == parallel build decisions
+  - target: cost-mux-mutate
+    what: 5 sequencer breaks (one known-equivalent) must change decisions
+  - target: mom-mutate
+    what: MODEL-01 normalisation shift reverted -> cost-cal must fail
+  example: "GEMM INT8 4x4x4, bytes 48, LAT_BALANCED, PWR_BALANCED, GLOBAL = {4,12,8}, k = 64, queue 0 (log2_w 7,\
+    \ log2_i 2):\n  t_move = 48 >> 4 = 3;  e_mem = (48*12) >> 8 = 576 >> 8 = 2;  e_ops = eps_op >> 1 (net shift\
+    \ 7+0-8 = -1)\n  CPU : bw_bound 2+2=4, p_att min(4,0)=0, t_comp 2^7=128, t_pred 128+0+3 = 131, J = 131+40+2\
+    \ = 173\n  SIMD: bw_bound 6, p_att 3, t_comp 2^4=16, t_pred 16+8+3 = 27, J = 27+10+2 = 39   <- winner\n  TPU\
+    \ : bw_bound 7, p_att 7, t_comp 2^0=1, t_pred 1+64+3 = 68, J = 68+1+2 = 71\n  NTT, CRYPTO: dtype INT8 not in\
+    \ mask -> invalid, cost 0xFFFFFFFF\n  margin 71 - 39 = 32.  VERIFIED-SIM (tile: engine 1, margin 32; scoreboard\
+    \ saw t_pred 27).\nGEMM INT8 8x8x8, bytes 192 (log2_w 10, log2_i 3): t_move 12, e_mem 2304>>8 = 9, e_ops = eps<<2\n\
+    \  CPU 1036+320+9 = 1365; SIMD 148+80+9 = 237; TPU (8+64+12)+8+9 = 101 <- winner; margin 136. VERIFIED-SIM (from\
+    \ reset).\n  After one SIMD/GEMM calibration step k = 68: SIMD t_cal = (148*68)>>6 = 157, J = 246, margin 145.\
+    \ VERIFIED-SIM.\n"
+  expert:
+    assumptions:
+    - 'Calibration multiply uses a byte-normalised 16-bit mantissa: e = 0 below 2^16 (exact), 8 below 2^24, 16 above;
+      result at most 1/256 low (278-303).'
+    - lat_hint scales t_setup by x1 (THROUGHPUT, BALANCED), x2 (LOW), x4 (REALTIME) (204-206).
+    - J = floor(k*T_hat/64) [normalised] + ((eps_op << log2_w << lambda_log2) >> e_shift) + (((bytes*eps_mem) <<
+      lambda_log2) >> e_shift), energy terms zero when lambda enable = 0 (342-369, 408-412).
+    params:
+    - meaning: waveform naming only (426)
+      name: ENGINE_ID
+      value: engine_e, unused in the body
+    registers: []
+    timing:
+    - 'Two stages: stage A (capability, roofline, t_pred, raw energy) registered on adv; stage B (calibration multiply,
+      energy sum, saturation) combinational from it (387-421). In the shared top each engine therefore takes 2 cycles:
+      phase 0 advances stage A, phase 1 reads stage B with the same engine''s k_cal still presented (mom_top.sv:65-71,
+      236-287).'
+  failure: 'Never stalls by itself; stage A only updates on adv (395). Saturation: log2 compute time > 31 -> COST_SAT
+    (187-188); 40-bit sum clamps t_pred (230-235); calibrated product overflow -> COST_SAT (302-303); energy overflow
+    -> COST_SAT (353, 410); final J overflow -> COST_SAT (417-418). An engine with !valid presents all-ones (415-416).  Up
+    to v3.8 a descriptor whose only capable engine was full when costed was held for ever; since v3.10 the selector
+    reads the scoreboard''s live full flags, so it dispatches once that engine drains (test_full_only_engine_recovers).'
+  inputs:
+  - desc: 'advance stage A (shared mode: eval_busy && !phase)'
+    name: adv
+    width: 1
+  - desc: from features
+    name: log2_w
+    width: 8
+  - desc: descriptor bytes, linear
+    name: bytes_q
+    width: 24
+  - desc: from features
+    name: log2_i
+    width: 9 signed
+  - desc: descriptor fields
+    name: dtype/op_class/lat_hint
+    width: 3/4/2
+  - desc: '{enable, log2 lambda} from pwr_hint'
+    name: lambda_sh
+    width: 4
+  - desc: engine row
+    name: param
+    width: 43
+  - desc: Q2.6 calibration factor (consumed in stage B)
+    name: k_cal
+    width: 8
+  - desc: outstanding jobs on this engine
+    name: queue_depth
+    width: 8
+  - desc: queue_depth >= QMAX
+    name: engine_busy_full
+    width: 1
+  - desc: GLOBAL
+    name: bw_dma_log2/eps_mem/e_shift
+    width: 4/4/4
+  job: For one engine's parameter row, computes predicted cycles (roofline compute time + setup + operand transfer
+    + queue depth), applies that engine's calibration factor, adds a power-hint-weighted energy term, and reports
+    the cost plus whether the engine is capable (can ever run it) and valid (can take it now). Two internal pipeline
+    stages.
+  outputs:
+  - desc: J; 0xFFFFFFFF when !valid; 0xFFFF0000 on overflow
+    name: cost
+    width: 32
+  - desc: uncalibrated predicted cycles (stored by the scoreboard)
+    name: t_pred
+    width: 32
+  - desc: capable && !full
+    name: valid
+    width: 1
+  - desc: dtype and op-class masks both pass
+    name: capable
+    width: 1
+cpu:
+  _from: hydra_engine_cpu
+  _note: v3.10 added CACHED = 1 to sys/rtl/hydra_engine_cpu.sv; line citations below are to 112e1c4
+  citations:
+  - sys/rtl/hydra_engine_cpu.sv:136-150 - Riscv64 instance
+  - sys/rtl/hydra_engine_cpu.sv:154-186 - sequencing
+  clock_reset: posedge clk, async active-low rst_n for the wrapper (:154-158); the core's own reset is core_reset
+    = IDLE or START (:93); memory has no reset.
+  evidence:
+  - target: cpu
+    what: 24 Sixfold programs, registers / TOHOST / cycle count vs Sixfold's model (Makefile:322-331)
+  - target: cpu-quick
+    what: one program plus refusals
+  - target: systile-cpu
+    what: slot 0 through ABI v2
+  - target: make cpu-cached
+    what: 'the CACHED = 1 build (Sixfold''s caches over block memory): every program against the cached model'
+  - target: make cpu-synth
+    what: yosys synth_ecp5 of the cached build; prints the resource count (synthesis only)
+  example: 'Defaults after reset: entry 0x2000, limit 4,000,000 cycles (:156). Entry 0x2002 -> refused (not word
+    aligned); entry 0x10000 (65536) -> refused (>= MEM_BYTES). UNVERIFIED by my own simulation.'
+  expert:
+    assumptions: []
+    memory_map: Byte-addressed little-endian; host word address = byte address >> 2; MMIO_MTIME 0x1000_0058, MTIMECMP
+      0x1000_0060, other 0x1000_00xx devices read 0 (:74-76,103-121).
+    params:
+    - meaning: memory
+      name: MEM_BYTES
+      value: 65536
+    - meaning: tag
+      name: TAGW
+      value: 4
+    timing: C_START one cycle of reset, then RUN until HALTED (:172-181).
+  failure: 'Refused: no word ever loaded, misaligned or out-of-range entry (:92,168-169). Cycle limit -> job_status
+    2 and slot freed (:178-180). Host writes refused while running (:94,123,132). Same-cycle 64 KiB memory is a
+    simulation arrangement, not synthesizable as is (:26-30).'
+  inputs:
+  - desc: eng_wd unused (:188)
+    name: eng_valid, eng_wd, eng_tag
+    width: 1/128/4
+  - desc: word writes while not running
+    name: ld_we, ld_addr, ld_data
+    width: 1/14/32
+  - desc: memory and register readback
+    name: rd_addr, dbg_reg
+    width: 14/5
+  - desc: 0 entry address, 1 cycle limit
+    name: cfg_we, cfg_addr, cfg_data
+    width: 1/1/32
+  job: Puts the unchanged Sixfold 6-stage 64-bit RISC-V core (Riscv64) behind the engine contract with a 64 KiB
+    same-cycle unified memory loaded by the host, a machine timer, an entry address and a cycle limit; a descriptor
+    runs the program and done follows the core's HALTED.
+  outputs:
+  - desc: engine port
+    name: eng_ready, eng_done, eng_done_tag
+    width: 1/1/4
+  - desc: 0 halted, 1 refused, 2 cycle limit
+    name: job_status
+    width: 2
+  - desc: results
+    name: tohost, rd_data, dbg_data, perf_cycles, ld_refused
+    width: 64/32/64/32/1
+dma:
+  _from: hydra_dma_gemm
+  citations:
+  - mem/rtl/hydra_dma_gemm.sv:93 - states IDLE PRIME STREAM DRAIN
+  - mem/rtl/hydra_dma_gemm.sv:146-149 - go, xfer, bank_ok, capture
+  - mem/rtl/hydra_dma_gemm.sv:165-172 - holding register
+  - mem/rtl/hydra_dma_gemm.sv:202-216 - result count and outputs
+  clock_reset: posedge clk, async active-low rst_n clears state, counters and holding register (hydra_dma_gemm.sv:160-163,
+    203-206).
+  evidence:
+  - target: dma
+    what: SymbiYosys proof of hydra_dma_gemm (Makefile:425-432; properties hydra_dma_gemm.sv:230-279)
+  - target: dma-mutate
+    what: 26 mutations across the streamer and three wrappers (mem/formal/mutate_dma.py:20-97)
+  example: 'Verified (tb_c_tdma, base_a 10, base_b 20, base_c 100, K = 4): accept +0 (go), PRIME +1 (address 10
+    presented),
+
+    STREAM +2 captures mem[10], words offered +3, +4, +5, +6 (0aff0501, f6fe0602, 14fd0703, ecfc0804 from A;
+
+    ff020001, 02fd0100, 0001fe04, 010003fb from B); results written C[100..115] at +14..+32.
+
+    '
+  expert:
+    assumptions:
+    - power-up in reset (formal initial assume, hydra_dma_gemm.sv:227)
+    memory_map: 'Descriptor reserved bits: wd[12:3] base_a, wd[22:13] base_b, wd[32:23] base_c (hydra_dma_gemm.sv:19-24).
+      Twiddle bank shares the A pointer (hydra_dma_gemm.sv:72-75,158).'
+    params:
+    - meaning: operand address bits
+      name: AW
+      value: 10
+    - meaning: word / group width (128 for SIMD and NTT)
+      name: DW
+      value: 32
+    - meaning: result address bits
+      name: CAW
+      value: AW
+    - meaning: counters
+      name: CNTW
+      value: 16
+    timing: First operand offered at +3 after start; then one group per cycle if the engine is ready (the bank re-reads
+      on a stall). DRAIN to IDLE after the last result.
+  failure: 'start while not IDLE is ignored (hydra_dma_gemm.sv:146) - wrappers must not accept while busy.
+
+    k_slices = 0 stays IDLE (hydra_dma_gemm.sv:182). Stalls: when the held word is not taken the same
+
+    address is re-presented so nothing is lost (hydra_dma_gemm.sv:98-106,149). Results are written
+
+    unconditionally on res_valid (no back-pressure to the engine). DRAIN exits only when res_seen >= n_q
+
+    and no result is arriving (hydra_dma_gemm.sv:193,208). No range check: the wrappers refuse jobs that
+
+    would run past a bank.
+
+    '
+  inputs:
+  - desc: taken only when IDLE
+    name: start
+    width: 1
+  - desc: bases
+    name: base_a, base_b
+    width: AW
+  - desc: result base
+    name: base_c
+    width: CAW
+  - desc: groups to stream
+    name: k_slices
+    width: 16
+  - desc: results to wait for
+    name: n_results
+    width: 16
+  - desc: bank outputs
+    name: a_rdata, b_rdata, w_rdata
+    width: DW
+  - desc: engine took the word
+    name: op_ready
+    width: 1
+  - desc: engine result
+    name: res_valid
+    width: 1
+  - desc: result
+    name: res_data
+    width: 32
+  job: Direct Memory Access (DMA) streamer. On start it reads one word per operand bank per group from consecutive
+    addresses, presents them to the engine with valid/ready through a one-word holding register, and writes every
+    engine result to consecutive C addresses; it stays busy until the expected number of results has been written.
+  outputs:
+  - desc: not IDLE
+    name: busy
+    width: 1
+  - desc: w_addr = a_addr
+    name: a_addr, b_addr, w_addr
+    width: AW
+  - desc: result write
+    name: c_addr, c_we, c_wdata
+    width: CAW/1/32
+  - desc: holding register valid in STREAM
+    name: op_valid
+    width: 1
+  - desc: held words
+    name: op_a, op_b, op_w
+    width: DW
+features:
+  _from: mom_features
+  citations:
+  - mom/rtl/mom_features.sv:94-96 - in_ready, accept
+  - mom/rtl/mom_features.sv:126-157 - log2 W by op class
+  - mom/rtl/mom_features.sv:169 - log2 I = log2 W - log2 Q, signed
+  - mom/rtl/mom_features.sv:174-192 - output register
+  clock_reset: clk rising; async active-low reset; out_valid, out_wd, logs reset to 0 (lines 174-180).
+  evidence:
+  - target: tile
+    what: every dispatch; test_every_descriptor_class_terminates sweeps op_class 0..15 x dtype 0..7
+  - target: cost-mux
+    what: shared vs parallel builds, 120 descriptors, same decisions
+  - target: system
+    what: dispatcher + crossbar + five latency-model engines (tb_mom_system)
+  - target: diff
+    what: parallel build inside hydra_mom_pins legacy mode equals v1 pin for pin
+  example: 'GEMM 4x4x4, bytes 48: lg_m = lg_n = lg_k = flog2(4) = 2 -> log2_w = 2+2+2+1 = 7 (line 140); log2_q =
+    flog2(48) = 5;
+
+    log2_i = 7 - 5 = 2.
+
+    GEMM 8x8x8, bytes 192: log2_w = 3+3+3+1 = 10; log2_q = flog2(192) = 7; log2_i = 3.
+
+    GEMM INT32 32x32x64, bytes 0: log2_w = 5+5+6+1 = 17; log2_q = 0; log2_i = 17.
+
+    (All three feed decisions VERIFIED-SIM below.)
+
+    '
+  expert:
+    assumptions:
+    - 'W formulas (lines 132-156): SCALAR/ELEMENT/REDUCE lg_m; GEMM/CONV2D lg_m+lg_n+lg_k+1; FFT 2+lg_n+flog2(lg_n);
+      NTT lg_n+flog2(lg_n)+1; CIPHER/HASH lg_q. HASH is NOT ceil(bytes/64)*CPBLK as the header (line 53) says; it
+      is log2(bytes).'
+    - The FORMAL block (194-201) is not run by any Makefile target, and the 'tb/formal/' it names does not exist.
+    params: []
+    registers: []
+    timing:
+    - '1 cycle: accepted on the edge where in_valid && in_ready, valid the next cycle (182-187).'
+  failure: 'Single register, no skid: it holds its descriptor until out_ready, and in_ready falls meanwhile (line
+    94). In shared mode it stays full for the whole 2*NENG-cycle sweep, so READY is low while a descriptor is being
+    costed (VERIFIED-SIM: STATUS[15:8] read 0x10 mid-decision). Op classes 9..15 take the default W = M (line 155);
+    dims of 0 give log 0.'
+  inputs:
+  - desc: descriptor offered
+    name: in_valid
+    width: 1
+  - desc: work descriptor
+    name: in_wd
+    width: 128
+  - desc: 'downstream consumed (mom_top f_ready: eval_done in shared mode, a_adv in parallel)'
+    name: out_ready
+    width: 1
+  job: Registers one descriptor and computes log2 of its work volume W, log2 of its operand bytes Q, and log2 of
+    arithmetic intensity I = W/Q (signed), all with priority-encoder logarithms instead of multipliers and a divider.
+  outputs:
+  - desc: '!out_valid || out_ready (this is STATUS.READY / pin uo[7])'
+    name: in_ready
+    width: 1
+  - desc: register full
+    name: out_valid
+    width: 1
+  - desc: descriptor passed through
+    name: out_wd
+    width: 128
+  - desc: log2 W
+    name: out_log2_w
+    width: 8
+  - desc: flog2(bytes) (unused by mom_top)
+    name: out_log2_q
+    width: 8
+  - desc: log2 W - log2 Q
+    name: out_log2_i
+    width: 9 signed
+gpu:
+  _from: hydra_engine_gpu
+  citations:
+  - sys/rtl/hydra_engine_gpu.sv:139-151 - ps_gpu_top instance
+  - sys/rtl/hydra_engine_gpu.sv:249-290 - job sequencing
+  clock_reset: posedge clk, async active-low rst_n; Pixelstorm gets rst = !rst_n (:143, 202-206, 249-254).
+  evidence:
+  - target: gpu
+    what: 14 kernels vs Pixelstorm's JavaScript model over the bank (Makefile:360-371)
+  - target: systile-gpu
+    what: INT32 GEMM scheduled to slot 5
+  - target: mom-mutate
+    what: GPU-01..07
+  example: 'Memory channel timing from RTL: a 4-word line read at address 100 issues bank addresses 100,101,102,103
+    on four cycles, captures the words one cycle later, answers in M_RESP (about 6 cycles); an atomic add reads,
+    captures old, writes old+value, answers old (:221-242). UNVERIFIED by my own simulation (Pixelstorm kernels
+    not run).'
+  expert:
+    assumptions:
+    - Pixelstorm issues one memory request at a time (:50-52)
+    memory_map: One hydra_spram DEPTH x 32 (:198-199); Pixelstorm line = 4 words.
+    params:
+    - meaning: bank address bits (4096 words on the chip config)
+      name: AW
+      value: 10 default, 12 in hydra_sys_tile
+    - meaning: SMs
+      name: SMS
+      value: 2
+    - meaning: warps
+      name: WARPS
+      value: 4
+    - meaning: lanes per warp
+      name: LANES
+      value: 8
+    timing: done after GPU done and the memory channel idle (:277-286).
+  failure: 'Refused (job_status 1, done the cycle after accept): grid 0, block 0, block > 32, no program loaded
+    (:123-124,268-269). Line past the bank end: reads 0, writes dropped, job_status 2 (:163-165,262-263,283). Host
+    bank writes refused while running (:168-172). Program/param/cfg writes are silently ignored while busy (gated
+    by eng_ready, :144-145,258-259), not reported.'
+  inputs:
+  - desc: eng_wd is unused (:292)
+    name: eng_valid, eng_wd, eng_tag
+    width: 1/128/4
+  - desc: instruction memory (only while ready)
+    name: prog_we, prog_addr, prog_data
+    width: 1/10/32
+  - desc: kernel parameters
+    name: cons_we, cons_addr, cons_data
+    width: 1/4/32
+  - desc: 0 grid (blocks), 1 block (threads)
+    name: cfg_we, cfg_addr, cfg_data
+    width: 1/1/16
+  - desc: bank write between jobs
+    name: ld_we, ld_addr, ld_data
+    width: 1/AW/32
+  - desc: bank read
+    name: rd_addr
+    width: AW
+  job: Puts the Pixelstorm single-instruction multiple-thread (SIMT) GPU (ps_gpu_top, 2 streaming multiprocessors
+    x 4 warps x 8 lanes) behind the engine contract, with its one global-memory channel served by a single HYDRA
+    scratchpad bank. Program, kernel parameters and launch shape are loaded beforehand; a descriptor just launches.
+  outputs:
+  - desc: engine port
+    name: eng_ready, eng_done, eng_done_tag
+    width: 1/1/4
+  - desc: 0 OK, 1 refused, 2 range
+    name: job_status
+    width: 2
+  - desc: host side
+    name: ld_refused, rd_data, perf_cycles
+    width: 1/32/32
+host:
+  citations:
+  - tools/hydra_host.py - the driver
+  - tools/test_hydra_host.py - its tests
+  clock_reset: 'None: software.'
+  evidence:
+  - target: tools
+    what: host driver unit tests (tools/test_hydra_host.py)
+  example: tools/hydra_host.py writes a 16-byte descriptor to WD (0x01), writes ACTION (0x03) = 0x01 for GO, then
+    reads STATUS (0x85) and RESULT (0x86).
+  failure: 'Refuses jobs that ask for fully homomorphic encryption or sequestered execution (README: those are specifications
+    only).'
+  inputs:
+  - desc: a USB-serial device on the board
+    name: serial port
+    width: bytes
+  job: 'The PC side: a Python driver that frames descriptors and register accesses and sends them to a board''s
+    serial bridge. Software, not hardware; it is drawn so the path into the chip is complete.'
+  outputs:
+  - desc: command byte {rw, addr} then data, most significant byte first
+    name: SPI frames (through the bridge)
+    width: bytes
+jtag_bridge:
+  _from: hydra_jtag_bridge
+  citations:
+  - dbg/rtl/hydra_jtag_bridge.sv:19-37 - toggle, unsynchronised payload, one outstanding
+  - dbg/rtl/hydra_jtag_bridge.sv:42-48 - stopped system clock not handled
+  - dbg/rtl/hydra_jtag_bridge.sv:83 - ack_edge = ack_sync[1] ^ ack_tog
+  - dbg/rtl/hydra_jtag_bridge.sv:97-105 - payload captured, req_tog toggled, busy set
+  - dbg/rtl/hydra_jtag_bridge.sv:117 - req_edge = req_sync[1] ^ req_seen
+  - dbg/rtl/hydra_jtag_bridge.sv:129-141 - issue and ack toggle
+  - dbg/formal/cdc_check.py:37 - expected synchronisers
+  clock_reset: 'Two domains. TCK side: req_tog, busy, payload, ack_tog, ack_sync[1:0], rdata_q reset by trst_n (async,
+    active low) (lines 85-88). clk side: req_sync[1:0], req_seen, ack_tog_sys, strobes, rdata_sys reset by rst_n
+    (lines 119-123) and reg_we_q/reg_re_q (lines 145-149). Synchronisers: req_sync (2 flops, clk side, line 125)
+    and ack_sync (2 flops, TCK side, line 90).'
+  evidence:
+  - target: make jtag-bridge
+    what: tb_jtag_bridge with tck 35 ns vs clk 10 ns and read-back checking, then cdc_check.py (Makefile:71-75;
+      tb_jtag_bridge.sv:21-22)
+  example: See reset_and_cdc.jtag_handshake for the full signal sequence.
+  expert:
+    assumptions:
+    - The FORMAL block (lines 151-170) has assertions (access only after req_edge; never we and re together; payload
+      stable while busy) but NO .sby file in dbg/formal runs them (dbg/formal contains only jtag_tap.sby and cdc_check.py)
+    - dbg/formal/cdc_check.py is a TEXT check that ack_sync and req_sync are 2-flop chains and payload has no per-bit
+      synchroniser; it cannot find undeclared crossings (cdc_check.py:25-29)
+    - rdata_sys also crosses unsynchronised; it is written in the same clk edge that toggles ack_tog_sys and is
+      stable by the time ack_edge is seen two TCK flops later (lines 92-96, 135-138)
+    params:
+    - meaning: address bits (line 53)
+      name: AW
+      value: 7
+    - meaning: data bits (line 54)
+      name: DW
+      value: 32
+    registers:
+    - user_dr = {rw[39], addr[38:32], wdata[31:0]} (lines 99-102)
+    - user_capture = {busy[39], addr_q[38:32], rdata_q[31:0]} (line 109)
+    timing: 'Request: 1 TCK to accept, 2 clk synchroniser + 1 clk to issue, 1 clk to register, 1 clk to toggle ack;
+      ack: 2 TCK synchroniser + 1 TCK to complete (lines 90-105, 125-141).'
+  failure: 'user_update while busy is ignored (dropped), not queued (lines 92-97, 33-37). If the system clock is
+    stopped no ack returns and busy stays 1 (lines 42-48). If TCK stops mid-transfer the system side completes and
+    the result waits (lines 42-44). By inspection (not covered by a test I found): a TAP Test-Logic-Reset resets
+    req_tog to 0 while the system side keeps req_seen; after an odd number of past requests this produces one req_edge
+    and thus one extra READ of addr_q=0 on the system side (lines 86-88, 117, 129-134).'
+  inputs:
+  - desc: probe clock
+    name: tck
+    width: 1
+  - desc: TCK-domain async reset (driven as !in_reset by hydra_fpga_jtag_host)
+    name: trst_n
+    width: 1
+  - desc: '{rw, addr[6:0], wdata[31:0]}'
+    name: user_dr
+    width: 40
+  - desc: from the TAP
+    name: user_update
+    width: 1
+  - desc: system clock
+    name: clk
+    width: 1
+  - desc: system-domain async reset
+    name: rst_n
+    width: 1
+  - desc: register file read data, sampled one clk after reg_re
+    name: reg_rdata
+    width: 32
+  job: Carries one {rw, addr, wdata} request from the TCK domain to the system clock domain and the read data back,
+    using a toggle request and toggle acknowledge each through a two-flop synchroniser; the payload crosses unsynchronised
+    but held stable for the whole handshake. One request outstanding; a busy flag is visible to the probe.
+  outputs:
+  - desc: '{busy, addr_q, rdata_q}'
+    name: user_capture
+    width: 40
+  - desc: one-clk write strobe
+    name: reg_we
+    width: 1
+  - desc: one-clk read strobe
+    name: reg_re
+    width: 1
+  - desc: address
+    name: reg_addr
+    width: 7
+  - desc: write data
+    name: reg_wdata
+    width: 32
+  security_bounds:
+    claimed: Not a security block.
+    not_claimed: No access control on which addresses a probe may touch. Instantiated only in the basys3 build,
+      where its far side is the 3-register command-byte map of hydra_fpga_jtag_host, not a chip register map.
+jtag_host:
+  _from: hydra_fpga_jtag_host
+  citations:
+  - fpga/rtl/hydra_fpga_jtag_host.sv:71-74 - TAP instance
+  - fpga/rtl/hydra_fpga_jtag_host.sv:81-86 - bridge instance, trst_n = !in_reset
+  - fpga/rtl/hydra_fpga_jtag_host.sv:89-110 - queue
+  clock_reset: TCK domain inside the TAP/bridge; bridge trst_n = !in_reset (line 82), i.e. the TCK side is held
+    reset while the TAP is in Test-Logic-Reset. System side reset by rst_n (lines 98-102).
+  evidence:
+  - target: make jtag-harness
+    what: fpga/tb_fpga_jtag_harness.sv (Makefile:351-358)
+  example: Probe writes addr 0x01 data 0xC3 (DR 0x81000000C3), then 0x01 data 0x01 -> bridge sees C3 01 (reset,
+    register personality); probe reads addr 0x02 repeatedly to pop 3C and 01 (lines 26-32, 105-106, 116-118).
+  expert:
+    assumptions: []
+    params:
+    - meaning: passed to the TAP (line 45)
+      name: IDCODE
+      value: 32'h1130_001D
+    - meaning: reply queue (line 63)
+      name: DEPTH
+      value: 64
+    registers:
+    - 0x00 read ID 0x484A4231 'HJB1'; 0x01 write command byte; 0x02 read pop {valid,7'b0,count_after[7:0],8'b0,byte}
+      (lines 26-32, 113-120)
+    timing: reg_rdata registered on reg_re; the bridge samples it one clk later (lines 112-121).
+  failure: Pop of an empty queue returns 0 with valid=0 (lines 116-118). Full queue back-pressures the bridge, no
+    drop (lines 35-36, 93). Writes to other addresses ignored, reads 0 (line 119).
+  inputs:
+  - desc: probe pins
+    name: tck, tms, tdi
+    width: 1
+  - desc: system domain
+    name: clk, rst_n
+    width: 1
+  - desc: reply bytes from the bridge
+    name: jb_tx_v, jb_tx_d
+    width: 1, 8
+  job: Wraps hydra_jtag_tap and hydra_jtag_bridge and exposes three registers that let a probe feed command bytes
+    to hydra_fpga_bridge and pop reply bytes from a 64-byte queue.
+  outputs:
+  - desc: probe out
+    name: tdo, tdo_oe
+    width: 1
+  - desc: one command byte for one clock
+    name: jb_rx_v, jb_rx_d
+    width: 1, 8
+  - desc: queue full (64)
+    name: jb_tx_full
+    width: 1
+  security_bounds:
+    claimed: n/a.
+    not_claimed: Unauthenticated second host with the full bench command set.
+jtag_tap:
+  _from: hydra_jtag_tap
+  citations:
+  - dbg/rtl/hydra_jtag_tap.sv:24-28 - no TRST
+  - dbg/rtl/hydra_jtag_tap.sv:33-46 - conformance and placeholder IDCODE
+  - dbg/rtl/hydra_jtag_tap.sv:87-107 - next-state table
+  - dbg/rtl/hydra_jtag_tap.sv:113 - state register, no reset
+  - dbg/rtl/hydra_jtag_tap.sv:122-134 - IR
+  - dbg/rtl/hydra_jtag_tap.sv:144-161 - DRs and user_update
+  - dbg/rtl/hydra_jtag_tap.sv:173-176 - negedge TDO
+  - dbg/formal/jtag_tap.sby:18-25 - multiclock, bmc depth 10
+  clock_reset: 'TCK domain only, rising edge for state/IR/DR (lines 113, 122, 144), falling edge for tdo/tdo_oe
+    (lines 173-176). NO reset input: state powers up arbitrary; 5 TCKs with TMS=1 reach Test-Logic-Reset (lines
+    109-113). IR loads IDCODE while in TLR (lines 123-124).'
+  evidence:
+  - target: make jtag
+    what: tb_jtag_tap against dbg/tb/jtag_model.py stimulus, then sby prove (bmc) and cover (Makefile:62-69)
+  - target: make jtag-harness
+    what: UART and JTAG hosts into one tile, alone and together (Makefile:351-358)
+  example: 'From any state: TMS=1 x5 -> TEST_LOGIC_RESET, IR=0x1 (IDCODE). TMS=0 -> RUN_TEST_IDLE. TMS=1,0,0 ->
+    SELECT_DR, CAPTURE_DR (id_shift <= 0x1130001D), SHIFT_DR; 32 shifts put 0x1130001D on TDO LSB first (1,0,1,1,1,0,0,0,...).
+    Select USER: from RTI TMS=1,1,0,0 -> SELECT_DR, SELECT_IR, CAPTURE_IR (ir_shift <= 0001), SHIFT_IR; shift 0x8
+    LSB first (TDI 0,0,0,1, TMS=1 on the last -> EXIT1_IR), TDO shows the captured 1,0,0,0; TMS=1 -> UPDATE_IR (ir=0x8),
+    TMS=0 -> RTI. Then a 40-bit DR scan of user_dr = {rw, addr[6:0], data[31:0]}, e.g. 0x81000000C3 = write, addr
+    0x01, data 0xC3; UPDATE_DR raises user_update for one TCK (lines 155-159).'
+  expert:
+    assumptions:
+    - jtag_tap.sby prove is BMC depth 10 (bounded), with multiclock on; the comment argues completeness because
+      the initial state is unconstrained and the property needs a 5-step window (jtag_tap.sby lines 18-25 of that
+      file)
+    - 'Proved properties: tms_run>=5 implies TLR (lines 189-194); after TLR, ir == IDCODE (lines 201-202); tdo_oe
+      low outside SHIFT states (lines 215-216); covers lines 206-207'
+    params:
+    - meaning: instruction register width (line 51)
+      name: IRW
+      value: 4
+    - meaning: version 1, part 0x1300, manufacturer field 0x00E (placeholder, NOT a JEDEC id), bit0=1 (lines 43-46,
+        52)
+      name: IDCODE
+      value: 32'h1130_001D
+    - meaning: user DR = rw + 7-bit addr + 32-bit data (line 53)
+      name: DRW
+      value: 40
+    registers:
+    - IR 0x1 IDCODE, 0x8 USER, 0xF BYPASS; others behave as bypass (lines 116-118, 168-171)
+    - IR capture pattern 0001 (low bits 01) (line 128)
+    timing: State changes on rising TCK; TDO updated on falling TCK so the probe samples settled data on rising
+      TCK (lines 164-176).
+  failure: Unknown instructions select the 1-bit bypass register (line 171). There is no busy handling here; the
+    bridge reports busy in user_capture.
+  inputs:
+  - desc: probe clock (its own domain)
+    name: tck
+    width: 1
+  - desc: mode select
+    name: tms
+    width: 1
+  - desc: data in
+    name: tdi
+    width: 1
+  - desc: word captured into the user DR at CAPTURE_DR
+    name: user_capture
+    width: DRW=40
+  job: The 16-state Joint Test Action Group (JTAG) controller on its own probe clock TCK, with a 4-bit instruction
+    register, IDCODE (selected at reset), BYPASS and a 40-bit user data register handed to the CDC bridge. No TRST
+    pin and no boundary scan.
+  outputs:
+  - desc: data out, changes on FALLING tck
+    name: tdo
+    width: 1
+  - desc: drive enable, high only while shifting
+    name: tdo_oe
+    width: 1
+  - desc: value shifted in, presented at UPDATE_DR
+    name: user_dr
+    width: 40
+  - desc: one-TCK pulse after UPDATE_DR with IR=USER
+    name: user_update
+    width: 1
+  - desc: current instruction
+    name: ir
+    width: 4
+  - desc: state == Test-Logic-Reset (combinational)
+    name: in_reset
+    width: 1
+  security_bounds:
+    claimed: Debug access, not a security block.
+    not_claimed: No authentication, lock or lifecycle gating; any probe can drive it. Not boundary-scan testable
+      (lines 37-41). Instantiated only in the basys3 FPGA build via hydra_fpga_jtag_host; not in the OpenFrame chip
+      top or the Tiny Tapeout tile.
+mailbox:
+  _from: hydra_mailbox
+  citations:
+  - sec/rtl/hydra_mailbox.sv:13-22 - protocol summary
+  - sec/rtl/hydra_mailbox.sv:99-100 - is_owner and stranger
+  - sec/rtl/hydra_mailbox.sv:122-133 - atomic grant on LOCK read
+  - sec/rtl/hydra_mailbox.sv:140 - DATAIN pointer saturates
+  - sec/rtl/hydra_mailbox.sv:151-157 - EXECUTE=0 releases lock, only release path
+  - 'sec/rtl/hydra_mailbox.sv:164-167 - unlocked access: error only on write'
+  - sec/rtl/hydra_mailbox.sv:189-202 - formal properties
+  - sec/tb/tb_mailbox.sv:1-8 - bench purpose
+  clock_reset: One domain. rst_n active low, async assert (line 102); resets lock, owner, cmd/dlen, status=CMD_BUSY,
+    execute, pointers, rdata, error and cmd_valid (lines 103-108). The payload array is NOT reset (line 94, never
+    in reset branch).
+  evidence:
+  - target: make mailbox
+    what: tb_mailbox.sv (two contending requesters) + sby prove and cover (Makefile:199-205)
+  example: Requester 3 reads LOCK (req_reg=0) -> req_rdata=0 next cycle, locked=1, owner=3 (lines 122-133). Requester
+    5 reads LOCK -> req_rdata=1, no error, no grant (lines 100, 126). Requester 5 writes COMMAND -> req_error=1,
+    cmd_q unchanged (lines 115-121). Requester 3 writes COMMAND=0x10, DLEN=8, two DATAIN words, then EXECUTE=1 ->
+    cmd_valid=1 (lines 136-150). Service side pulses cmd_done with cmd_status_in=2'b10 -> status_q=CMD_COMPLETE,
+    cmd_valid=0 (lines 112, 170). Requester 3 reads STATUS -> 2. Requester 3 writes EXECUTE=0 -> locked=0, owner=0
+    (lines 151-157).
+  expert:
+    assumptions:
+    - 'mailbox.sby prove: k-induction depth 14; cover depth 20 (mailbox.sby:11-14)'
+    - 'Proved: owner stable while locked (mutual exclusion) (line 189); lock released only by owner writing EXECUTE=0
+      (lines 192-195); a stranger never becomes owner (line 198); a stranger''s write leaves cmd/dlen unchanged
+      (lines 201-202)'
+    - 'Environment: reset asserted in the first cycle (line 182); req_user is taken as truthful -- identity is NOT
+      authenticated by this block'
+    - 'Not proved: payload confidentiality or integrity between owners, DATAIN overflow behaviour, status sequencing'
+    params:
+    - meaning: data width (line 45)
+      name: DW
+      value: 32
+    - meaning: payload words (line 46)
+      name: DEPTH
+      value: 16
+    - meaning: requester id width (line 47)
+      name: UW
+      value: 4
+    registers:
+    - 0 LOCK (read = test-and-take, returns previous lock state) (lines 75, 122-133)
+    - 1 COMMAND rw (lines 76, 136)
+    - 2 DLEN rw (lines 77, 137)
+    - 3 DATAIN write-only, auto-increment (lines 78, 138-141)
+    - 4 DATAOUT read-only, auto-increment (lines 79, 142-145)
+    - 5 EXECUTE rw; writing 0 releases the lock (lines 80, 147-161)
+    - '6 STATUS read: 00 CMD_BUSY, 01 DATA_READY, 10 CMD_COMPLETE, 11 CMD_FAILURE (lines 81, 83-86, 146)'
+    timing: Every access completes in one cycle; read data and error are registered (valid one cycle later) (lines
+      109-110, 126).
+  failure: 'Stranger (not owner, not a LOCK read, while locked): refused, req_error=1, rdata 0 (lines 100, 115-121).
+    Write while unlocked (any register): req_error=1, no effect (lines 164-167); read while unlocked of a non-LOCK
+    register: returns 0 with NO error (line 166). DATAIN overflow: write pointer saturates at DEPTH-1, so extra
+    words overwrite the last slot silently (line 140); DATAOUT read pointer saturates likewise (line 144). DLEN
+    is not checked against DEPTH. No timeout or forced release: a dead owner holds the lock until reset (lines 152-154).
+    The owner can release while a command is still running (EXECUTE=0 clears cmd_valid, line 150) and cmd_done after
+    that is ignored for status (line 112). Payload, COMMAND and DLEN are NOT cleared on release or grant; only the
+    pointers reset on grant (lines 130-131), so the next owner can read the previous owner''s payload via DATAOUT
+    and the previous COMMAND/DLEN.'
+  inputs:
+  - desc: single clock
+    name: clk
+    width: 1
+  - desc: active-low async reset
+    name: rst_n
+    width: 1
+  - desc: access strobe
+    name: req_valid
+    width: 1
+  - desc: requester identity (trusted input from the interconnect)
+    name: req_user
+    width: UW=4
+  - desc: register index 0..6
+    name: req_reg
+    width: 3
+  - desc: 1 write, 0 read
+    name: req_write
+    width: 1
+  - desc: write data
+    name: req_wdata
+    width: DW=32
+  - desc: service side finished
+    name: cmd_done
+    width: 1
+  - desc: status to latch on cmd_done
+    name: cmd_status_in
+    width: 2
+  - desc: service side reads payload at buf_addr
+    name: buf_re
+    width: 1
+  job: 'A small command mailbox: a requester takes the lock by READING the LOCK register, writes command, length
+    and payload, sets EXECUTE, polls STATUS, and clears EXECUTE to release. The owner''s identifier is latched on
+    grant and other requesters'' accesses (other than LOCK reads) are refused and flagged.'
+  outputs:
+  - desc: registered read data (valid the cycle after the request)
+    name: req_rdata
+    width: 32
+  - desc: registered one-cycle protocol-violation flag
+    name: req_error
+    width: 1
+  - desc: EXECUTE=1 written, until cmd_done
+    name: cmd_valid
+    width: 1
+  - desc: COMMAND register
+    name: cmd_code
+    width: 32
+  - desc: DLEN register
+    name: cmd_dlen
+    width: 32
+  - desc: = read pointer
+    name: buf_addr
+    width: clog2(DEPTH)=4
+  - desc: payload[buf_addr] when buf_re, else payload[0]
+    name: buf_rdata
+    width: 32
+  - desc: lock held
+    name: locked
+    width: 1
+  - desc: latched owner id (0 when free)
+    name: owner
+    width: 4
+  security_bounds:
+    claimed: Mutual exclusion of the lock and refusal of non-owner writes, given an honest req_user (proved, mailbox.sby).
+    not_claimed: Not a root of trust and contains no Caliptra code (lines 30-40). No requester authentication (req_user
+      is an input), no clearing of payload/command between owners (residual data readable by the next owner), no
+      overflow error, no timeout. NOT instantiated in any build.
+models:
+  _from: hydra_sys_tile
+  citations:
+  - sys/rtl/hydra_sys_tile.sv:135-145 - personality decode and elaboration stops
+  - 'sys/rtl/hydra_sys_tile.sv:220 - mom_top #(.NENG(NENG), .NTAG(NTAG), .QMAX(4))'
+  - 'sys/rtl/hydra_sys_tile.sv:383 - hydra_engine_tpu_dma #(.N(4), .AW(10), .DEPTH(1024))'
+  - 'sys/rtl/hydra_sys_tile.sv:405 - hydra_engine_tpu #(.N(4))'
+  - 'sys/rtl/hydra_sys_tile.sv:428 - hydra_engine_simd #(.N(4))'
+  - 'sys/rtl/hydra_sys_tile.sv:447 - hydra_engine_gpu #(.AW(12))'
+  - sys/rtl/hydra_sys_tile.sv:282 - hydra_engine_cpu
+  - sys/rtl/hydra_sys_tile.sv:468-520 - per-slot latency model and personality selection
+  - fpga/rtl/hydra_fpga_mem_harness.sv:55, hydra_fpga_tpu_harness.sv:50, hydra_fpga_two_harness.sv:50 - FPGA instantiations
+  clock_reset: posedge clk, async active-low rst_n everywhere (e.g. hydra_sys_tile.sv:250-252, 479-481).
+  evidence:
+  - target: systile
+    what: latency models, calibration loop over SPI
+  - target: systile-tpu
+    what: TPU_ENGINE = 1
+  - target: systile-two
+    what: TPU_ENGINE = 1, SIMD_ENGINE = 1
+  - target: systile-mem
+    what: TPU_ENGINE = 2
+  - target: systile-gpu
+    what: NENG = 6, TPU_ENGINE = 2, GPU_ENGINE = 1 (tb_sys_tile_gpu.sv:38)
+  - target: systile-abi
+    what: plus ABI_V2 = 1 (tb_sys_tile_abi.sv:40)
+  - target: systile-cpu
+    what: NENG = 6, TPU 2, GPU 1, CPU 1, ABI 1 (tb_sys_tile_cpu.sv:37)
+  - target: mom-mutate
+    what: 'SLOT-03 / CPU-05: slot completion taken from the latency model (tools/mutate_mom.py:110,152)'
+  example: 'Latency model, slot 2, profile 00 (fast): lat = LAT_FAST + 7*2 = 30 + 14 = 44. Valid at cycle 0 -> cnt
+    = 44 at
+
+    cycle 1, counts down, cnt == 1 at cycle 44, done_q at cycle 45 together with ready (cnt == 0). Fast latencies:
+
+    slot 0 30, 1 37, 2 44, 3 51, 4 58, 5 65; profile 01 makes slot 2 2000, 10 makes slot 1 2000, 11 both
+
+    (hydra_sys_tile.sv:353-355,475-477). Derived from RTL, not simulated here (UNVERIFIED by my own bench).
+
+    '
+  expert:
+    assumptions:
+    - eng_valid is a one-cycle pulse only when eng_ready (mom_xbar.sv:118-131)
+    memory_map: 'mem_bank 0/1/2: TPU-DMA A/B/C, mem_addr[9:0] (only when TPU_ENGINE = 2) (:382-392).
+
+      mem_bank 3 with mem_addr[15:14]: 0 GPU global memory word [11:0]; 1 GPU program [9:0]; 2 GPU kernel parameters
+      [3:0];
+
+      3 control space by mem_addr[3:0]: 0 GPU grid, 1 GPU block, 2 ABI header[31:0], 3 header[63:32], 4 context
+      write
+
+      {owned[24], id[23:16], epoch[15:0]}, 5 healthy mask, 6 CPU memory word address, 7 CPU write word and step,
+
+      8 CPU entry, 9 CPU cycle limit, 10 CPU debug register select (:244-289,444-458).
+
+      Reads: mem_raddr[15:14] = 3 -> by [3:0]: 1 CPU memory word, 2/3 debug register low/high, 4 {status, TOHOST[29:0]},
+
+      otherwise {abi refusals[15:0], 12''b0, last code}; = 2 with a GPU -> GPU memory; else TPU C bank (:295-304,377-378).
+
+      '
+    params:
+    - meaning: tags
+      name: NTAG
+      value: 8
+    - meaning: slots
+      name: NENG
+      value: 5 (6 in the chip-style benches)
+    - meaning: base model latency
+      name: LAT_FAST
+      value: 30
+    - meaning: slow model latency
+      name: LAT_SLOW
+      value: 2000
+    - meaning: slot 2 personality
+      name: TPU_ENGINE
+      value: 0 model / 1 pattern / 2 memory
+    - meaning: slot 1 personality (no memory-fed option)
+      name: SIMD_ENGINE
+      value: 0 model / 1 pattern
+    - meaning: slot 5
+      name: GPU_ENGINE
+      value: 0 model / 1 Pixelstorm (needs NENG=6)
+    - meaning: slot 0
+      name: CPU_ENGINE
+      value: 0 model / 1 Sixfold
+    - meaning: hydra_abi_v2 front end
+      name: ABI_V2
+      value: 0 / 1
+    timing: 'Latency model: done lat+1 cycles after valid (derived from :479-494).'
+  failure: 'Unknown personality stops elaboration by instantiating a nonexistent module (:141-145). CTRL.HOLD holds
+    every engine not-ready (:215,337). Engine 3 (NTT) and 4 (CRYPTO) are ALWAYS latency models: there is no real-engine
+    branch for them (:498-518). With CPU_ENGINE=1 but GPU_ENGINE=0, control-space writes on mem_bank 3 also reach
+    the TPU loader''s ld_we (it ignores bank 3 but may pulse ld_refused during a job) (:389).'
+  inputs:
+  - desc: TT-style pins; ui_in[2:0] SPI, ui_in[7:6] live latency profile
+    name: ui_in, uio_in, ena, clk, rst_n
+    width: 8/8/1/1/1
+  - desc: memory/control port
+    name: mem_we, mem_bank, mem_addr, mem_wdata
+    width: 1/2/16/32
+  - desc: readback address
+    name: mem_raddr
+    width: 16
+  job: Puts the dispatcher (mom_top), the crossbar (mom_xbar) and one personality per engine slot behind the SPI
+    register map. Each slot is either a latency model (accept, count down, report done) or, by parameter, a real
+    engine; used by the FPGA harnesses and by simulation benches, NOT by the sky130 chip top.
+  outputs:
+  - desc: pins
+    name: uo_out, uio_out, uio_oe
+    width: 8
+  - desc: observation
+    name: dbg_checksum, dbg_tiles, dbg_simd_checksum, dbg_simd_jobs
+    width: 32/16/32/16
+  - desc: readback
+    name: mem_rdata, mem_refused
+    width: 32/1
+mom_pins:
+  _from: hydra_mom_pins
+  citations:
+  - 'mom/hydra_mom_pins.sv:232-234 - mom_top #(.NTAG(NTAG), .QMAX(4)) with eng_elig = {ENG_N{1''b1}}'
+  - mom/rtl/mom_top.sv:54 - NENG default ENG_N
+  - mom/rtl/mom_pkg.sv:47 - ENG_N = 5
+  clock_reset: async-assert, sync-release via hydra_rst_sync STAGES=2 (:132-134).
+  evidence:
+  - target: sky130
+    what: chip through its pads
+  - target: diff
+    what: v2 legacy equals v1 pin for pin
+  example: A descriptor shifted in serially; uo_out[2:0] shows the chosen slot 0..4; the host later pulses ui_in[3]
+    with the tag on ui_in[7:4] to complete it (legacy map, :37-43).
+  expert:
+    assumptions: []
+    memory_map: none
+    params:
+    - meaning: tags
+      name: NTAG
+      value: 8
+    - meaning: slots 0..4
+      name: mom_top NENG
+      value: ENG_N = 5 (default, not overridden)
+    timing: n/a
+  failure: Completions are whatever the host says (comp_valid from pins or registers, :239-240).
+  inputs:
+  - desc: TT pin interface
+    name: ui_in, uio_in, ena, clk, rst_n
+    width: 8/8/1/1/1
+  job: The dispatcher (mom_top) behind 8/8/8 pins with a legacy serial-descriptor personality and an SPI register
+    personality; it reports dispatch decisions and takes completions from the host - there are no engines behind
+    it.
+  outputs:
+  - desc: engine index, tag, flags or SPI CIPO
+    name: uo_out, uio_out, uio_oe
+    width: 8
+ntt:
+  _from: ntt_top
+  citations:
+  - engines/ntt/rtl/ntt_top.sv:44-51 - decode
+  - engines/ntt/rtl/ntt_top.sv:76-79 - outputs
+  clock_reset: posedge clk, async active-low rst_n; tag_q latched on accept (ntt_top.sv:56-59).
+  evidence:
+  - target: ntt
+    what: 32 cases vs ntt_model.py at q=12289
+  - target: ntt-moduli
+    what: q = 12289, 3329, 8380417
+  example: 'See ntt_butterfly section: one group per modulus simulated; results appear in parallel for exactly one
+    cycle at +2.'
+  expert:
+    assumptions:
+    - inputs reduced mod q
+    memory_map: n/a
+    params:
+    - meaning: lanes
+      name: N
+      value: 4
+    - meaning: descriptor
+      name: WD_W
+      value: 128
+    - meaning: tag
+      name: TAGW
+      value: 4
+    timing: done +(K+2), K = M/4.
+  failure: 'Results are a one-cycle parallel pulse with no ready (ntt_top.sv:76): the consumer must take them. Refusals
+    as ntt_ctrl.'
+  inputs:
+  - desc: '[127:124] op_class 6 (NTT), [123:121] dtype 5 (POLY_Q), [116:101] pairs M'
+    name: eng_wd
+    width: 128
+  - desc: handshake
+    name: eng_valid, eng_tag, op_valid
+    width: 1/4/1
+  - desc: packed residues
+    name: op_a, op_b, op_w
+    width: 4*QW
+  job: Number-Theoretic Transform (NTT) butterfly engine on the dispatcher port. Each group is four (a, b, twiddle)
+    triples; one pass is one stage of a transform, not a whole transform (ntt_pkg.sv:32-43). dim_m is the number
+    of coefficient pairs and must be a non-zero multiple of 4.
+  outputs:
+  - desc: engine handshake
+    name: eng_ready, eng_done, eng_done_tag
+    width: 1/1/4
+  - desc: group consumed
+    name: op_ready
+    width: 1
+  - desc: results present (one cycle, parallel)
+    name: res_valid
+    width: 1
+  - desc: packed results
+    name: res_y0, res_y1
+    width: 4*QW
+  - desc: 0 OK 1 op class 2 dtype 3 dims
+    name: status
+    width: 2
+padmux:
+  _from: hydra_padmux
+  citations:
+  - common/rtl/hydra_padmux.sv:15-33 - contract
+  - common/rtl/hydra_padmux.sv:34-37 - names formal/mutate_padmux.py
+  - common/rtl/hydra_padmux.sv:109 - pad_oe gated by rst_n
+  - common/rtl/hydra_padmux.sv:117-174 - properties
+  clock_reset: One domain; async reset of sel_q and locked_q (lines 88-96); pad_oe & rst_n (line 109).
+  evidence:
+  - target: make padmux
+    what: 20,000-vector model comparison + sby prove (Makefile:215-221)
+  - target: make mutate
+    what: mutate_targets.py (Makefile:559-560)
+  example: 'OpenFrame: NPAD=24, NALT=2, SELW=1, reset 0 (inert). After boot cfg_we=cfg_lock=1 with cfg_sel all 1s
+    -> every pad selects the tile and locks (hydra_openframe_top.sv:211-216).'
+  expert:
+    assumptions:
+    - hydra_padmux.sby proves P1-P10 by k-induction depth 6 at NPAD=3, NALT=3, SELW=2, RESET_SEL=6'b100110 -- not
+      at the shipped NPAD=24/NALT=2 (sby file lines 10-11, 19)
+    - 8 mutations in common/formal/mutate_targets.py:29-52
+    params:
+    - meaning: pads (line 42)
+      name: NPAD
+      value: '24 (OpenFrame: 24)'
+    - meaning: alternatives (line 43)
+      name: NALT
+      value: '4 default (OpenFrame: 2)'
+    - meaning: select width (line 44)
+      name: SELW
+      value: clog2(NALT)
+    - meaning: power-on personality (line 45)
+      name: RESET_SEL
+      value: '0'
+    registers: []
+    timing: Select change takes effect on the next edge; routing combinational (lines 103-115).
+  failure: Illegal per-pad select keeps the old value (lines 75-86); writes after lock ignored (line 78); lock and
+    write in the same cycle apply the write then lock (lines 29-31).
+  inputs:
+  - desc: clock
+    name: clk
+    width: 1
+  - desc: active-low async reset; also gates pad_oe combinationally
+    name: rst_n
+    width: 1
+  - desc: write all selects
+    name: cfg_we
+    width: 1
+  - desc: new selects; illegal codes ignored per pad
+    name: cfg_sel
+    width: NPAD*SELW
+  - desc: sticky lock
+    name: cfg_lock
+    width: 1
+  - desc: per alternative drive, enable and idle input value
+    name: alt_out/alt_oe/alt_idle
+    width: NPAD*NALT
+  - desc: pad inputs
+    name: pad_in
+    width: NPAD
+  job: Routes each pad to one of NALT alternative functions; resets to RESET_SEL, gates output enables with reset
+    combinationally, and can be locked until reset.
+  outputs:
+  - desc: current selects
+    name: sel_q
+    width: NPAD*SELW
+  - desc: lock state
+    name: locked_q
+    width: 1
+  - desc: pad_in for the selected alternative, alt_idle for others
+    name: alt_in
+    width: NPAD*NALT
+  - desc: to the pads
+    name: pad_out/pad_oe
+    width: NPAD
+  security_bounds:
+    claimed: Lock prevents re-routing until reset (proved P6/P7).
+    not_claimed: No authentication of who locks; in the chip top there is no keystore or debug port for it to protect.
+pads:
+  _from: openframe_project_wrapper
+  citations:
+  - sky130/rtl/hydra_openframe_top.sv:14-18 - one macro, the tile
+  - sky130/rtl/hydra_openframe_top.sv:148-150 - hydra_mom_pins u_tile
+  - sky130/rtl/hydra_openframe_top.sv:211-216 - hydra_padmux
+  clock_reset: clk from pad 0; arst_n = pad1 & porb_l & resetb_l, synchronised by hydra_rst_sync (:121-126); the
+    tile is held in reset until the pad mux is locked plus 3 cycles (:142-146).
+  evidence:
+  - target: sky130
+    what: sv2v of mom/rtl, hydra_mom_pins, rst_sync, padmux and this top only (Makefile:522-527) - proves no engine
+      sources are compiled for the chip
+  - target: lint
+    what: Verilator -Wall of the OpenFrame chip
+  example: 'Hierarchy: openframe_project_wrapper -> u_rst (hydra_rst_sync), u_tile (hydra_mom_pins -> hydra_rst_sync,
+    hydra_tt_spi, hydra_tt_regs, mom_top{mom_features, mom_param_rom, mom_calibrate, mom_cost_engine, mom_select,
+    mom_scoreboard}), u_padmux (hydra_padmux).'
+  expert:
+    assumptions: []
+    memory_map: none
+    params:
+    - meaning: multiplexed pads
+      name: NMUX
+      value: 24
+    - meaning: 0 inert, 1 tile
+      name: NALT
+      value: 2
+    timing: 'boot: connect sampled at boot_cnt = 8 (:190-204)'
+  failure: 'n/a for engines: none present.'
+  inputs:
+  - desc: pad 0 clk, 1 rst_n, 2 connect strap, 3-10 ui_in, 19-26 uio_in
+    name: gpio_in[43:0]
+    width: 44
+  - desc: resets
+    name: porb_l, resetb_l
+    width: 1
+  job: Full-chip top for the ChipFoundry OpenFrame padframe. It contains only the scheduler pin block (hydra_mom_pins),
+    a reset synchroniser and the pad multiplexer; no compute engine, no scratchpad, no crossbar.
+  outputs:
+  - desc: pad controls; 11-18 uo_out, 19-26 uio_out
+    name: gpio_out, gpio_oeb, gpio_dm*, ...
+    width: 44
+pcr:
+  _from: hydra_pcr
+  citations:
+  - sec/rtl/hydra_pcr.sv:15-21 - extend-only rule
+  - sec/rtl/hydra_pcr.sv:30-38 - fixed padding
+  - sec/rtl/hydra_pcr.sv:61-64 - instantiates hydra_sha256
+  - sec/rtl/hydra_pcr.sv:143-149 - FINISH updates pcr and count
+  - sec/rtl/hydra_pcr.sv:167-182 - formal properties
+  - sec/tb/pcr_exp.txt:1-2 - expected chain values
+  clock_reset: One domain; async active-low reset clears PCR, count and FSM (lines 91-95).
+  evidence:
+  - target: make pcr
+    what: tb_pcr vs hashlib chain of 6 extends + sby prove (Makefile:165-171)
+  example: 'Synthetic, no key material: reset gives PCR=0. extend with meas=32 zero bytes -> PCR = SHA-256(64 zero
+    bytes) = f5a5fd42d16a20302798ef6ed309979b43003d2320d9f0e8ea9831a92759fb4b (sec/tb/pcr_meas.txt:1, sec/tb/pcr_exp.txt:1).
+    extend again with meas=32 bytes of 0xFF -> 2f3eababb5511c0da2d2bdb7b9462792df1400e0c69f99c42c4039ccec9ea72d
+    (pcr_meas.txt:2, pcr_exp.txt:2). extend_count = 2.'
+  expert:
+    assumptions:
+    - pcr.sby prove depth 10 (k-induction), cover depth 300 (pcr.sby:10-14) over the REAL hydra_sha256 core (Makefile:170)
+    - 'Proved: PCR and extend_count change only when the previous state was FINISH (lines 174, 178); extend while
+      busy does not disturb meas_q (line 182); busy == (st != IDLE) invariant (line 167)'
+    - Reset assumed in first cycle (line 159)
+    params: []
+    registers:
+    - Block 0 = PCR words 0..7 then meas words 0..7 (lines 82-84); block 1 = 0x80000000, 13 zeros, 512 (lines 86-88)
+    timing: FSM IDLE->INIT->LOAD0 (16)->RUN0->LOAD1 (16)->RUN1->FINISH (lines 66-68, 103-149). Each RUN waits for
+      one 65-cycle compression plus a registered go; roughly 170 clocks per extend by reading the FSM (not measured
+      by a bench I read).
+  failure: extend while busy is ignored (only IDLE samples it, lines 103-107; proved line 182). No error output.
+    extend_count wraps after 65535 extends (lines 53, 145).
+  inputs:
+  - desc: clock
+    name: clk
+    width: 1
+  - desc: active-low async reset; the only way to clear the PCR
+    name: rst_n
+    width: 1
+  - desc: 'pulse: fold meas in (only sampled in IDLE)'
+    name: extend
+    width: 1
+  - desc: the measurement (a digest)
+    name: meas
+    width: 256
+  job: 'A 256-bit Platform Configuration Register (PCR) with no write port: the only operation is EXTEND, PCR <-
+    SHA-256(PCR || measurement), using a fixed two-block padding the module supplies itself.'
+  outputs:
+  - desc: extend in progress
+    name: busy
+    width: 1
+  - desc: one-cycle pulse when PCR updated
+    name: done
+    width: 1
+  - desc: current value
+    name: pcr
+    width: 256
+  - desc: number of extends since reset (wraps at 65536)
+    name: extend_count
+    width: 16
+  security_bounds:
+    claimed: No write port; the register moves only at the end of an extend (proved).
+    not_claimed: 'Not authenticated boot or attestation: no immutable root key, signer or verifier (docs/security/threat-model.md:58).
+      Reset silently returns it to zero; a verifier must rely on extend_count (16-bit, wraps). Who may drive extend
+      is not controlled here. NOT instantiated by any build. hydra_measure supersedes it for the image path (hydra_measure.sv:19-22).'
+pins:
+  _from: tt_um_hydra_mom
+  citations:
+  - tt/tile/src/tt_um_hydra_mom.sv:140-143 - reset synchroniser
+  - tt/tile/src/tt_um_hydra_mom.sv:146 - NTAG = 4
+  - tt/tile/src/tt_um_hydra_mom.sv:188-206 - register map, disp_fire = disp_valid & r_disp_accept
+  - 'tt/tile/src/tt_um_hydra_mom.sv:208-224 - mom_top #(.NTAG(4), .QMAX(4)), eng_elig all ones'
+  - tt/tile/src/tt_um_hydra_mom.sv:229-231 - pin assignments
+  clock_reset: 'hydra_rst_sync STAGES = 2: asserts immediately with rst_n, releases after two clean clk edges (tt_um_hydra_mom.sv:140-143;
+    common/rtl/hydra_rst_sync.sv:27-32). Every block runs from rst_n_sync.'
+  evidence:
+  - target: tile
+    what: 21 cocotb tests on project.v (8 in test.py, 13 in test_regs.py)
+  - target: tile-shared
+    what: 9 dispatcher modules identical to mom/rtl
+  - target: rst-sync-copy
+    what: reset synchroniser identical to common/rtl
+  - target: tile-gl
+    what: same tests on the hardened netlist (needs a harden and the PDK)
+  - target: lint
+    what: Verilator -Wall on the tile netlist
+  example: 'VERIFIED-SIM after the SMALL dispatch: uo_out = 0xE6 (READY 1, busy 1, dispatched 1, engine 001, IRQ
+    1, CIPO 0),
+
+    uio_out = 0x60 (margin 32 -> 1+5 = 6, tag 0). After LARGE: uo_out = 0xEA (engine 010), uio_out = 0x80 (margin
+    145 -> 8).
+
+    '
+  expert:
+    assumptions:
+    - The submitted netlist is tt/tile/src/project.v from regen.sh (sv2v); `make tile` fails if it differs from
+      the sources (Makefile:224-232).
+    params:
+    - meaning: tags (line 146)
+      name: NTAG
+      value: 4
+    - meaning: engine slots
+      name: mom_top NENG
+      value: ENG_N = 5 (no override, 208)
+    - meaning: per-engine limit
+      name: mom_top QMAX
+      value: NTAG = 4 (208)
+    - meaning: shared cost engine
+      name: mom_top COST_SHARED
+      value: default 1 (macro unset in regen.sh)
+    - meaning: all engines eligible
+      name: eng_elig
+      value: '{ENG_N{1''b1}} (210)'
+    registers: []
+    timing:
+    - Allow three clk cycles after releasing rst_n before the first frame (two-stage synchroniser; tt/tile/docs/info.md:65-69).
+  failure: 'Inherits the register map''s frame rules. Differences from the chip (hydra_mom_pins): NTAG 4 not 8;
+    QMAX = NTAG = 4 (so an engine is "full" only when it holds every tag); no legacy serial personality; no LASTWD
+    (0x07 reserved); ID HYM3; COMP always writable; eng_elig tied to all ones (version-1 behaviour); disp_fire =
+    disp_valid & ~HOLD.'
+  inputs:
+  - desc: SCK
+    name: ui_in[0]
+    width: 1
+  - desc: COPI
+    name: ui_in[1]
+    width: 1
+  - desc: CSn (idle high)
+    name: ui_in[2]
+    width: 1
+  - desc: unused
+    name: ui_in[7:3]
+    width: 5
+  - desc: unused
+    name: uio_in
+    width: 8
+  - desc: unused
+    name: ena
+    width: 1
+  - desc: clock (info.yaml clock_hz 15151515, 66 ns)
+    name: clk
+    width: 1
+  - desc: active-low reset pin
+    name: rst_n
+    width: 1
+  job: 'Tiny Tapeout top level: synchronises reset, connects the SPI target and the v3 register map to a 5-slot,
+    4-tag dispatcher, ties eligibility to all ones, and drives status summaries on the output pins. There are no
+    engines; the host reports completions through COMP.'
+  outputs:
+  - desc: CIPO
+    name: uo_out[0]
+    width: 1
+  - desc: IRQ = any sticky flag incl. DISPATCHED
+    name: uo_out[1]
+    width: 1
+  - desc: engine of the last dispatch
+    name: uo_out[4:2]
+    width: 3
+  - desc: DISPATCHED (sticky)
+    name: uo_out[5]
+    width: 1
+  - desc: any tag busy
+    name: uo_out[6]
+    width: 1
+  - desc: READY (wd_ready)
+    name: uo_out[7]
+    width: 1
+  - desc: last tag (0..3, bits 3:2 always 0)
+    name: uio_out[3:0]
+    width: 4
+  - desc: margin nibble = 0 if margin 0, else min(15, 1 + floor(log2 margin))
+    name: uio_out[7:4]
+    width: 4
+  - desc: '0xFF'
+    name: uio_oe
+    width: 8
+prom:
+  _from: mom_param_rom
+  citations:
+  - mom/rtl/mom_param_rom.sv:119-131 - default rows
+  - mom/rtl/mom_param_rom.sv:143-155 - reset and guarded write
+  - mom/rtl/mom_param_rom.sv:169-171 - unpack into params
+  clock_reset: clk rising; async active-low reset loads DEF_CPU..DEF_CRYPTO into rows 0..4 and DEF_GPU into rows
+    5..NENG-1 (lines 143-151).
+  evidence:
+  - target: tile
+    what: test_reg_param_retune_moves_the_decision, test_reg_abort_at_every_byte_boundary (PARAM torn frames)
+  - target: mom-mutate
+    what: 'SLOT-02: GPU row not loaded -> systile-gpu must fail'
+  - target: systile-gpu
+    what: six slots, INT32 GEMM to the GPU row
+  example: "DEF_TPU = {7, 64, 5, 2, 6'b000011, 9'b000011000} = (7<<39)|(64<<27)|(5<<23)|(2<<15)|(3<<9)|0x18\n  \
+    \      = 0x382_0281_0618 as a 43-bit value (DERIVED; tt/tile/test/test_regs.py:32-36 builds the same row).\n\
+    PARAM frame to make TPU setup 4000 cycles (test_reg_param_retune_moves_the_decision): 48-bit value (2 << 43)\
+    \ | row(7,4000,5,2,0b000011,0b000011000).\n"
+  expert:
+    assumptions:
+    - 'Rows are nominal, not the built engines (header 39-43): TPU modelled as 8x8 (128 ops/cycle, line 48) although
+      the built array is 4x4 (mom_pkg.sv:56).'
+    - The FORMAL block (173-205) is not run by any Makefile target.
+    params:
+    - meaning: number of rows
+      name: NENG
+      value: 5 (default/tile/hydra_mom_pins); 6 when hydra_sys_tile is built with NENG = 6
+    registers:
+    - cite: mom/rtl/mom_param_rom.sv:119
+      name: row CPU (0)
+      value: p 0, setup 0, bw 2, eps 80, dtype 011111, opc 111111111
+    - cite: mom/rtl/mom_param_rom.sv:120
+      name: row SIMD (1)
+      value: p 3, setup 8, bw 4, eps 20, dtype 011111, opc 000111110 (no SCALAR)
+    - cite: mom/rtl/mom_param_rom.sv:121
+      name: row TPU (2)
+      value: p 7, setup 64, bw 5, eps 2, dtype 000011 (INT8, INT16), opc 000011000 (GEMM, CONV2D)
+    - cite: mom/rtl/mom_param_rom.sv:122
+      name: row NTT (3)
+      value: p 5, setup 32, bw 4, eps 8, dtype 100100 (INT32, POLY_Q), opc 001100000 (FFT, NTT)
+    - cite: mom/rtl/mom_param_rom.sv:123
+      name: row CRYPTO (4)
+      value: p 4, setup 16, bw 4, eps 4, dtype 000100 (INT32), opc 110000000 (CIPHER, HASH)
+    - cite: mom/rtl/mom_param_rom.sv:131,151
+      name: row GPU (5, NENG=6 only)
+      value: p 4, setup 128, bw 2, eps 16, dtype 000100 (INT32), opc 000001110 (ELEMENT, REDUCE, GEMM)
+    timing:
+    - PARAM commit -> csr_wr next cycle -> row written on the following edge (hydra_tt_regs commit + mom_param_rom.sv:152-153).
+  failure: 'A write with wr_priv = 0 or wr_engine >= NENG is ignored silently (line 152): on the tile, PARAM to
+    engine 5..7 changes nothing and raises no error. A row with zero masks makes the engine incapable for everything.'
+  inputs:
+  - desc: write strobe (csr_wr)
+    name: wr_en
+    width: 1
+  - desc: privilege; tied 1 by the register map
+    name: wr_priv
+    width: 1
+  - desc: row index
+    name: wr_engine
+    width: 3
+  - desc: new row
+    name: wr_data
+    width: 43
+  job: Holds one 43-bit cost-model row per engine slot (peak throughput, setup cycles, bandwidth, energy per op,
+    data-type mask, op-class mask), resetting to nominal defaults and rewritable at run time through the PARAM register.
+  outputs:
+  - desc: all rows, combinational
+    name: params
+    width: NENG x 43
+regs:
+  _from: hydra_tt_regs
+  citations:
+  - tt/tile/src/rtl/hydra_tt_regs.sv:133-136 - addresses (no A_LASTWD)
+  - tt/tile/src/rtl/hydra_tt_regs.sv:142-158 - reg_len
+  - tt/tile/src/rtl/hydra_tt_regs.sv:161-163 - writable set
+  - tt/tile/src/rtl/hydra_tt_regs.sv:205-213 - commit decode, GO acceptance
+  - tt/tile/src/rtl/hydra_tt_regs.sv:233-256 - frame assembly
+  - tt/tile/src/rtl/hydra_tt_regs.sv:259-286 - commit, per-register effects
+  - tt/tile/src/rtl/hydra_tt_regs.sv:291-297 - pending handshake, GO_ERR
+  - tt/tile/src/rtl/hydra_tt_regs.sv:300-315 - result capture, sticky flags, clear
+  - tt/tile/src/rtl/hydra_tt_regs.sv:322-331 - outputs to the MOM
+  - tt/tile/src/rtl/hydra_tt_regs.sv:337-340 - STATUS layout
+  - tt/tile/src/rtl/hydra_tt_regs.sv:369-388 - read path, snapshot, status byte during command
+  - tt/tile/src/rtl/hydra_tt_regs.sv:394-407 - irq and log-scale margin nibble
+  - mom/rtl/hydra_tt_regs.sv:76-80,162 - HOST_COMP parameter (chip copy)
+  - mom/rtl/hydra_tt_regs.sv:134,150,306,361 - LASTWD (chip copy)
+  clock_reset: 'clk rising edge; asynchronous active-low reset (tile: rst_n_sync from hydra_rst_sync, 2 stages,
+    tt_um_hydra_mom.sv:140-143). Reset values (tile copy lines 216-227): all frame state 0, wd_q = 0, WD_OK = 0,
+    CTRL bits 0, FENCE = 0, GLOBAL = {4, 12, 8} = 0x4C8, pending/wd_block 0, all sticky flags 0, RESULT fields 0;
+    snap_q = 0 (381-383). Chip copy adds r_lastwd = 0 (mom/rtl/hydra_tt_regs.sv:229).'
+  evidence:
+  - target: tile
+    what: '21 cocotb tests: id/defaults, torn frames, abort at every byte boundary, WD-while-pending refusal, HOLD
+      back-pressure, PARAM retune and lock, fence, calibration counter, pin summaries, margin log-scaling, reserved
+      0x07'
+  - target: tile (mutate via `make mutate` -> test/mutate_sim.py)
+    what: 17 mutations, 12 of them in this file (PARAM_LOCK, frame length, GO on torn WD, HOLD, freeze wiring, PARAM
+      engine field, status byte, read order, GO never retired, clear-sticky, margin log, WD while pending); the
+      others hit the SPI target, the scoreboard (3) and the wrapper pins
+  - target: mom-mutate
+    what: RTL-04 snapshot removed -> systile must fail; RTL-08 HOST_COMP flipped -> systile must fail; RTL-02 disp_fire
+      -> systile must fail
+  - target: systile
+    what: chip copy with HOST_COMP = 0 over SPI against latency-model engines
+  - target: sky130
+    what: chip copy inside hydra_mom_pins through the OpenFrame pads
+  example: 'VERIFIED-SIM on the tile: write WD (TX 01 30 A0 00 80 00 80 00 80 00 06 00 00 00 00 00 00), GO (TX 03
+    01), read
+
+    RESULT (TX 86 00 00 00 00 00 00 -> RX D8 20 00 00 00 20 00).
+
+    RESULT = 0x20_0000_0020_00: byte0 0x20 = {engine 001, tag 0000, 0}; margin = 0x00000020 = 32; err_tag 0x00.
+
+    STATUS read after the dispatch: RX 10 D8 40 -> STATUS 0xD840 = READY | ANY_BUSY | WD_OK | DISPATCHED | FENCE_BUSY
+
+    (FENCE = 0 points at tag 0, which is busy). The leading 0x10 is STATUS[15:8] captured at frame start, while
+    the
+
+    descriptor was still being costed (READY low, DISPATCHED not yet set).
+
+    '
+  expert:
+    assumptions:
+    - On the tile HOLD is the whole dispatch handshake (disp_fire = disp_valid & ~HOLD, tt_um_hydra_mom.sv:194);
+      in the system tile the crossbar owns it and HOLD gates engine readiness (hydra_sys_tile.sv:215,337).
+    - csr_priv is tied 1; PARAM_LOCK is the only protection of the parameter rows (326).
+    params:
+    - meaning: tag count, reported in INFO and width of obs_tag_busy
+      name: NTAG
+      value: 8 default; 4 on the tile (tt_um_hydra_mom.sv:146,188); 8 in hydra_mom_pins and hydra_sys_tile
+    - meaning: whether COMP is writable
+      name: HOST_COMP
+      value: chip copy only; default 1; 0 in hydra_sys_tile.sv:190
+    - meaning: ID register
+      name: ID_VALUE
+      value: 0x48594D33 'HYM3' (tile, line 140); 0x48594D32 'HYM2' (chip, mom/rtl/hydra_tt_regs.sv:139)
+    registers:
+    - access: RO
+      addr: 0
+      cite: tile hydra_tt_regs.sv:140,144,353
+      fields: '[31:0] = 0x48594D33 (tile) / 0x48594D32 (chip)'
+      name: ID
+      reset: constant
+      side_effects: none; write -> FRAME_ERR (not writable, tile 161-163)
+      width: 4 bytes
+    - access: RW
+      addr: 1
+      cite: tile hydra_tt_regs.sv:145,243-253,266,354
+      fields: '[127:0] work descriptor (mom_pkg work_desc_t), first data byte = bits 127:120'
+      name: WD
+      reset: '0'
+      side_effects: command byte (write) clears WD_OK, or if a GO is pending blocks the frame (243-246); data bytes
+        shift into wd_q MSB first (251); commit with exactly 16 bytes sets WD_OK (266). Read returns live wd_q,
+        not a snapshot (354, 380)
+      width: 16 bytes
+    - access: RW
+      addr: 2
+      cite: tile hydra_tt_regs.sv:146,267-272,324,330-331,355; mom/rtl/mom_calibrate.sv:233-237
+      fields: '[0] HOLD (disp_accept = ~HOLD); [1] CAL_FREEZE; [2] CAL_RESET (level: while set every k is forced
+        to 64 and CALUPD to 0); [3] PARAM_LOCK (OR-sticky until reset); [7:4] ignored, read 0'
+      name: CTRL
+      reset: '0x00'
+      side_effects: HOLD stops dispatch (mom_top uses disp_accept in disp_valid to the scoreboard and c_ready);
+        a write with bit3 = 0 cannot clear PARAM_LOCK
+      width: 1 byte
+    - access: WO
+      addr: 3
+      cite: tile hydra_tt_regs.sv:147,211-213,291-297,312-315
+      fields: '[0] GO; [1] CLEAR_STICKY; [7:2] ignored'
+      name: ACTION
+      reset: n/a (reads 0)
+      side_effects: 'GO: if WD_OK and nothing pending, pending_q = 1 (wd_valid) and DISPATCHED/UNSUPPORTED are cleared;
+        otherwise GO_ERR. CLEAR_STICKY clears DISPATCHED, UNSUPPORTED, STALE, FRAME_ERR, GO_ERR (and so IRQ); it
+        is applied after the result updates in the same cycle, so it wins'
+      width: 1 byte
+    - access: WO
+      addr: 4
+      cite: tile hydra_tt_regs.sv:148,273-276; mom/rtl/hydra_tt_regs.sv:162
+      fields: '[3:0] tag to complete; [7:4] ignored'
+      name: COMP
+      reset: n/a (reads 0)
+      side_effects: 'one-cycle comp_valid with comp_tag the cycle after commit (273-276, 229). Chip copy with HOST_COMP=0:
+        not writable -> FRAME_ERR'
+      width: 1 byte
+    - access: RO
+      addr: 5
+      cite: tile hydra_tt_regs.sv:337-340,356,386
+      fields: '[15] READY (wd_ready) [14] ANY_BUSY [13] PENDING [12] WD_OK [11] DISPATCHED* [10] UNSUPPORTED* [9]
+        STALE* [8] FRAME_ERR* [7] GO_ERR* [6] FENCE_BUSY [5] PARAM_LOCK [4] HOLD [3] CAL_FREEZE [2] CAL_RESET [1:0]
+        0   (* sticky)'
+      name: STATUS
+      reset: 'reads 0x8000 when idle after reset (VERIFIED-SIM: RX 80 80 00)'
+      side_effects: none; STATUS[15:8] is also sent during every command byte
+      width: 2 bytes
+    - access: RO
+      addr: 6
+      cite: tile hydra_tt_regs.sv:150,300-309,357,380-387
+      fields: '[47:45] engine, [44:41] tag, [40] 0, [39:8] margin (32-bit), [7:0] err_tag'
+      name: RESULT
+      reset: '0'
+      side_effects: engine/tag/margin captured on disp_fire (300-305), err_tag on err_unsupported (306-309); read
+        as one snapshot (byte 0 live, bytes 1..5 from snap_q captured on the same tx_load, 380-387)
+      width: 6 bytes
+    - access: 'tile: none; chip: RO'
+      addr: 7
+      cite: tile hydra_tt_regs.sv:67,157,363; mom/rtl/hydra_tt_regs.sv:150,306,361
+      fields: 'chip: [127:0] descriptor as dispatched (disp_wd)'
+      name: reserved (tile) / LASTWD (chip)
+      reset: '0'
+      side_effects: 'tile: reads 0x00, write -> FRAME_ERR (VERIFIED-SIM: RX D8 00 00). chip: captured on dispatch,
+        not snapshotted (read with HOLD set)'
+      width: 'tile: reg_len 0; chip: 16 bytes'
+    - access: RO
+      addr: 8
+      cite: tile hydra_tt_regs.sv:151,358; mom/rtl/mom_calibrate.sv:231,237,240
+      fields: '[15:0] calibration update count (wraps at 16 bits)'
+      name: CALUPD
+      reset: 0; also held at 0 while CAL_RESET
+      side_effects: none
+      width: 2 bytes
+    - access: RO
+      addr: 9
+      cite: tile hydra_tt_regs.sv:152,342-346,359
+      fields: '[NTAG-1:0] tag busy bitmap, upper bits 0 (tile: [3:0])'
+      name: BUSY
+      reset: '0'
+      side_effects: none
+      width: 2 bytes
+    - access: RW
+      addr: 10
+      cite: tile hydra_tt_regs.sv:153,277,325,360; mom/rtl/mom_scoreboard.sv:260
+      fields: '[3:0] fence tag; [7:4] ignored, read 0'
+      name: FENCE
+      reset: '0'
+      side_effects: STATUS.FENCE_BUSY = busy[FENCE]; a tag >= NTAG reads not busy
+      width: 1 byte
+    - access: WO
+      addr: 11
+      cite: tile hydra_tt_regs.sv:154,279-283; mom/rtl/mom_param_rom.sv:152-153
+      fields: '[47:46] ignored, [45:43] engine, [42:0] parameter row (layout in mom_pkg card)'
+      name: PARAM
+      reset: n/a (reads 0)
+      side_effects: commit raises csr_wr for one cycle (unless PARAM_LOCK, then silently dropped); mom_param_rom
+        writes the row next edge, and ignores engine >= NENG
+      width: 6 bytes
+    - access: RW
+      addr: 12
+      cite: tile hydra_tt_regs.sv:155,222,278,327-329,361
+      fields: '[15:12] ignored/0, [11:8] bw_dma_log2, [7:4] eps_mem, [3:0] e_shift'
+      name: GLOBAL
+      reset: '0x04C8 (VERIFIED-SIM: RX D8 04 C8)'
+      side_effects: feeds every cost evaluation directly
+      width: 2 bytes
+    - access: RO
+      addr: 13
+      cite: tile hydra_tt_regs.sv:139,156,362
+      fields: '[7:0] NTAG (4 on the tile, 8 on hydra_mom_pins)'
+      name: INFO
+      reset: constant
+      side_effects: write -> FRAME_ERR
+      width: 1 byte
+    - access: none
+      addr: 0x0E-0x7F
+      cite: tile hydra_tt_regs.sv:157,363
+      fields: '-'
+      name: unmapped
+      reset: '-'
+      side_effects: read 0x00; write -> FRAME_ERR
+      width: reg_len 0
+    timing:
+    - Commit happens in the cs_end cycle (205-208); the effect (e.g. pending_q, comp_valid, csr_wr) is visible the
+      next cycle.
+    - 'GO: cs_end at cycle C -> descriptor accepted by mom_features at C+1 -> dispatch (disp_fire) at C+13 on the
+      tile (VERIFIED-SIM: cs_end 2528, accept 2529, dispatch 2541).'
+    - 'COMP: cs_end at C -> comp_valid at C+1 -> scoreboard cal_valid at C+2 -> k written at that edge (VERIFIED-SIM:
+      3828/3829/3830).'
+    - Data byte k of a read goes out on the tx_load after byte k's predecessor; byte 0 of the value immediately
+      follows the command byte (comment 367-368).
+  failure: '- Write commits only on cs_end and only if: a command byte arrived, rw = 0, the address is writable,
+    exactly reg_len data bytes arrived, and the frame was not blocked (tile 205-208). Otherwise nothing changes
+    and FRAME_ERR (STATUS bit 8) is set (259-263). VERIFIED-SIM: TX 02 00 01 (2 bytes to 1-byte CTRL) -> STATUS
+    0x9900, CTRL still 0.
+
+    - WD exception: bytes shift straight into wd_q (251), and the command byte clears WD_OK (245), so a torn WD
+    frame leaves a half-shifted wd_q with WD_OK = 0; GO then raises GO_ERR (297) instead of dispatching. VERIFIED-SIM:
+    15-byte WD -> STATUS 0xC140 (WD_OK clear, FRAME_ERR), then GO -> 0xC1C0 (GO_ERR).
+
+    - WD write while a GO is pending: wd_block_q set at the command byte (244), bytes not shifted (251), frame refused
+    with FRAME_ERR (207, 262); the pending descriptor is untouched.
+
+    - GO with WD_OK = 0 or a GO already pending -> GO_ERR, nothing presented (213, 297). GO does NOT clear WD_OK,
+    so repeated GOs dispatch the same descriptor again (each takes a new tag).
+
+    - Reads never set FRAME_ERR, whatever the address or length; bytes past the register length and unmapped addresses
+    read 0x00 (369-376, 386-388, 363).
+
+    - PARAM written while PARAM_LOCK is set: the frame is "good" (no FRAME_ERR) but csr_wr is not raised, so the
+    write is silently dropped (279).
+
+    - Chip copy with HOST_COMP = 0 (system tile): COMP is not writable, so a COMP write is FRAME_ERR (mom/rtl/hydra_tt_regs.sv:162).
+
+    - A CS pulse with no complete byte is not an error (have_cmd = 0 -> frame_bad = 0, 207).
+
+    '
+  inputs:
+  - desc: byte stream from hydra_tt_spi
+    name: cs_start/cs_end/rx_valid/rx_byte/rx_index/tx_load
+    width: 1/1/1/8/5/1
+  - desc: mom_top can take a descriptor (mom_features in_ready)
+    name: wd_ready
+    width: 1
+  - desc: 'a dispatch was taken this cycle (tile: disp_valid & ~HOLD, tt_um_hydra_mom.sv:194)'
+    name: disp_fire
+    width: 1
+  - desc: engine of the dispatch
+    name: disp_engine
+    width: 3
+  - desc: tag allocated
+    name: disp_tag
+    width: 4
+  - desc: chip copy only (LASTWD)
+    name: disp_wd
+    width: 128
+  - desc: busy[FENCE] from the scoreboard
+    name: fence_busy
+    width: 1
+  - desc: 'pulse: descriptor retired, no engine capable'
+    name: err_unsupported
+    width: 1
+  - desc: descriptor tag field of the unsupported descriptor
+    name: err_tag
+    width: 8
+  - desc: 'pulse: completion for a tag not in flight'
+    name: err_stale_comp
+    width: 1
+  - desc: runner-up cost minus winner cost
+    name: obs_margin
+    width: 32
+  - desc: calibration update counter
+    name: obs_cal_updates
+    width: 16
+  - desc: tag busy vector
+    name: obs_tag_busy
+    width: NTAG
+  job: Turns SPI frames into register reads and whole-frame-or-nothing register writes, stages the 128-bit descriptor,
+    holds the GO request until the dispatcher takes it, records the dispatch result and sticky status flags, and
+    drives every mom_top control input (back-pressure, completion, fence, parameter-row writes, platform constants,
+    calibration control).
+  outputs:
+  - desc: next CIPO byte
+    name: tx_byte
+    width: 8
+  - desc: = pending_q
+    name: wd_valid
+    width: 1
+  - desc: = wd_q (descriptor register)
+    name: wd
+    width: 128
+  - desc: = ~HOLD
+    name: disp_accept
+    width: 1
+  - desc: one-cycle completion pulse from COMP
+    name: comp_valid/comp_tag
+    width: 1/4
+  - desc: FENCE register
+    name: fence_tag
+    width: 4
+  - desc: parameter-row write pulse; csr_priv tied 1
+    name: csr_wr/csr_priv/csr_engine/csr_data
+    width: 1/1/3/43
+  - desc: GLOBAL fields
+    name: csr_bw_dma_log2/csr_eps_mem/csr_e_shift
+    width: 4/4/4
+  - desc: CTRL bits 1 and 2 (levels)
+    name: csr_cal_freeze/csr_cal_reset
+    width: 1/1
+  - desc: OR of the five sticky flags (incl. dispatched)
+    name: irq
+    width: 1
+  - desc: pin summaries
+    name: last_engine/disp_sticky/last_tag/margin_nib
+    width: 3/1/4/4
+rst_sync:
+  _cites_current: true
+  _from: hydra_rst_sync
+  citations:
+  - common/rtl/hydra_rst_sync.sv:16-59 - module (v3.10 form)
+  - common/rtl/hydra_rst_sync.sv:33-41 - the stages and rel_q
+  - common/rtl/hydra_rst_sync.sv:45-58 - formal
+  - reports/fpga-harden-2026-10-17/tile-netlist-equivalence-rstsync.log.gz - the tile netlist before and after,
+    proved equivalent
+  clock_reset: sync_q[STAGES-2:0] and rel_q are cleared asynchronously by arst_n; on each clk edge sync_q shifts
+    in a 1 and rel_q takes the last stage (lines 33-41); rst_n = rel_q unless scan_mode (line 43). Since v3.10 the
+    released reset is its own flop, rel_q, so Verilator 5.05x no longer reports the vector as flopped both synchronously
+    and asynchronously; same flops, same behaviour.
+  evidence:
+  - target: make padmux
+    what: also runs hydra_rst_sync.sby prove (Makefile:219-220)
+  - target: make rst-sync-copy
+    what: tile copy byte-identical (Makefile:96-99)
+  - target: make mutate
+    what: mutate_targets.py (Makefile:559-560)
+  example: 'arst_n falls -> rst_n = 0 at once. arst_n rises -> edge 1: sync_q = 1; edge 2: rel_q = 1, so rst_n =
+    1 after the 2nd rising edge (STAGES = 2).'
+  expert:
+    assumptions:
+    - hydra_rst_sync.sby prove, reading the .sv directly
+    - Assumes reset at first step and scan_mode=0 (lines 37-38); asserts !arst_n -> !rst_n (line 40) and rst_n ->
+      at least STAGES clean edges (lines 42-45)
+    - 'Mutations: ''release after one edge'' and ''asynchronous release'' must fail the proof (common/formal/mutate_targets.py:53-62)'
+    params:
+    - meaning: synchroniser depth (line 17)
+      name: STAGES
+      value: 2
+    registers: []
+    timing: Release latency = STAGES rising edges after arst_n rises.
+  failure: If arst_n releases inside the setup/hold window, flop 0 may go metastable; flop 1 gives it one cycle
+    to resolve (design intent; not provable in simulation or this formal model).
+  inputs:
+  - desc: destination clock
+    name: clk
+    width: 1
+  - desc: async active-low (AND of all sources)
+    name: arst_n
+    width: 1
+  - desc: bypass for test (tied 0 everywhere)
+    name: scan_mode
+    width: 1
+  - desc: reset used in scan mode
+    name: scan_rst_n
+    width: 1
+  job: Turns an asynchronous active-low reset into one that asserts immediately and releases only after STAGES clean
+    clock edges.
+  outputs:
+  - desc: async assert, sync release
+    name: rst_n
+    width: 1
+  security_bounds:
+    claimed: n/a (infrastructure).
+    not_claimed: No metastability guarantee is provable by these tools.
+scoreboard:
+  _from: mom_scoreboard
+  citations:
+  - mom/rtl/mom_scoreboard.sv:137-150 - lowest free tag (loop from NTAG-1 down, last hit wins)
+  - mom/rtl/mom_scoreboard.sv:171-181 - range guards, disp_ready, do_disp, do_comp
+  - mom/rtl/mom_scoreboard.sv:187-191 - stale completion
+  - mom/rtl/mom_scoreboard.sv:201-215 - combined increment/decrement, engine_full
+  - mom/rtl/mom_scoreboard.sv:220-240 - allocate/retire
+  - mom/rtl/mom_scoreboard.sv:245-255 - calibration feed
+  - mom/rtl/mom_scoreboard.sv:260 - fence guard
+  clock_reset: 'clk rising; async active-low reset: now = 0 (115-116), err_stale_comp 0 (189-191), queue_depth 0
+    (206-207), all tags free with zeroed fields (221-228), cal_valid 0 (246-247). cal_engine/opclass/times have
+    no reset term (updated every cycle).'
+  evidence:
+  - target: tile
+    what: test_tag_exhaustion_and_recovery, test_stale_completion_is_flagged_not_absorbed, test_reg_fence_on_a_tag_that_does_not_exist,
+      test_one_go_one_dispatch
+  - target: tile (mutate_sim)
+    what: '''completion tag range not checked'', ''a tag is always free'', ''fence indexes past the tags'''
+  - target: system
+    what: every dispatch completed once with the right tag; ci_selftest disables do_comp and requires make system
+      to fail
+  example: 'Tile (NTAG 4): three GOs of LARGE with no completion get tags 0, 1, 2 and BUSY = 0b0111 (test_one_go_one_dispatch).
+
+    VERIFIED-SIM: SMALL dispatched at cycle 2541 (t_start = 2541), COMP at 3829 -> cal_t_measured = 3829 - 2541
+    = 1288,
+
+    cal_t_predicted = 27, cal_valid at 3830.
+
+    '
+  expert:
+    assumptions:
+    - On the tile the measured time is whatever the host waits before writing COMP plus SPI time, so calibration
+      learns host latency, not engine latency.
+    params:
+    - meaning: tags
+      name: NTAG
+      value: 16 default; 4 tile; 8 hydra_mom_pins / hydra_sys_tile
+    - meaning: per-engine outstanding limit
+      name: QMAX
+      value: 8 default; 4 on tile (= NTAG), hydra_mom_pins and hydra_sys_tile
+    - meaning: engines
+      name: NENG
+      value: 5 or 6
+    registers:
+    - cite: mom/rtl/mom_scoreboard.sv:121-125
+      name: per-tag entry
+      value: busy 1 + engine 3 + opclass 4 + t_start 32 + t_pred 32 = 72 bits
+    timing:
+    - Allocation and timestamp on the do_disp edge (230-236); retirement on the do_comp edge (237-238); calibration
+      sample registered one cycle after do_comp (249-253).
+    - Free-running 32-bit cycle counter; measured time is modulo 2^32 (114-116, 252).
+  failure: '- No free tag: disp_ready = 0 (177); the descriptor waits in mom_top''s cost register, then the features
+    register and the pending GO fill, and READY falls.
+
+    - Engine full (queue_depth >= QMAX): disp_ready = 0 for that engine; the cost engines also mark it !valid at
+    costing time.
+
+    - Completion for a tag >= NTAG or not busy: dropped, no state change, err_stale_comp next cycle (172, 181, 187-191).
+
+    - Out-of-range disp_engine is never ready (171, 176).
+
+    - Fence on a tag >= NTAG reads not busy (260).
+
+    '
+  inputs:
+  - desc: c_valid && sel_ok && disp_accept
+    name: disp_valid
+    width: 1
+  - desc: selected engine
+    name: disp_engine
+    width: 3
+  - desc: op class
+    name: disp_opclass
+    width: 4
+  - desc: t_pred_q[sel_eng]
+    name: disp_t_pred
+    width: 32
+  - desc: completion pulse
+    name: comp_valid
+    width: 1
+  - desc: completed tag
+    name: comp_tag
+    width: 4
+  - desc: FENCE
+    name: fence_tag
+    width: 4
+  job: Allocates the lowest free tag to each dispatch, remembers per tag the engine, op class, dispatch time and
+    uncalibrated prediction, keeps per-engine outstanding counts, retires tags on completion and hands the measured-versus-predicted
+    sample to the calibrator; also answers fence queries and flags stale completions.
+  outputs:
+  - desc: a tag is free and the engine is in range and not full
+    name: disp_ready
+    width: 1
+  - desc: lowest free tag (combinational)
+    name: disp_tag
+    width: 4
+  - desc: registered calibration sample
+    name: cal_valid/cal_engine/cal_opclass/cal_t_measured/cal_t_predicted
+    width: 1/3/4/32/32
+  - desc: per-engine outstanding count
+    name: queue_depth
+    width: NENG x 8
+  - desc: queue_depth >= QMAX
+    name: engine_full
+    width: NENG
+  - desc: busy[fence_tag], 0 if out of range
+    name: fence_busy
+    width: 1
+  - desc: registered pulse
+    name: err_stale_comp
+    width: 1
+  - desc: busy bits
+    name: tag_busy_vec
+    width: NTAG
+select:
+  _from: mom_select
+  citations:
+  - mom/rtl/mom_select.sv:118-124 - lane packing
+  - mom/rtl/mom_select.sv:132-135 - pick, <= keeps the lower index
+  - mom/rtl/mom_select.sv:148-156 - tree plus chain for lanes >= 5
+  - mom/rtl/mom_select.sv:166-187 - runner-up tree
+  - mom/rtl/mom_select.sv:189-201 - outputs and margin rule
+  - mom/rtl/mom_select.sv:207-227 - formal properties
+  clock_reset: Purely combinational; no clock or reset.
+  evidence:
+  - target: select-proof
+    what: 'sby prove at NENG 5 and 6: winner valid, minimal, ties to the lower index (mom/formal/mom_select.sby)'
+  - target: mom-mutate
+    what: 'SLOT-01: tree stops at five lanes -> systile-gpu must fail'
+  example: 'Lanes {~valid, cost, index}: SMALL -> CPU {0,173,0}, SIMD {0,39,1}, TPU {0,71,2}, NTT {1,FFFFFFFF,3},
+    CRYPTO {1,FFFFFFFF,4}.
+
+    best = SIMD (39); second tree with SIMD forced invalid -> TPU (71); margin 32. VERIFIED-SIM.
+
+    NENG = 6, INT32 GEMM 32x32x64, no energy: CPU 131072, SIMD 16392, GPU 8320 (TPU/NTT/CRYPTO incapable) -> engine
+    5, margin 8072. VERIFIED-SIM.
+
+    '
+  expert:
+    assumptions: []
+    params:
+    - meaning: lanes 5.. folded in after the 5-lane tree (148-156)
+      name: NENG
+      value: 5 or 6
+    - meaning: build the second tree for the margin
+      name: WANT_MARGIN
+      value: 1
+    registers: []
+    timing:
+    - Combinational, read from the cost register in the same cycle disp_valid is formed (mom_top.sv:381-386, 425).
+  failure: 'All invalid: any_valid = 0 and sel_margin = 0; sel_engine is then meaningless and mom_top must not dispatch.
+    An invalid lane can never win because the inverted valid bit is the comparison MSB (118-124).'
+  inputs:
+  - desc: registered costs (cost_q)
+    name: cost
+    width: NENG x 32
+  - desc: 'ccapable_q & ~engine_full & eng_elig: since v3.10 the full flags are the scoreboard''s live ones'
+    name: valid
+    width: NENG
+  - desc: ccapable_q & eng_elig
+    name: capable
+    width: NENG
+  job: Combinationally picks the valid engine with the lowest cost (ties to the lower index), reports whether any
+    engine is valid or capable, and the margin between the winner and the best valid runner-up.
+  outputs:
+  - desc: winner
+    name: sel_engine
+    width: 3
+  - desc: winner cost (unused by mom_top)
+    name: sel_cost
+    width: 32
+  - desc: '|valid'
+    name: any_valid
+    width: 1
+  - desc: '|capable'
+    name: any_capable
+    width: 1
+  - desc: runner-up minus winner; 0 if no valid runner-up
+    name: sel_margin
+    width: 32
+sha256:
+  _from: hydra_sha256_stream
+  citations:
+  - sec/rtl/hydra_sha256_stream.sv:23-40 - protocol and stall
+  - sec/rtl/hydra_sha256_stream.sv:112 - bad = in_bytes>4 or partial word without in_last
+  - sec/rtl/hydra_sha256_stream.sv:115-119 - tail_word with marker
+  - sec/rtl/hydra_sha256_stream.sv:168-186 - accept, error, tail
+  - sec/rtl/hydra_sha256_stream.sv:188-204 - padding loop
+  - sec/rtl/hydra_sha256_stream.sv:300-328 - proved properties
+  - sec/formal/sha256_stream.sby:9-19 - tasks and depths
+  clock_reset: One domain; async active-low reset of controller state (lines 152-156). Contains hydra_sha256 (lines
+    77-80) outside FORMAL.
+  evidence:
+  - target: make sha256-stream
+    what: tb_sha256_stream at 140 lengths (0..130, 183, 184, 191, 192, 247, 248, 255, 256, 1000 bytes) vs hashlib
+      + sby prove/blocks/cover (Makefile:179-187; sec/tb/sha256_stream_model.py:19)
+  example: '"abc": start; one handshake with in_data=0x61626300, in_bytes=3, in_last=1. tail_word keeps 3 bytes
+    and inserts the marker -> word 0 = 0x61626380 (lines 115-119, 138-139); the padding loop writes words 1..13
+    = 0, word 14 = msg_bits[63:32] = 0, word 15 = msg_bits[31:0] = 0x18 (lines 143-149, 188-204); the block compresses
+    and done pulses with digest ba7816bf...f20015ad (same as sha256_core).'
+  expert:
+    assumptions:
+    - 'sha256_stream.sby prove: UNBOUNDED k-induction (depth 24) of properties 1,3,4,5: complete 16-word blocks
+      each word once; length field equals bytes counted independently from handshakes; marker and zero padding placement;
+      nothing after in_last (lines 224-236, 298-328; sha256_stream.sby:5-7,14-15)'
+    - 'sha256_stream.sby blocks: BOUNDED bmc depth 48 for block count = floor((bytes+8)/64)+1, only for messages
+      under 3900 bytes (lines 316-320; sby 16-17,26)'
+    - 'Core is ABSTRACT in all proofs: same handshake, any latency, digest tied to 0 (lines 81-95). Digest arithmetic
+      is only simulated'
+    - Reset asserted in first cycle (line 240)
+    params:
+    - meaning: proof-only switch enabling the bounded block-count check (line 46)
+      name: F_BLOCKS
+      value: 0
+    registers: []
+    timing: 'Per block: 16 accept or pad cycles + S_GO (1) + S_WAIT until core done (65) (lines 98, 206-214). Length
+      counter 61 bits of bytes (line 102).'
+  failure: 'Protocol error (in_bytes > 4, or in_bytes != 4 without in_last): message abandoned, err=1 sticky, no
+    digest (lines 112, 168-171). Backpressure: in_ready=0 while the core compresses (about 65 cycles per block)
+    and in all non-ACCEPT states (line 121, 38-40). Nothing accepted after in_last until the next start (line 328).
+    start during S_GO/S_WAIT/S_PAD is ignored (line 160).'
+  inputs:
+  - desc: clock
+    name: clk
+    width: 1
+  - desc: active-low async reset
+    name: rst_n
+    width: 1
+  - desc: begin a new message (accepted in S_IDLE or S_ACCEPT)
+    name: start
+    width: 1
+  - desc: word offered
+    name: in_valid
+    width: 1
+  - desc: first message byte in [31:24]
+    name: in_data
+    width: 32
+  - desc: 4 on every word but the last; 0..4 on the last
+    name: in_bytes
+    width: 3
+  - desc: this word ends the message
+    name: in_last
+    width: 1
+  - desc: 'FORMAL only: abstract core latency chosen by solver'
+    name: f_core_fin
+    width: 1
+  job: Accepts message bytes as big-endian 32-bit words over a valid/ready handshake, counts them, and appends the
+    0x80 marker, zeros and the 64-bit bit-length itself, so the digest is SHA-256 of exactly the bytes accepted.
+  outputs:
+  - desc: S_ACCEPT and core not busy
+    name: in_ready
+    width: 1
+  - desc: padding or hashing
+    name: busy
+    width: 1
+  - desc: one-cycle pulse, digest final
+    name: done
+    width: 1
+  - desc: 0 until a message completes, then holds until start
+    name: digest
+    width: 256
+  - desc: sticky protocol error until start
+    name: err
+    width: 1
+  - desc: bits accepted so far (the length field)
+    name: msg_bits
+    width: 64
+  security_bounds:
+    claimed: 'Hardware framing: software cannot choose the length field or padding (proved for the controller, any
+      core latency).'
+    not_claimed: No proof of digest values (simulation vs hashlib only). Not integrated into any build; used only
+      inside hydra_measure.
+simd:
+  _from: simd_top
+  citations:
+  - engines/simd/rtl/simd_top.sv:57-69 - decode, groups = M >> 2 if aligned
+  - engines/simd/rtl/simd_top.sv:109-111 - reduce fed only for REDUCE
+  - engines/simd/rtl/simd_top.sv:126-130 - reduction bypasses the serialiser
+  clock_reset: posedge clk, async active-low rst_n; tag_q, op_q (ADD), reduce_q latched on acceptance (simd_top.sv:77-85).
+  evidence:
+  - target: simd
+    what: simd_model.py, every operation, both classes, random stalls, refusals
+  - target: systile-two
+    what: real vector unit with pattern operands behind the dispatcher (Makefile:471-478)
+  example: "Verified by simulation and Python. ELEMENT ADD, M = 8:\n  group 0: a = [5, -3, 0x7fffffff, 100], b =\
+    \ [7, 10, 1, -100] -> [12, 7, -2147483648 (wrap), 0]\n  group 1: a = [0x10000, -6, 9, 0],     b = [0x10000,\
+    \ 7, -9, 1] -> [131072, 1, 0, 1]\nELEMENT MUL same data -> [35, -30, 2147483647, -10000, 0 (2^32 low half),\
+    \ -42, -81, 0].\nREDUCE ADD -> -2147352555 (0x80020015).\n"
+  expert:
+    assumptions:
+    - descriptor bits [2:0] are free (simd_pkg.sv:13-21); hydra_dma_gemm uses [32:3] for bank addresses
+    memory_map: n/a
+    params:
+    - meaning: lanes
+      name: N
+      value: 4
+    - meaning: descriptor
+      name: WD_W
+      value: 128
+    - meaning: tag
+      name: TAGW
+      value: 4
+    timing: ELEMENT +(6G+2), REDUCE +(G+5), G = M/4, no stalls.
+  failure: M not a multiple of 4 or 0 -> groups = 0 -> BAD_DIMS (simd_top.sv:67-68, simd_ctrl.sv:57). SCALAR is
+    accepted but performs the same lane-wise operation as ELEMENT (no broadcast; opclass_ok simd_top.sv:95-96, reduce
+    only for class 2 simd_top.sv:97). Reduction result is presented for one cycle together with done (simd_top.sv:126-130).
+  inputs:
+  - desc: dispatch
+    name: eng_valid
+    width: 1
+  - desc: '[127:124] op_class 0 SCALAR / 1 ELEMENT / 2 REDUCE, [123:121] dtype must be 2 (INT32), [116:101] element
+      count M, [2:0] lane opcode'
+    name: eng_wd
+    width: 128
+  - desc: tag
+    name: eng_tag
+    width: 4
+  - desc: group available
+    name: op_valid
+    width: 1
+  - desc: 4 x 32-bit, lane 0 low
+    name: op_a
+    width: 128
+  - desc: 4 x 32-bit
+    name: op_b
+    width: 128
+  job: Single Instruction Multiple Data (SIMD) vector unit as a dispatcher engine. Element-wise (and SCALAR, handled
+    identically) jobs stream one 32-bit result per input element; REDUCE jobs return one 32-bit sum. The element
+    count is dim_m and must be a non-zero multiple of 4.
+  outputs:
+  - desc: engine handshake
+    name: eng_ready, eng_done
+    width: 1
+  - desc: tag
+    name: eng_done_tag
+    width: 4
+  - desc: group consumed
+    name: op_ready
+    width: 1
+  - desc: result flags
+    name: res_valid, res_last
+    width: 1
+  - desc: result
+    name: res_data
+    width: 32
+  - desc: 0 OK, 1 op class, 2 dtype, 3 dims
+    name: status
+    width: 2
+spi:
+  _from: hydra_tt_spi
+  citations:
+  - 'mom/rtl/hydra_tt_spi.sv:22-35 - protocol comment: mode 0, MSB first, tx_load timing'
+  - mom/rtl/hydra_tt_spi.sv:62-74 - synchronisers, csn_s resets to 111
+  - mom/rtl/hydra_tt_spi.sv:76-81 - rise/fall decode, cs_active
+  - mom/rtl/hydra_tt_spi.sv:91 - cipo_o = tx_sr[7]
+  - mom/rtl/hydra_tt_spi.sv:109-116 - cs_start/cs_end registered; CSn fall clears counters and loads
+  - mom/rtl/hydra_tt_spi.sv:118-127 - receive on rising SCK, rx_valid at bit 8, byte index saturates at 31
+  - mom/rtl/hydra_tt_spi.sv:128-135 - shift CIPO on falling SCK or load at boundary
+  - mom/rtl/hydra_tt_spi.sv:139 - tx_sr <= tx_byte the cycle after tx_load
+  - tt/formal/hydra_tt_spi.sby:1-22 - prove depth 24, cover depth 60
+  clock_reset: 'Single clock clk, rising edge. Asynchronous active-low reset on every flop (always_ff @(posedge
+    clk or negedge rst_n), hydra_tt_spi.sv:64,93). Reset values: sck_s=000, csn_s=111 (idle high so no phantom frame),
+    copi_s=00 (lines 65-68); bitcnt, rx_sr, rx_byte, rx_index, byte_cnt, boundary, tx_sr, tx_load, cs_start, cs_end,
+    rx_valid all 0 (lines 94-105).'
+  evidence:
+  - target: padmux
+    what: 'runs tt/formal/hydra_tt_spi.sby prove (depth 24) on this file: rx_valid only after 8 rising edges, byte
+      equals the pin bits, single-cycle pulse, frame restarts at bit 0/byte 0, tx_sr equals the byte presented on
+      load (Makefile:221; hydra_tt_spi.sv:143-193)'
+  - target: tile
+    what: every SPI exchange of the 21 cocotb tests; mutate_sim 'SPI shifts LSB first' must fail test_reg_id_and_defaults
+  - target: sky130
+    what: chip through its pads answers SPI; ci_selftest drops every byte (bitcnt mutation) and requires make sky130
+      to fail
+  - target: systile
+    what: same SPI target in the system tile
+  example: "VERIFIED-SIM on the tile netlist (SCK = clk/10, HALF = 5 clk):\n  ID read  TX 80 00 00 00 00  ->  RX\
+    \ 80 48 59 4D 33\n  RX byte 0 (0x80) is STATUS[15:8] presented on the cs_start tx_load; bytes 1..4 are ID =\
+    \ 0x48594D33 MSB first.\nEdge timing (DERIVED): CSn falls -> cs_fall is seen after 2 clk edges, cs_start and\
+    \ tx_load are registered on the 3rd,\ntx_sr is loaded on the 4th, so CIPO carries the first MSB about 4 clk\
+    \ after CSn falls. A falling SCK shifts CIPO about\n3 clk after the pin edge (4 clk at a byte boundary, where\
+    \ the next byte is loaded instead of shifted).\n"
+  expert:
+    assumptions:
+    - SCK idles low (mode 0); a host that leaves CSn low through reset gets one empty frame, not an error (tt_um_hydra_mom.sv:67-68;
+      test test_no_x_on_any_pin_after_reset).
+    params: []
+    registers: []
+    timing:
+    - 'All three pins pass the same synchroniser depth: edges are decoded from bits [2:1] of 3-bit SCK/CSn shift
+      registers and COPI from bit 1 of a 2-bit one, so COPI is sampled from the same instant as the SCK rise (lines
+      62-80).'
+    - 'Mode 0: COPI sampled on synchronised rising SCK (118-127), CIPO shifted on synchronised falling SCK (128-135),
+      MSB first both ways (119, 133, 91).'
+    - 'First byte of a byte boundary: the falling edge after the 8th rising edge raises tx_load instead of shifting
+      (129-131); tx_sr takes tx_byte the cycle after tx_load (139).'
+    - SCK must stay below clk/8 (header 14-15; tile pin map tt_um_hydra_mom.sv:63). At the tile's 66 ns clock that
+      is about 1.89 MHz (DERIVED).
+  failure: 'A partial byte (fewer than 8 rising SCK edges before CSn rises) is discarded: bitcnt and byte_cnt are
+    only cleared on the next CSn fall (lines 112-116) and rx_valid only fires on the 8th bit (121-127), so the register
+    block simply sees fewer bytes. SCK edges with CSn high are ignored (shifting is gated by cs_active, line 117).
+    No speed check: above clk/8 edges may be missed (header lines 14-15); that is a host rule, not detected. Byte
+    count saturates at 31 (line 125).'
+  inputs:
+  - desc: system clock
+    name: clk
+    width: 1
+  - desc: active-low asynchronous reset (on the tile, the synchronised reset from hydra_rst_sync)
+    name: rst_n
+    width: 1
+  - desc: SPI clock pin
+    name: sck_i
+    width: 1
+  - desc: controller-out target-in data pin
+    name: copi_i
+    width: 1
+  - desc: chip select, active low
+    name: csn_i
+    width: 1
+  - desc: byte to send next, sampled on the tx_load cycle
+    name: tx_byte
+    width: 8
+  job: Serial Peripheral Interface (SPI) target that samples SCK, COPI and CSn in the system clock domain (no second
+    clock), turning the pins into a stream of received bytes with a per-frame byte index, and shifting a byte supplied
+    by the register block out on CIPO.
+  outputs:
+  - desc: controller-in target-out data = tx_sr[7]
+    name: cipo_o
+    width: 1
+  - desc: one-cycle pulse, CSn fell (registered from the synchronised edge)
+    name: cs_start
+    width: 1
+  - desc: one-cycle pulse, CSn rose; the register block commits here
+    name: cs_end
+    width: 1
+  - desc: ~csn_s[1] (unused by the tile)
+    name: cs_active
+    width: 1
+  - desc: one-cycle pulse after the 8th sampled bit of a byte
+    name: rx_valid
+    width: 1
+  - desc: the byte, MSB first
+    name: rx_byte
+    width: 8
+  - desc: byte number within the frame, 0 = command, saturates at 31
+    name: rx_index
+    width: 5
+  - desc: 'pulse: present tx_byte now (start of frame and each byte boundary)'
+    name: tx_load
+    width: 1
+spram:
+  _from: hydra_spram
+  citations:
+  - mem/rtl/hydra_spram.sv:29-34 - array, write, registered read
+  clock_reset: posedge clk only; no reset, contents undefined at power-up (hydra_spram.sv:31-34).
+  evidence:
+  - target: dma
+    what: used by every memory-fed bench
+  example: 'TPU A bank (tb_c_tdma): host writes 0x0aff0501 at address 10 (bytes 01, 05, ff, 0a = A[0][0]=1, A[1][0]=5,
+    A[2][0]=-1, A[3][0]=10). The streamer presents address 10 at +1 (PRIME) and the word is on rdata at +2, captured
+    into the holding register, offered to the array at +3.'
+  expert:
+    assumptions: []
+    memory_map: 'Instances: TPU-DMA A/B/C 1024 x 32; SIMD-DMA A and B are 4 lane banks of 256 x 32 each (one 128-bit
+      entry), C 1024 x 32; NTT-DMA A/B/W 4 lane banks of 256 x 32 each, C 2048 x 32; GPU bank 4096 x 32 in hydra_sys_tile
+      (AW=12); see the wrapper cards.'
+    params:
+    - meaning: word width
+      name: DW
+      value: 32 default
+    - meaning: words
+      name: DEPTH
+      value: 512 default
+    - meaning: address bits
+      name: AW
+      value: $clog2(DEPTH)
+    timing: 1-cycle registered read
+  failure: No bounds check (an out-of-range addr is a simulator X / tool-dependent). Read-during-write gives old
+    data (hydra_spram.sv:11-15).
+  inputs:
+  - desc: clock
+    name: clk
+    width: 1
+  - desc: write enable
+    name: we
+    width: 1
+  - desc: word address
+    name: addr
+    width: AW
+  - desc: write data
+    name: wdata
+    width: DW
+  job: One inferred memory bank with one shared address, a write enable and a registered read; read-during-write
+    returns the old contents.
+  outputs:
+  - desc: mem[addr] of the previous cycle
+    name: rdata
+    width: DW
+tpu:
+  _from: tpu_top
+  citations:
+  - engines/tpu/rtl/tpu_top.sv:76-83 - descriptor decode
+  - engines/tpu/rtl/tpu_top.sv:121-124 - logical row i fed to physical row N-1-i
+  - engines/tpu/rtl/tpu_top.sv:126-144 - feeder, array, drain composition
+  - engines/tpu/rtl/tpu_top.sv:146-148 - eng_ready = !busy, done, done tag
+  clock_reset: posedge clk; async active-low rst_n in every submodule; tag_q reset to 0 (tpu_top.sv:91-94).
+  evidence:
+  - target: tpu
+    what: tpu_model.py 40 cases (A M x K, B K x N, C int32), tb_tpu with random stalls and two refusals
+  - target: tpu-mutate
+    what: 9 mutations incl. 'row order not reversed', 'accumulator not cleared between tiles'
+  - target: systile-tpu
+    what: the array behind the real dispatcher with pattern operands (Makefile:511-517)
+  example: "Verified by simulation (tb_c_tpu) and Python:\n  A = [[1,2,3,4],[5,6,7,8],[-1,-2,-3,-4],[10,-10,20,-20]]\n\
+    \  B = [[1,0,2,-1],[0,1,-3,2],[4,-2,1,0],[-5,3,0,1]]\n  C = A x B = [[-7,8,-1,7],[-7,16,-1,15],[7,-8,1,-7],[190,-110,70,-50]]\n\
+    \  e.g. C[3][0] = 10*1 + (-10)*0 + 20*4 + (-20)*(-5) = 10 + 0 + 80 + 100 = 190.\nSlice k presented as op_a =\
+    \ column k of A, op_b = row k of B. Result stream observed:\n-7 8 -1 7 (+13..+16), -7 16 -1 15 (+18..+21), 7\
+    \ -8 1 -7 (+23..+26), 190 -110 70 -50 (+28..+31, last=1),\ndone +33 with tag 9 and status 0.\n"
+  expert:
+    assumptions:
+    - opcode positions restated locally from mom_pkg work_desc_t (tpu_top.sv:68-83; mom_pkg.sv:143-155)
+    memory_map: n/a (operands arrive on a port)
+    params:
+    - meaning: array edge
+      name: N
+      value: N_PE = 4
+    - meaning: descriptor width
+      name: WD_W
+      value: 128
+    - meaning: tag width
+      name: TAGW
+      value: 4
+    timing: done at +(K + N^2 + 3N + 1) with no stalls (33 for 4x4x4, simulated); refusal +1.
+  failure: See tpu_ctrl. The descriptor is not latched (only the tag is, tpu_top.sv:88-94); dims are read once at
+    start (tpu_ctrl.sv:79). Refusals complete with a status code rather than silently. No result back-pressure.
+  inputs:
+  - desc: clock
+    name: clk
+    width: 1
+  - desc: async active-low reset
+    name: rst_n
+    width: 1
+  - desc: dispatch
+    name: eng_valid
+    width: 1
+  - desc: 'work descriptor: [127:124] op_class (3), [123:121] dtype (0), [116:101] M, [100:85] N, [84:69] K'
+    name: eng_wd
+    width: 128
+  - desc: dispatcher tag
+    name: eng_tag
+    width: 4
+  - desc: slice available
+    name: op_valid
+    width: 1
+  - desc: a[i][k], i = 0..N-1
+    name: op_a[N]
+    width: 8
+  - desc: b[k][j], j = 0..N-1
+    name: op_b[N]
+    width: 8
+  job: The Tensor Processing Unit (TPU) as a dispatcher engine. It decodes the 128-bit work descriptor, takes K
+    operand slices (column k of A and row k of B per slice), computes C = A x B for one tile of up to N x N INT8
+    values with 32-bit results, and streams the N*N results out in row-major order before one completion with the
+    tag.
+  outputs:
+  - desc: '!busy'
+    name: eng_ready
+    width: 1
+  - desc: one-cycle completion
+    name: eng_done
+    width: 1
+  - desc: tag latched at acceptance
+    name: eng_done_tag
+    width: 4
+  - desc: slice consumed this cycle if op_valid
+    name: op_ready
+    width: 1
+  - desc: result element valid
+    name: res_valid
+    width: 1
+  - desc: signed result, row-major
+    name: res_data
+    width: 32
+  - desc: last element
+    name: res_last
+    width: 1
+  - desc: 0 OK, 1 bad op class, 2 bad dtype, 3 bad dims
+    name: status
+    width: 2
+uart:
+  citations:
+  - fpga/rtl/hydra_fpga_uart.sv:15-63 - receiver
+  - fpga/rtl/hydra_fpga_uart.sv:66-101 - transmitter
+  clock_reset: One clock; active-low asynchronous reset (fpga/rtl/hydra_fpga_uart.sv:30-33, 82-84). The receive
+    line passes a two-flop synchroniser (line 35), reset to idle-high (line 32).
+  evidence:
+  - target: uart-baud
+    what: serial divisor against an independently timed host, 9 images, -2% to +2%
+  - target: memboard
+    what: the whole path over the serial port, 16 results
+  example: 'At CLKS_PER_BIT = 104: a falling edge starts a byte; the counter waits 52 clocks to the middle of the
+    start bit (line 40), checks it is still low (line 48), then samples eight data bits LSB first every 104 clocks
+    (line 51) and delivers the byte only if the stop bit is high (lines 55-57).'
+  expert:
+    params:
+    - meaning: clocks per bit; the binder checks the baud error is under 2% (lines 10-11)
+      name: CLKS_PER_BIT
+      value: 104 by default; computed per board by tools/hydra_bind.py
+    timing: 'Receive: 1.5 + 8 bit times to deliver a byte, then the stop bit. Transmit: 10 bit times (start, 8 data,
+      stop; line 88).'
+  failure: A start bit that is high again at mid-bit is a glitch and is dropped (line 48). A missing stop bit drops
+    the byte; no error flag (lines 54-58). The transmitter ignores start while busy (line 85); there is no buffer.
+  inputs:
+  - desc: serial line in, idles high
+    name: rx_i
+    width: 1
+  - desc: 'transmit: send data'
+    name: start
+    width: 1
+  - desc: 'transmit: the byte'
+    name: data
+    width: 8
+  job: 'An 8N1 serial receiver and transmitter: the one port every supported board has, so a PC script can stand
+    in for the Tiny Tapeout demoboard''s microcontroller.'
+  outputs:
+  - desc: 'receive: one-cycle pulse, a byte with a good stop bit'
+    name: valid
+    width: 1
+  - desc: 'receive: the byte'
+    name: data
+    width: 8
+  - desc: transmit in progress
+    name: busy
+    width: 1
+  - desc: serial line out, high when idle
+    name: tx_o
+    width: 1
+vault:
+  _from: hydra_key_vault
+  citations:
+  - sec/rtl/hydra_key_vault.sv:43-47 - module and parameters NSLOT=4, KW=256, WW=32
+  - sec/rtl/hydra_key_vault.sv:91 - do_write = host_we && !slot_locked && !host_wipe
+  - sec/rtl/hydra_key_vault.sv:103 - err_locked <= host_we && slot_locked
+  - sec/rtl/hydra_key_vault.sv:105-114 - wipe clears keys, seals and fill flags
+  - sec/rtl/hydra_key_vault.sv:119-120 - filled set when every word written once
+  - sec/rtl/hydra_key_vault.sv:124 - lock sets locked[host_slot] regardless of host_we
+  - sec/rtl/hydra_key_vault.sv:132-138 - host_rdata is metadata only
+  - sec/rtl/hydra_key_vault.sv:141-142 - eng_key and eng_valid
+  - sec/formal/key_vault_ni.sv:101-109 - NI assertions
+  - sec/formal/key_vault.sby:9-23 - tasks and depths
+  - Makefile:207-213 - keyvault target runs only formal
+  clock_reset: One domain (clk). rst_n active low, asynchronous assert (always_ff @(posedge clk or negedge rst_n),
+    line 93); reset clears all key bits, seen/locked/filled and err_locked (lines 94-101). No synchroniser inside;
+    the integrator must supply a synchronously released reset (e.g. hydra_rst_sync). Slots are volatile (lines 37-39).
+  evidence:
+  - target: make keyvault
+    what: 'sv2v + sby: prove, ni, ni_full, cover (Makefile:207-213). FORMAL ONLY: there is no key-vault simulation
+      testbench in sec/tb'
+  - target: make xsec
+    what: xsec_ni instantiates two vaults behind two hydra_xsec_unit copies (isa/formal/xsec_ni.sv:63-75)
+  - target: mutation
+    what: no mutation suite for sec/ in Makefile mutate (Makefile:559-564)
+  example: 'Synthetic key (NOT a real key): words 0..7 = 0x00000000..0x00000007. Host pulses host_we with host_slot=2,
+    host_word=i, host_wdata=i for i=0..7; on the 8th write filled[2] rises (line 119-120). Host pulses host_lock
+    with host_slot=2 -> locked[2]=1 (line 124). With host_rd_slot=2, host_rdata = 0x00080403 (filled=1, locked=1,
+    NSLOT=4, NWORD=8; lines 133-137). Engine drives eng_req=1, eng_slot=2 -> eng_key = 256''h00000007_00000006_..._00000000
+    (word 0 lowest, line 117) and eng_valid=1 (line 142). A later host_we to slot 2 is dropped and err_locked=1
+    the next cycle (lines 91, 103). host_wipe zeroes every slot and clears every seal (lines 105-114).'
+  expert:
+    assumptions:
+    - 'key_vault.sby task prove (k-induction, depth 12) proves the in-RTL asserts: sealed slot keeps contents, seal
+      is one-way until wipe, wipe leaves nothing, unfilled slot never valid (hydra_key_vault.sv:155-176; key_vault.sby:16-17)'
+    - 'key_vault.sby task ni: UNBOUNDED k-induction (depth 4) of non-interference at NSLOT=2, KW=64 (key_vault_ni.sv:40-42;
+      key_vault.sby:18-19)'
+    - 'key_vault.sby task ni_full: same proof at NSLOT=4, KW=256, WW=32 via chparam (key_vault.sby:20-21,34)'
+    - 'NI environment: reset asserted at the first clock edge (clocked assume, key_vault_ni.sv:95-97); both copies
+      share every control input; only host_wdata differs (key_vault_ni.sv:46-57)'
+    - NI compares ONLY host_rdata, err_locked and eng_valid, plus the bookkeeping invariants (key_vault_ni.sv:101-109).
+      eng_key is not compared, by design
+    - 'cover task: key_a != key_b reachable, so ni is not vacuous (key_vault_ni.sv:114; key_vault.sby:22-23)'
+    - Proofs run on sv2v output of the RTL with -DFORMAL (Makefile:207-213); FORMAL-only ports f_* are absent in
+      synthesis (hydra_key_vault.sv:70-79)
+    params:
+    - meaning: key slots (line 44)
+      name: NSLOT
+      value: 4
+    - meaning: bits per key (line 45)
+      name: KW
+      value: 256
+    - meaning: bits per write (line 46)
+      name: WW
+      value: 32
+    registers:
+    - host_rdata bit0 filled, bit1 locked, [15:8] NSLOT, [23:16] NWORD (lines 132-138)
+    timing: Writes take effect at the next clk edge; eng_key/eng_valid/host_rdata are combinational (lines 132-142).
+  failure: 'Write to a sealed slot: dropped, err_locked pulses one cycle later (lines 90-91, 103). Write in the
+    same cycle as host_wipe: dropped silently, no error (line 91). Sealing is allowed on an empty or partly written
+    slot; such a slot stays unusable (eng_valid=0) until a wipe (lines 124, 142). eng_valid=0 for an unfilled slot,
+    but eng_key still carries that slot''s partial bits whenever eng_req=1 (line 141). No busy/backpressure: all
+    combinational reads, single-cycle writes. There is no error for out-of-range indices because the default geometry
+    makes every index legal.'
+  inputs:
+  - desc: single clock domain
+    name: clk
+    width: 1
+  - desc: active-low asynchronous reset
+    name: rst_n
+    width: 1
+  - desc: write one 32-bit key word
+    name: host_we
+    width: 1
+  - desc: slot for write/lock
+    name: host_slot
+    width: clog2(NSLOT)=2
+  - desc: word index; word 0 is key bits [31:0]
+    name: host_word
+    width: clog2(KW/WW)=3
+  - desc: key word
+    name: host_wdata
+    width: 32
+  - desc: seal host_slot (one-way until wipe)
+    name: host_lock
+    width: 1
+  - desc: clear every slot, seal and fill flag
+    name: host_wipe
+    width: 1
+  - desc: which slot's status to show
+    name: host_rd_slot
+    width: 2
+  - desc: engine requests a key
+    name: eng_req
+    width: 1
+  - desc: slot the engine wants
+    name: eng_slot
+    width: 2
+  job: Holds NSLOT keys of KW bits that the host writes 32 bits at a time and that an engine uses by slot number.
+    The host-side read port returns only metadata (filled, sealed, geometry); there is no path from key storage
+    to it.
+  outputs:
+  - desc: '{8''b0, NWORD[23:16], NSLOT[15:8], 6''b0, locked, filled} of host_rd_slot'
+    name: host_rdata
+    width: 32
+  - desc: 'registered: previous cycle wrote to a sealed slot'
+    name: err_locked
+    width: 1
+  - desc: key[eng_slot] while eng_req, else 0 (even for an unfilled slot)
+    name: eng_key
+    width: KW=256
+  - desc: eng_req && slot filled
+    name: eng_valid
+    width: 1
+  - desc: FORMAL-only bookkeeping ports, absent in synthesis
+    name: f_locked/f_filled/f_seen
+    width: NSLOT / NSLOT / NSLOT*NWORD
+  security_bounds:
+    claimed: 'Proved (unbounded, at the shipped 4x256 size): for any key material and any command sequence after
+      a reset, the host-visible outputs host_rdata, err_locked and eng_valid are independent of key bits; sealed
+      slots are immutable until wipe; wipe clears everything.'
+    not_claimed: 'Nothing about eng_key consumers: any engine that copies eng_key to host-readable state breaks
+      the property, and the vault does not control who drives eng_req/eng_slot (lines 141-142). The host WRITES
+      the keys, so the host knew them (docs/security/threat-model.md:57). Volatile: cleared by reset, no non-volatile
+      storage (lines 37-39). No protection against power/timing side channels, scan-chain access, fault injection
+      or physical attack (lines 30-35). No privilege check inside the vault (privilege is enforced only in hydra_xsec_unit).
+      Wipe has no ISA instruction. NOT instantiated in any build (no plan, chip top or tile instantiates it).'
+xbar:
+  _from: mom_xbar
+  citations:
+  - common/rtl/mom_xbar.sv:113-132 - range check, forward, accept
+  - common/rtl/mom_xbar.sv:139-144 - tag override in the start cycle
+  - common/rtl/mom_xbar.sv:147-183 - completion check, round-robin, comp outputs
+  - common/rtl/mom_xbar.sv:185-212 - state update
+  - common/rtl/mom_xbar.sv:214-279 - formal properties
+  clock_reset: 'clk rising; async active-low reset: busy_q, pend_q, rr_ptr, tag_q, error flags = 0 (186-192). Accept
+    and start are also gated combinationally by rst_n (124-125).'
+  evidence:
+  - target: xbar
+    what: 20k random vectors vs xbar_model.py and sby prove of X0..X8 incl. 'no completion is lost'
+  - target: xbar-bound
+    what: NENG 1, 5, 7, 8 range bound (RTL-08)
+  - target: mom-mutate
+    what: RTL-08 bound narrowed -> xbar-bound must fail
+  - target: system
+    what: real mom_top driving it
+  example: 'DERIVED: engine 2 idle and ready, disp_valid with engine 2 tag 5 -> eng_valid = 00100, eng_tag[2] =
+    5 that cycle,
+
+    disp_accept = 1; busy_q[2] = 1, tag_q[2] = 5 next edge. Later eng_done[2] with tag 5 -> done_ok[2]; if picked
+    by
+
+    round-robin the same cycle, comp_valid = 1, comp_tag = 5, busy and pend cleared, rr_ptr = 3.
+
+    '
+  expert:
+    assumptions:
+    - 'Environment assumption for the proofs: honest engines report done once, with the held tag (219-227).'
+    params:
+    - meaning: engines
+      name: NENG
+      value: 5 default
+    - meaning: '-'
+      name: NTAG
+      value: 8 default (declared, unused in the body)
+    - meaning: widths
+      name: WD_W/TAGW/ENGW
+      value: 128/4/3
+    registers: []
+    timing:
+    - Dispatch accept is combinational in the forwarding cycle (132); a completion can be reported in the same cycle
+      eng_done rises (155, 182).
+    - At most one engine started and one completion reported per cycle (X2, round-robin 163-180).
+  failure: 'Busy or not-ready target: disp_accept = 0, MOM holds (118, 124, 132). Engine index >= NENG: accepted
+    and dropped, err_bad_engine (113, 125, 194). Completion not matching (wrong tag, engine not busy, already pending):
+    not forwarded, err_done_unknown (150-152, 195). A completed engine stays busy until reported, so a result cannot
+    be overwritten (X5).'
+  inputs:
+  - desc: from mom_top
+    name: disp_valid/disp_engine/disp_tag/disp_wd
+    width: 1/ENGW/TAGW/WD_W
+  - desc: engine can take work
+    name: eng_ready
+    width: NENG
+  - desc: engine completion
+    name: eng_done
+    width: NENG
+  - desc: completion tags
+    name: eng_done_tag
+    width: NENG x TAGW
+  job: Forwards a dispatch to the chosen engine only when that engine is idle and ready, keeps the engine busy until
+    its completion has been reported, checks each completion's tag against the tag it handed out, and returns one
+    completion per cycle to the scheduler in round-robin order. Used by hydra_sys_tile (FPGA images, system simulations),
+    not by the tile or by hydra_mom_pins.
+  outputs:
+  - desc: fwd || bad (combinational)
+    name: disp_accept
+    width: 1
+  - desc: to mom_top (combinational from pend_q | done_ok)
+    name: comp_valid/comp_tag
+    width: 1/TAGW
+  - desc: one-hot start
+    name: eng_valid
+    width: NENG
+  - desc: shared descriptor; tag overridden with disp_tag in the start cycle
+    name: eng_wd/eng_tag
+    width: WD_W / NENG x TAGW
+  - desc: busy_q
+    name: eng_busy
+    width: NENG
+  - desc: 'registered: out-of-range engine accepted and dropped'
+    name: err_bad_engine
+    width: 1
+  - desc: 'registered: completion with wrong tag, idle engine, or already pending'
+    name: err_done_unknown
+    width: 1
+xsec:
+  _from: hydra_xsec_unit
+  citations:
+  - isa/rtl/hydra_xsec_unit.sv:15-38 - encodings
+  - isa/rtl/hydra_xsec_unit.sv:43-52 - three rules
+  - isa/rtl/hydra_xsec_unit.sv:122-124 - is_hsec, machine, needs_m
+  - isa/rtl/hydra_xsec_unit.sv:133-136 - kv_slot rs1[4:3], kv_word rs1[2:0], kv_rd_slot rs1[1:0]
+  - isa/rtl/hydra_xsec_unit.sv:146-164 - execute
+  - isa/rtl/hydra_xsec_unit.sv:169-185 - formal asserts
+  - isa/formal/xsec_ni.sv:63-75 - two vaults, wipe and engine tied off
+  - isa/formal/xsec_ni.sv:82-90 - NI asserts and hierarchical cover
+  - isa/tb/xsec_vectors.txt:3 - sum0 vector
+  clock_reset: 'No clock, no reset, no state: purely combinational (lines 126-167).'
+  evidence:
+  - target: make xsec
+    what: tb_xsec_unit on isa/tb/xsec_vectors.txt (231 lines) vs xsec_model.py, then sby priv, ni, ni_full (Makefile:77-86)
+  example: sha256sum0 x5, x6 encodes as insn 0x10031293 (funct7 0001000, rs2 field 00000, funct3 001, opcode 0010011;
+    lines 15-18). With rs1=0x0000000080000000 at priv=3 the unit returns rd_we=1, rd=0x0000000020040200 (isa/tb/xsec_vectors.txt:3;
+    ror2^ror13^ror22 of 0x80000000, line 114; sign-extended, line 144). hsec.kvwrite at priv=00 (user) -> illegal=1,
+    kv_we=0 (lines 146-148).
+  expert:
+    assumptions:
+    - 'xsec.sby priv: mode prove depth 2 on combinational asserts: no kv_we/kv_lock outside machine mode; such attempts
+      set illegal; illegal implies no side effect; at most one side effect (lines 169-185; xsec.sby:12-13)'
+    - 'xsec.sby ni / ni_full: two units each with its own vault, identical instruction stream and operands, different
+      key words; asserts rd, rd_we and illegal equal (xsec_ni.sv:82-89). UNBOUNDED k-induction depth 4 at NSLOT2/KWORDS2
+      and NSLOT4/KWORDS8 (xsec.sby:14-17, 28)'
+    - 'NI environment ties host_wipe=0, eng_req=0 and pcr_value=0 (xsec_ni.sv:54, 61, 65, 67): the proof does not
+      cover wipe, the engine path or PCR reads'
+    - xsec_ni's non-vacuity cover uses a hierarchical reference v_a.key[0] (xsec_ni.sv:90) and xsec.sby has no cover
+      task (xsec.sby:7-9); key_vault_ni.sv:24-28 says hierarchical references did not survive sv2v conversion
+    params:
+    - meaning: vault slots (line 63)
+      name: NSLOT
+      value: 4
+    - meaning: 32-bit words per key (line 64)
+      name: KWORDS
+      value: 8
+    registers:
+    - 'Zknh (OP-IMM 0010011, funct3 001, funct7 0001000): rs2 field 00000 sha256sum0, 00001 sum1, 00010 sig0, 00011
+      sig1; low 32 bits of rs1, result sign-extended (lines 15-21, 108-119, 144)'
+    - 'custom-0 0001011, funct7 0000000 (lines 26-38, 122):'
+    - '  000 hsec.kvstat rd, rs1 - rd = {32''b0, kv_rdata}, any privilege (line 151)'
+    - '  001 hsec.kvwrite rs1, rs2 - vault word write, MACHINE only (lines 124, 152)'
+    - '  010 hsec.kvlock rs1 - seal slot, MACHINE only (lines 124, 153)'
+    - '  011 hsec.pcrrd rd, rs1 - 64-bit word rs1[1:0] of PCR, word 0 most significant, any privilege (lines 154-159)'
+    - '  100 hsec.measw rs1, rs2 - meas_we with word rs1[2:0], data rs2[31:0], any privilege (lines 138-139, 160)'
+    - '  101 hsec.pcrext - pcr_extend pulse, any privilege (line 161)'
+    - '  110 hsec.cteq rd, rs1, rs2 - rd = (rs1 == rs2), any privilege (line 162)'
+    - '  111 reserved - illegal (line 163)'
+    timing: Single-cycle combinational; data-independent latency by construction (lines 50-52) -- structural argument,
+      not measured or proved.
+  failure: 'kvwrite/kvlock outside machine mode -> illegal trap, no side effect (lines 124, 146-148). funct3=111
+    -> illegal at any privilege (line 163). custom-0 with funct7 != 0, or any other opcode, is not claimed (claim=0)
+    (lines 122, 127). Note the slot-field split: kvwrite/kvlock take slot from rs1[4:3] and word from rs1[2:0] (lines
+    133-134), but kvstat takes slot from rs1[1:0] (line 136).'
+  inputs:
+  - desc: instruction valid
+    name: valid
+    width: 1
+  - desc: instruction word
+    name: insn
+    width: 32
+  - desc: source 1
+    name: rs1
+    width: 64
+  - desc: source 2
+    name: rs2
+    width: 64
+  - desc: 11 machine, 01 supervisor, 00 user
+    name: priv
+    width: 2
+  - desc: vault status word
+    name: kv_rdata
+    width: 32
+  - desc: measurement register
+    name: pcr_value
+    width: 256
+  job: 'Combinational decode/execute unit for an RV64 (64-bit RISC-V) core: the four ratified Zknh SHA-256 sigma/sum
+    instructions, and seven custom-0 instructions that talk to a key vault and a measurement register by slot number,
+    plus a constant-time equality compare. It is not connected to any CPU in this repository.'
+  outputs:
+  - desc: this unit decodes the instruction
+    name: claim
+    width: 1
+  - desc: raise an illegal-instruction trap
+    name: illegal
+    width: 1
+  - desc: write rd
+    name: rd_we
+    width: 1
+  - desc: result
+    name: rd_val
+    width: 64
+  - desc: vault controls
+    name: kv_we/kv_slot/kv_word/kv_wdata/kv_lock/kv_rd_slot
+    width: 1/2/3/32/1/2
+  - desc: measurement staging and extend (no consumer exists in the repo)
+    name: meas_we/meas_word/meas_wdata/pcr_extend
+    width: 1/3/32/1
+  security_bounds:
+    claimed: (a) no instruction moves vault key bits into rd (NI, unbounded, with wipe/engine/PCR tied off); (b)
+      key write and seal need machine mode and trap elsewhere (proved).
+    not_claimed: Not wired into any core; the trap must still be plumbed into a pipeline's exception logic (docs/ISA_SECURITY.md:108-112).
+      measw and pcrext are allowed at ANY privilege, so user code can extend the PCR (lines 124, 160-161). No consumer
+      of meas_we/meas_word/pcr_extend exists in the repository (hydra_pcr takes a 256-bit meas port, hydra_pcr.sv:46-47).
+      Constant-time is structural only; no power side-channel claim (docs/ISA_SECURITY.md:100-103). No wipe instruction.

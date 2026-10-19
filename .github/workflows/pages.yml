@@ -1,0 +1,54 @@
+# Publish the Silicon Atlas (docs/site/index.html) to GitHub Pages.
+#
+# The page is generated and committed by `make site`; this workflow only
+# checks that the committed page still matches the repository
+# (`gen_site.py --check`, which also fails if the atlas data is older than
+# the RTL it describes) and then serves docs/site as it is. Nothing is built
+# or simulated here.
+#
+# One-time setup by the owner: Settings > Pages > Build and deployment >
+# Source: "GitHub Actions". Until then the deploy job fails with a 404 and
+# nothing else is affected.
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths: ["docs/site/**", "docs/atlas/**", "tools/gen_site.py", "tools/atlas_*.py", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 -m pip install pyyaml
+      - name: The committed page matches the repository
+        run: python3 tools/gen_site.py --check
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/site
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

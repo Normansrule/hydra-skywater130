@@ -1,0 +1,269 @@
+# The Silicon Atlas: ONE machine-readable source for the project page.
+#
+# Hand-written here: what each block is FOR, in words, and which checks
+# exercise it. Never written here: which builds contain a block (read from the
+# compiler by tools/atlas_derive.py into derived.json), source hashes and
+# permalinks (also derived), and any number (docs/metrics.json,
+# docs/timing.json, or a recorded trace). tools/gen_site.py refuses a block
+# whose file or module does not exist, or whose evidence names a make target
+# the Makefile does not have.
+
+# Builds whose membership is derived. FPGA plans (plans/*.yaml) are added
+# automatically. `make` = the make target whose compile steps are replayed;
+# `dut` = the module whose instance tree is the build.
+builds:
+  - id: tile
+    name: Tiny Tapeout tile (tt_um_hydra_mom, the submitted netlist source)
+    kind: asic-tile
+    target: tile
+    top: tt_um_hydra_mom
+    dut: tt_um_hydra_mom
+    files: [tt/tile/src/project.v]
+  - id: chip
+    name: SkyWater 130 OpenFrame chip top (never hardened)
+    kind: asic-chip
+    target: chip
+    make: sky130
+    dut: openframe_project_wrapper
+  - id: sim-systile
+    name: System tile, five slots (one real engine path, latency models)
+    kind: simulation
+    target: sim
+    make: systile
+    dut: hydra_sys_tile
+  - id: sim-systile-mem
+    name: System tile with the memory-fed array
+    kind: simulation
+    target: sim
+    make: systile-mem
+    dut: hydra_sys_tile
+  - id: sim-systile-two
+    name: System tile routing between two real engines
+    kind: simulation
+    target: sim
+    make: systile-two
+    dut: hydra_sys_tile
+  - id: sim-systile-gpu
+    name: System tile, six slots, with the Pixelstorm GPU
+    kind: simulation
+    target: sim
+    make: systile-gpu
+    dut: hydra_sys_tile
+  - id: sim-systile-abi
+    name: System tile behind ABI version 2
+    kind: simulation
+    target: sim
+    make: systile-abi
+    dut: hydra_sys_tile
+  - id: sim-systile-cpu
+    name: System tile with CPU, GPU and TPU slots behind ABI version 2
+    kind: simulation
+    target: sim
+    make: systile-cpu
+    dut: hydra_sys_tile
+
+# Traces the page replays (tools/atlas_traces.py). Each is one test that must
+# PASS when it is recorded; the recording keeps its command, commits, tool
+# versions and the hashes of the sources it ran.
+traces:
+  - id: crossover
+    runner: tile-rtl
+    module: test
+    test: test_roofline_crossover
+    title: "One decision each way: a 4x4x4 multiply goes to the vector unit, an 8x8x8 to the array"
+  - id: unsupported
+    runner: tile-rtl
+    module: test
+    test: test_unsupported_is_retired
+    title: "A descriptor no engine can run is reported and retired, not retried"
+  - id: tags
+    runner: tile-rtl
+    module: test
+    test: test_tag_exhaustion_and_recovery
+    title: "All four tags in flight: work is held, ready falls, a completion releases it"
+  - id: stale
+    runner: tile-rtl
+    module: test
+    test: test_stale_completion_is_flagged_not_absorbed
+    title: "Completions for tags that are not in flight are flagged and change nothing"
+  - id: calibration
+    runner: tile-rtl
+    module: test_regs
+    test: test_reg_calibration_closes_the_loop
+    wave: false
+    title: "The array keeps finishing late: calibration raises its cost until the decision moves"
+  - id: torn
+    runner: tile-rtl
+    module: test_regs
+    test: test_reg_torn_frames_change_nothing
+    title: "Malformed SPI frames: a short descriptor, a long write, a read-only and an unmapped register"
+  - id: reset
+    runner: tile-rtl
+    module: test
+    test: test_reset_mid_transaction
+    title: "Reset lands halfway through a descriptor write; the next descriptor dispatches normally"
+  - id: recovery
+    runner: tile-rtl
+    module: test
+    test: test_full_only_engine_recovers
+    title: "The only capable engine is full: the job waits, and dispatches once a completion frees room (v3.10 fix)"
+  # chip-side engines and IP: each make target's own testbench, checked
+  # against its own independent model, recorded for its first job
+  - id: tpu
+    runner: make
+    make: tpu
+    tb: tb_tpu
+    clock: dut.clk
+    view: tpu
+    window_ns: 400000
+    select: {dut.u_ctrl.dim_m: 4, dut.u_ctrl.dim_n: 4, dut.u_ctrl.dim_k: 64}
+    start: dut.u_ctrl.start
+    stop: dut.u_ctrl.done
+    signals: ['dut\.u_ctrl\.(st_q|start|done|dim_m|dim_n|dim_k|arr_en|arr_clr|arr_shift|op_valid)',
+              'dut\.u_array\.g_row\[\d\]\.g_col\[\d\]\.u_pe\.(a_in|b_in|acc_q)',
+              'dut\.(res_valid|res_data|res_last|eng_valid|eng_ready|eng_done)']
+    meta: {states_from: [engines/tpu/rtl/tpu_ctrl.sv, st_q]}
+    title: "The 4x4 systolic array on a 4x4x64 multiply: operands skewed in from two edges, results drained"
+  - id: simd
+    runner: make
+    make: simd
+    tb: tb_simd
+    clock: dut.clk
+    view: lanes
+    start: dut.u_ctrl.start
+    stop: dut.u_ctrl.done
+    signals: ['dut\.(eng_valid|eng_ready|eng_done|op_valid|op_ready|res_valid|res_data|res_last|wd_op|wd_m|wd_opclass|wd_dtype)',
+              'dut\.u_lanes\.(a|b|y|in_valid|out_valid|op)', 'dut\.u_ctrl\.st_q']
+    meta: {lanes: 4, width: 32, a: dut.u_lanes.a, b: dut.u_lanes.b, y: dut.u_lanes.y, valid: dut.u_lanes.out_valid, op: dut.u_lanes.op,
+           ops: [ADD, SUB, MUL, MAX, MIN, AND, OR, XOR]}
+    title: "The vector unit: four 32-bit lanes applying one operation to a group of elements"
+  - id: ntt
+    runner: make
+    make: ntt
+    tb: tb_ntt
+    clock: dut.clk
+    view: lanes
+    start: dut.u_ctrl.start
+    stop: dut.u_ctrl.done
+    signals: ['dut\.(eng_valid|eng_ready|eng_done|op_valid|res_valid|wd_m)',
+              'dut\.u_lanes\.(a|b|w|y0|y1|in_valid|out_valid)',
+              'dut\.u_lanes\.g_bfly\[0\]\.u_bf\.(a|b|w|v|sum|diff|y0|y1|ntt_pkg_Q)', 'dut\.u_ctrl\.st_q']
+    meta: {lanes: 4, width: 14, a: dut.u_lanes.a, b: dut.u_lanes.b, w: dut.u_lanes.w, y0: dut.u_lanes.y0, y1: dut.u_lanes.y1,
+           valid: dut.u_lanes.out_valid, q_signal: 'dut.u_lanes.g_bfly[0].u_bf.ntt_pkg_Q'}
+    title: "Four Barrett butterflies: y0 = a + b*w and y1 = a - b*w, modulo q, in one pass"
+  - id: mailbox
+    runner: make
+    make: mailbox
+    tb: tb_mailbox
+    clock: dut.clk
+    view: regs
+    window_ns: 100000
+    start: dut.req_valid
+    stop: dut.cmd_done
+    after: 12
+    signals: ['dut\.(req_valid|req_user|req_reg|req_write|req_wdata|req_rdata|req_error|locked|owner|cmd_valid|cmd_done|status_q|is_owner|stranger)']
+    title: "Mailbox ownership: one requester takes the lock by reading it, another is refused"
+  - id: pcr
+    runner: make
+    make: pcr
+    tb: tb_pcr
+    clock: dut.clk
+    view: regs
+    start: dut.extend
+    stop: dut.done
+    signals: ['dut\.(extend|busy|done|pcr|extend_count|meas)', 'dut\.st[a-z_]*']
+    title: "One measurement extend: PCR becomes SHA-256(PCR || measurement), synthetic data, no keys"
+  - id: cdc
+    runner: make
+    make: jtag-bridge
+    tb: tb_jtag_bridge
+    clock: dut.clk
+    view: regs
+    start: dut.user_update
+    stop: dut.ack_edge
+    after: 4
+    signals: ['dut\.(tck|user_update|req_tog|req_sync|req_edge|req_seen|reg_we|reg_re|reg_addr|reg_wdata|ack_tog_sys|ack_sync|ack_edge|ack_tog|busy)']
+    title: "One request across the JTAG clock crossing: toggle, two-flop synchronisers, acknowledge back"
+
+# The logical diagram: every block, where it sits, and what it talks to.
+# LOGICAL POSITION ONLY: a box's place says nothing about where its cells
+# are on a die (that is the Physical Layout tab, from the placed netlist).
+# `module` is what must be instantiated in a build for the box to be drawn
+# in that build (any one of `modules`); `concept: true` marks software or
+# off-chip parts that are never RTL. col/row are grid cells.
+blocks:
+  - {id: host,      label: "Host program",   sub: "PC, Python driver",       role: signal,  col: 0, row: 2, concept: true, file: tools/hydra_host.py}
+  - {id: uart,      label: "Serial port",    sub: "UART receive, transmit",  role: signal,  col: 1, row: 1, modules: [hydra_fpga_uart_rx, hydra_fpga_uart_tx], file: fpga/rtl/hydra_fpga_uart.sv}
+  - {id: jtag_tap,  label: "JTAG test port", sub: "IEEE 1149.1, own clock",  role: control, col: 1, row: 3, modules: [hydra_jtag_tap], file: dbg/rtl/hydra_jtag_tap.sv}
+  - {id: jtag_bridge, label: "Clock crossing", sub: "TCK to system clock",  role: control, col: 2, row: 3, modules: [hydra_jtag_bridge], file: dbg/rtl/hydra_jtag_bridge.sv}
+  - {id: jtag_host, label: "JTAG commands",  sub: "3-register byte map",     role: control, col: 3, row: 3, modules: [hydra_fpga_jtag_host], file: fpga/rtl/hydra_fpga_jtag_host.sv}
+  - {id: bridge,    label: "Serial bridge",  sub: "bytes to SPI and memory", role: signal,  col: 2, row: 1, modules: [hydra_fpga_bridge], file: fpga/rtl/hydra_fpga_bridge.sv}
+  - {id: pins,      label: "Tile pins",      sub: "ui, uo, uio",             role: signal,  col: 1, row: 2, modules: [tt_um_hydra_mom], file: tt/tile/src/tt_um_hydra_mom.sv}
+  - {id: pads,      label: "Chip pads",      sub: "OpenFrame pad ring",      role: signal,  col: 1, row: 2, modules: [openframe_project_wrapper], file: sky130/rtl/hydra_openframe_top.sv}
+  - {id: padmux,    label: "Pad multiplexer", sub: "pad ownership, lock",    role: control, col: 2, row: 0, modules: [hydra_padmux], file: common/rtl/hydra_padmux.sv}
+  - {id: rst_sync,  label: "Reset synchroniser", sub: "async in, sync out",  role: control, col: 1, row: 0, modules: [hydra_rst_sync], file: common/rtl/hydra_rst_sync.sv}
+  - {id: mom_pins,  label: "Pin protocol",   sub: "v1 serial personality",   role: signal,  col: 2, row: 4, modules: [hydra_mom_pins], file: mom/hydra_mom_pins.sv}
+  - {id: spi,       label: "SPI slave",      sub: "mode 0, bytes",           role: signal,  col: 3, row: 2, modules: [hydra_tt_spi], file: mom/rtl/hydra_tt_spi.sv}
+  - {id: regs,      label: "Register map",   sub: "13 registers",            role: control, col: 4, row: 2, modules: [hydra_tt_regs], file: mom/rtl/hydra_tt_regs.sv}
+  - {id: abi,       label: "ABI version 2",  sub: "eligibility before cost", role: control, col: 4, row: 4, modules: [hydra_abi_v2], file: sys/rtl/hydra_abi_v2.sv}
+  - {id: features,  label: "Features",       sub: "log2 work, intensity",    role: control, col: 5, row: 1, modules: [mom_features], file: mom/rtl/mom_features.sv}
+  - {id: prom,      label: "Engine table",   sub: "one row per engine",      role: control, col: 5, row: 0, modules: [mom_param_rom], file: mom/rtl/mom_param_rom.sv}
+  - {id: cost,      label: "Cost engine",    sub: "one, walked over rows",   role: control, col: 6, row: 1, modules: [mom_cost_engine], file: mom/rtl/mom_cost_engine.sv}
+  - {id: select,    label: "Select",         sub: "cheapest capable",        role: control, col: 7, row: 1, modules: [mom_select], file: mom/rtl/mom_select.sv}
+  - {id: scoreboard, label: "Scoreboard",    sub: "tags, queue depth",       role: control, col: 7, row: 2, modules: [mom_scoreboard], file: mom/rtl/mom_scoreboard.sv}
+  - {id: calibrate, label: "Calibration",    sub: "measured vs predicted",   role: control, col: 6, row: 2, modules: [mom_calibrate], file: mom/rtl/mom_calibrate.sv}
+  - {id: xbar,      label: "Crossbar",       sub: "dispatch, completion",    role: signal,  col: 8, row: 2, modules: [mom_xbar], file: common/rtl/mom_xbar.sv}
+  - {id: models,    label: "Latency models", sub: "slots with no engine",    role: compute, col: 9, row: 0, modules: [hydra_sys_tile], file: sys/rtl/hydra_sys_tile.sv}
+  - {id: cpu,       label: "CPU",            sub: "Sixfold RV64, 6 stages",  role: compute, col: 9, row: 1, modules: [hydra_engine_cpu], file: sys/rtl/hydra_engine_cpu.sv}
+  - {id: simd,      label: "Vector unit",    sub: "4 lanes x 32 bit",        role: compute, col: 9, row: 2, modules: [simd_top], file: engines/simd/rtl/simd_top.sv}
+  - {id: tpu,       label: "Systolic array", sub: "4 x 4 INT8",              role: compute, col: 9, row: 3, modules: [tpu_top], file: engines/tpu/rtl/tpu_top.sv}
+  - {id: ntt,       label: "Butterflies",    sub: "4 Barrett lanes",         role: compute, col: 9, row: 4, modules: [ntt_top], file: engines/ntt/rtl/ntt_top.sv}
+  - {id: gpu,       label: "GPU",            sub: "Pixelstorm SIMT",         role: compute, col: 9, row: 5, modules: [hydra_engine_gpu], file: sys/rtl/hydra_engine_gpu.sv}
+  - {id: dma,       label: "Streamer",       sub: "banks to engine",         role: memory,  col: 10, row: 3, modules: [hydra_dma_gemm], file: mem/rtl/hydra_dma_gemm.sv}
+  - {id: spram,     label: "Scratchpad",     sub: "operand, result banks",   role: memory,  col: 10, row: 4, modules: [hydra_spram], file: mem/rtl/hydra_spram.sv}
+  - {id: vault,     label: "Key vault",      sub: "write, use, never read",  role: secure,  col: 3, row: 6, modules: [hydra_key_vault], file: sec/rtl/hydra_key_vault.sv}
+  - {id: mailbox,   label: "Mailbox",        sub: "lock, command, execute",  role: secure,  col: 4, row: 6, modules: [hydra_mailbox], file: sec/rtl/hydra_mailbox.sv}
+  - {id: sha256,    label: "SHA-256",        sub: "padded in hardware",      role: secure,  col: 5, row: 6, modules: [hydra_sha256_stream, hydra_sha256], file: sec/rtl/hydra_sha256_stream.sv}
+  - {id: pcr,       label: "Measurement",    sub: "extend-only register",    role: secure,  col: 6, row: 6, modules: [hydra_pcr, hydra_measure], file: sec/rtl/hydra_pcr.sv}
+  - {id: xsec,      label: "Security ISA",   sub: "Zknh + Xhydrasec",        role: secure,  col: 7, row: 6, modules: [hydra_xsec_unit], file: isa/rtl/hydra_xsec_unit.sv}
+
+# Connections, drawn only when both ends are in the build shown.
+edges:
+  - [host, uart, bytes]
+  - [host, jtag_tap, TCK TMS TDI]
+  - [host, pins, SPI]
+  - [host, pads, SPI]
+  - [uart, bridge, bytes]
+  - [bridge, spi, SPI pins]
+  - [bridge, spram, "load, read"]
+  - [jtag_tap, jtag_bridge, user DR]
+  - [jtag_bridge, jtag_host, register access]
+  - [jtag_host, spi, SPI pins]
+  - [pins, spi, SCK COPI CSn]
+  - [pads, padmux, pads]
+  - [padmux, spi, SCK COPI CSn]
+  - [rst_sync, spi, reset]
+  - [spi, regs, bytes]
+  - [regs, features, descriptor]
+  - [regs, abi, descriptor + header]
+  - [abi, features, eligible engines]
+  - [prom, cost, engine rows]
+  - [features, cost, features]
+  - [cost, select, costs]
+  - [calibrate, cost, k factors]
+  - [scoreboard, cost, queue depth]
+  - [select, scoreboard, engine]
+  - [scoreboard, calibrate, measured time]
+  - [scoreboard, regs, "tag, result"]
+  - [select, xbar, dispatch]
+  - [xbar, scoreboard, completion]
+  - [xbar, models, job]
+  - [xbar, cpu, job]
+  - [xbar, simd, job]
+  - [xbar, tpu, job]
+  - [xbar, ntt, job]
+  - [xbar, gpu, job]
+  - [dma, tpu, operands]
+  - [spram, dma, words]
+  - [sha256, pcr, digest]
+  - [vault, xsec, key status]

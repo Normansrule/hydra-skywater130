@@ -1,0 +1,291 @@
+{
+ "run": "ladder-previous-20261018-174736",
+ "what": "tile v3.10, harden ladder run 20261018-174736, the run docs/timing.json quotes",
+ "steps": [
+  {
+   "n": 1,
+   "name": "verilator lint",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 5,
+   "name": "yosys jsonheader",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 6,
+   "name": "yosys synthesis",
+   "detail": "cell area after synthesis 141643.347200 \u00b5m\u00b2",
+   "evidence": [
+    "Chip area for module '\\tt_um_hydra_mom': 141643.347200"
+   ]
+  },
+  {
+   "n": 12,
+   "name": "openroad staprepnr",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 13,
+   "name": "openroad floorplan",
+   "detail": "die 0.0 0.0 682.64 511.36 \u00b5m; 11813 cells, 141643.35 \u00b5m\u00b2",
+   "evidence": [
+    "Floorplanned on a die area of 0.0 0.0 682.64 511.36 (",
+    "Total                                 11813  141643.35"
+   ]
+  },
+  {
+   "n": 14,
+   "name": "openroad dumprcvalues",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 16,
+   "name": "odb setpowerconnections",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 18,
+   "name": "openroad cutrows",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 19,
+   "name": "openroad tapendcapinsertion",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 21,
+   "name": "openroad generatepdn",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 27,
+   "name": "odb applydeftemplate",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 28,
+   "name": "openroad globalplacement",
+   "detail": "17073 cells after placement, 149155.55 \u00b5m\u00b2",
+   "evidence": [
+    "Total                                 17073  149155.55"
+   ]
+  },
+  {
+   "n": 29,
+   "name": "odb writeverilogheader",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 31,
+   "name": "openroad stamidpnr",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 32,
+   "name": "openroad repairdesignpostgpl",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 34,
+   "name": "openroad detailedplacement",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 35,
+   "name": "openroad cts",
+   "detail": "238 clock buffers; 1941 clock sinks",
+   "evidence": [
+    "Total number of Buffers Inserted: 238",
+    "Total number of Sinks: 1941"
+   ]
+  },
+  {
+   "n": 36,
+   "name": "openroad stamidpnr 1",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 37,
+   "name": "openroad resizertimingpostcts",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 38,
+   "name": "openroad stamidpnr 2",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 39,
+   "name": "openroad globalrouting",
+   "detail": "routing usage 40.76%, overflow 0; 843642 \u00b5m of wire",
+   "evidence": [
+    "Total           205261         83662           40.76%             0 /  0 /  0",
+    "Total wirelength: 843642 um"
+   ]
+  },
+  {
+   "n": 40,
+   "name": "openroad checkantennas",
+   "detail": "82 antenna net violations",
+   "evidence": [
+    "Found 82 net violations"
+   ]
+  },
+  {
+   "n": 41,
+   "name": "odb diodesonports",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 42,
+   "name": "openroad repairantennas",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 43,
+   "name": "openroad resizertimingpostgrt",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 44,
+   "name": "openroad stamidpnr 3",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 45,
+   "name": "openroad detailedrouting",
+   "detail": "0 routing violations at the end",
+   "evidence": [
+    "Number of violations = 0"
+   ]
+  },
+  {
+   "n": 47,
+   "name": "openroad checkantennas 1",
+   "detail": "0 antenna net violations",
+   "evidence": [
+    "Found 0 net violations"
+   ]
+  },
+  {
+   "n": 49,
+   "name": "odb reportdisconnectedpins",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 51,
+   "name": "odb reportwirelength",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 53,
+   "name": "openroad fillinsertion",
+   "detail": "70808 instances with fill, 342568.55 \u00b5m\u00b2",
+   "evidence": [
+    "Total                                 70808  342568.55"
+   ]
+  },
+  {
+   "n": 54,
+   "name": "odb cellfrequencytables",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 55,
+   "name": "openroad rcx",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 56,
+   "name": "openroad stapostpnr",
+   "detail": "timing at every corner (see the status above)",
+   "evidence": []
+  },
+  {
+   "n": 57,
+   "name": "openroad irdropreport",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 58,
+   "name": "magic streamout",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 59,
+   "name": "klayout streamout",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 60,
+   "name": "klayout render",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 61,
+   "name": "magic writelef",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 62,
+   "name": "odb checkdesignantennaproperties",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 63,
+   "name": "magic drc",
+   "detail": "DRC: 0 errors",
+   "evidence": [
+    "COUNT: 0"
+   ]
+  },
+  {
+   "n": 65,
+   "name": "magic spiceextraction",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 67,
+   "name": "netgen lvs",
+   "detail": "LVS: Circuits match uniquely.",
+   "evidence": [
+    "Circuits match uniquely."
+   ]
+  }
+ ],
+ "label": "Recorded Tool Output",
+ "checks_excerpt": null
+}

@@ -1,0 +1,33 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:00.900
+A GEMM INT8 8x8x8 descriptor arrives.
+
+2
+00:00:00.900 --> 00:00:01.600
+CPU: cost 1365.
+
+3
+00:00:01.600 --> 00:00:02.300
+Vector unit: cost 246.
+
+4
+00:00:02.300 --> 00:00:03.000
+Systolic array: cost 101.
+
+5
+00:00:03.000 --> 00:00:03.700
+Butterflies: refused, it cannot do this operation or data type.
+
+6
+00:00:03.700 --> 00:00:04.400
+Crypto slot: refused, it cannot do this operation or data type.
+
+7
+00:00:04.400 --> 00:00:06.000
+Systolic array wins: tag 0, margin 145.
+
+8
+00:00:06.000 --> 00:00:09.600
+Completion: 1033 cycles measured against 84 predicted; the factor moves 64 to 68.

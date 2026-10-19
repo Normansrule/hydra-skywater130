@@ -1,0 +1,81 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:00.500
+Cycle 0: controller DONE.
+
+2
+00:00:00.500 --> 00:00:01.000
+Cycle 4: controller STREAM.
+
+3
+00:00:01.000 --> 00:00:01.500
+Cycle 8: controller STREAM.
+
+4
+00:00:01.500 --> 00:00:02.000
+Cycle 12: controller STREAM.
+
+5
+00:00:02.000 --> 00:00:02.500
+Cycle 16: controller STREAM.
+
+6
+00:00:02.500 --> 00:00:03.000
+Cycle 20: controller STREAM.
+
+7
+00:00:03.000 --> 00:00:03.500
+Cycle 24: controller STREAM.
+
+8
+00:00:03.500 --> 00:00:04.000
+Cycle 28: controller STREAM.
+
+9
+00:00:04.000 --> 00:00:04.500
+Cycle 32: controller STREAM.
+
+10
+00:00:04.500 --> 00:00:05.000
+Cycle 36: controller STREAM.
+
+11
+00:00:05.000 --> 00:00:05.500
+Cycle 40: controller STREAM.
+
+12
+00:00:05.500 --> 00:00:06.000
+Cycle 56: controller STREAM.
+
+13
+00:00:06.000 --> 00:00:06.500
+Cycle 72: controller STREAM.
+
+14
+00:00:06.500 --> 00:00:07.000
+Cycle 88: controller STREAM.
+
+15
+00:00:07.000 --> 00:00:07.500
+Cycle 104: controller STREAM.
+
+16
+00:00:07.500 --> 00:00:08.000
+Cycle 120: controller STREAM.
+
+17
+00:00:08.000 --> 00:00:08.500
+Cycle 136: controller STREAM.
+
+18
+00:00:08.500 --> 00:00:09.000
+Cycle 152: controller FLUSH.
+
+19
+00:00:09.000 --> 00:00:09.500
+Cycle 168: controller DRAIN.
+
+20
+00:00:09.500 --> 00:00:12.500
+Cycle 181: controller CLEAR.

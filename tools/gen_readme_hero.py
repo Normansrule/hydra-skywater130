@@ -32,23 +32,25 @@ import json, math, pathlib
 from xml.sax.saxutils import escape
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+import sys as _s; _s.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 OUT_MAIN = ROOT / "docs/img"
 OUT_TILE = ROOT / "tt/tile/docs/img"
 
 # SkyWater 130 layer palette (on the dark die) ------------------------------
-SUB    = "#17202c"   # substrate
-SUB2   = "#1e2938"   # core area
-MET1   = "#5b9cf5"   # metal 1: dispatcher, timing
-DIFF   = "#3dbb8a"   # diffusion: compute, verification
-MET2   = "#e061b0"   # metal 2: security
-PAD    = "#d6a93c"   # pads: the physical chip
-SLATE  = "#7d8ea3"   # infrastructure
-TXT    = "#eef2f7"
-TXT2   = "#a9b6c6"
+SUB    = "@surface"  # background
+SUB2   = "@raised"   # core area
+MET1   = "@control"  # dispatcher, timing
+DIFF   = "@compute"  # compute, verification
+MET2   = "@secure"   # security
+ROUTE  = "@signal"   # a job moving: the dispatch route
+PAD    = "@signal"   # pads and pins: the physical chip
+SLATE  = "@dim"      # infrastructure
+TXT    = "@ink"
+TXT2   = "@ink2"
 
 # The same layers, darkened to read on the white teaching cards
-INK, DIM, LINE, CARD = "#111827", "#5b6576", "#d6dce5", "#ffffff"
-M1D, DFD, M2D, PDD = "#2563c9", "#13865c", "#b0287f", "#a87b12"
+INK, DIM, LINE, CARD = "@ink", "@ink2", "@line", "@raised"
+M1D, DFD, M2D, PDD = "@control", "@compute", "@secure", "@signal"
 
 FONT = "font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"
 MONO = "font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
@@ -59,14 +61,17 @@ STALE = []
 
 
 def write(name, svg, dirs):
+    """Both themes: NAME.svg (ivory) and NAME.dark.svg (graphite)."""
+    import atlas_theme
     for d in dirs:
-        if CHECK:
-            f = d / name
-            if not f.exists() or f.read_text() != svg:
-                STALE.append(str(f.relative_to(ROOT)))
-            continue
-        d.mkdir(parents=True, exist_ok=True)
-        (d / name).write_text(svg)
+        for fname, painted in atlas_theme.variants(name, svg):
+            f = d / fname
+            if CHECK:
+                if not f.exists() or f.read_text() != painted:
+                    STALE.append(str(f.relative_to(ROOT)))
+                continue
+            d.mkdir(parents=True, exist_ok=True)
+            f.write_text(painted)
 
 
 def check_readme_numbers():
@@ -199,9 +204,9 @@ def hero():
 </style>''')
     s.append('<defs>'
              f'<pattern id="rows" width="8" height="7" patternUnits="userSpaceOnUse">'
-             f'<rect width="8" height="3" fill="#ffffff" opacity="0.06"/></pattern>'
+             f'<rect width="8" height="3" fill="@grid" opacity="0.06"/></pattern>'
              f'<pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">'
-             f'<path d="M24 0H0V24" fill="none" stroke="#ffffff" stroke-opacity="0.035"/></pattern>'
+             f'<path d="M24 0H0V24" fill="none" stroke="@grid" stroke-opacity=".035"/></pattern>'
              '</defs>')
     s.append(f'<rect width="{W}" height="{H}" rx="18" fill="{SUB}"/>')
     s.append(f'<rect width="{W}" height="{H}" rx="18" fill="url(#grid)"/>')
@@ -235,7 +240,7 @@ def hero():
     ax, ay = centre["disp"][:2]
     bx, by = centre["tpu"][:2]
     route = f"M{ax:.1f},{ay:.1f} H{(ax+bx)/2:.1f} V{by:.1f} H{bx:.1f}"
-    s.append(f'<path class="route" d="{route}" fill="none" stroke="{MET2}" stroke-width="3.2" '
+    s.append(f'<path class="route" d="{route}" fill="none" stroke="{ROUTE}" stroke-width="3.2" '
              f'stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="400"/>')
     _, _, x, y, w, h = centre["tpu"]
     s.append(f'<rect class="win" x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" rx="3" '
@@ -246,7 +251,7 @@ def hero():
     # the underline runs into the dispatcher's block
     wire = f"M58,176 H{cx-6} V{ay:.1f} H{ax:.1f}"
     pulse_path = wire
-    s.append(f'<path d="{wire}" fill="none" stroke="{MET2}" stroke-opacity=".75" stroke-width="2.4" stroke-linejoin="round"/>')
+    s.append(f'<path d="{wire}" fill="none" stroke="{ROUTE}" stroke-opacity=".75" stroke-width="2.4" stroke-linejoin="round"/>')
 
     s.append(f'<text x="58" y="222" style="{FONT};font-size:23px" fill="{TXT2}">Adaptive scheduling and accelerator research</text>')
     s.append(f'<text x="58" y="252" style="{FONT};font-size:23px" fill="{TXT2}">for FPGA and SkyWater&#8217;s 130 nm process.</text>')
@@ -268,7 +273,7 @@ def hero():
     gpu = next((v["result"] for v in m["verification"] if v.get("target") == "gpu"), None)
     if gpu:
         rows.append((DIFF, "GPU engine", f"{gpu} match Pixelstorm's own model"))
-    rows.append((MET2, "Security IP", "vault, SHA-256, measurement: simulated only"))
+    rows.append((MET2, "Security IP", "vault, hash, measurement: checked IP, in no build"))
     y = 322
     for col, k, v in rows:
         s.append(f'<rect x="58" y="{y-13}" width="14" height="14" rx="2" fill="{col}"/>'
@@ -308,7 +313,7 @@ def tile_hero():
   .bit { opacity: 1; } .cost { opacity: 1; } .out { opacity: 1; } .hl { opacity: 0; }
 </style>''')
     s.append('<defs><pattern id="rows" width="8" height="7" patternUnits="userSpaceOnUse">'
-             '<rect width="8" height="3" fill="#ffffff" opacity="0.06"/></pattern></defs>')
+             '<rect width="8" height="3" fill="@grid" opacity="0.06"/></pattern></defs>')
     s.append(f'<rect width="{W}" height="{H}" rx="18" fill="{SUB}"/>')
     # the tile grid, cols x rows as info.yaml orders it
     # The drawing keeps the tile's aspect ratio and is scaled to fit between
@@ -325,9 +330,9 @@ def tile_hero():
     en_p = (th - 40) / 5
     en_h = min(50, en_p - 12)
     for i in range(1, cols):
-        s.append(f'<line x1="{tx+i*tw/cols:.1f}" y1="{ty}" x2="{tx+i*tw/cols:.1f}" y2="{ty+th}" stroke="#ffffff" stroke-opacity=".06"/>')
+        s.append(f'<line x1="{tx+i*tw/cols:.1f}" y1="{ty}" x2="{tx+i*tw/cols:.1f}" y2="{ty+th}" stroke="@grid" stroke-opacity=".06"/>')
     for i in range(1, rows_n):
-        s.append(f'<line x1="{tx}" y1="{ty+i*th/rows_n:.1f}" x2="{tx+tw:.1f}" y2="{ty+i*th/rows_n:.1f}" stroke="#ffffff" stroke-opacity=".06"/>')
+        s.append(f'<line x1="{tx}" y1="{ty+i*th/rows_n:.1f}" x2="{tx+tw:.1f}" y2="{ty+i*th/rows_n:.1f}" stroke="@grid" stroke-opacity=".06"/>')
     s.append(f'<rect x="{tx}" y="{ty}" width="{tw}" height="{th}" rx="4" fill="{SUB2}" fill-opacity=".6" stroke="{PAD}" stroke-opacity=".6" stroke-width="2"/>')
     # pins: 8 in on the left (three carry SPI), 8 out on the right
     spi = {0: "SCK", 1: "COPI", 2: "CSn"}
@@ -352,15 +357,17 @@ def tile_hero():
                  f'<text x="{x+12}" y="{y + h/2 + 16:.0f}" style="{FONT};font-size:13px" fill="{TXT2}">{b}</text>')
         if i < 3:
             s.append(f'<path d="M{x+100},{y+h} V{round(ty + 20 + (i+1) * st_p)}" stroke="{MET1}" stroke-width="2"/>')
-    # five engines, costed in turn
+    # five engine ROWS, costed in turn: the engines themselves are not on the
+    # tile (dashed, and labelled as rows, so the figure cannot be read as if
+    # they were)
     names = ["CPU", "SIMD", "TPU", "NTT", "Crypto"]
     for i, nme in enumerate(names):
         x, y = round(tx + tw - 134), round(ty + 20 + i * en_p)
         eh = round(en_h)
         win = nme == "TPU"
         s.append(f'<rect x="{x}" y="{y}" width="110" height="{eh}" rx="4" fill="{DIFF}" fill-opacity="{".30" if win else ".12"}" '
-                 f'stroke="{DIFF}" stroke-opacity="{1 if win else .55}" stroke-width="{2 if win else 1.2}"/>'
-                 f'<text x="{x+55}" y="{y + eh/2 + 6:.0f}" text-anchor="middle" style="{FONT};font-size:15px;font-weight:650" fill="{TXT}">{nme}</text>'
+                 f'stroke="{DIFF}" stroke-opacity="{1 if win else .55}" stroke-width="{2 if win else 1.2}" stroke-dasharray="5 3"/>'
+                 f'<text x="{x+55}" y="{y + eh/2 + 6:.0f}" text-anchor="middle" style="{FONT};font-size:15px;font-weight:650" fill="{TXT}">{nme} row</text>'
                  f'<rect class="hl" style="animation-delay:{i*0.6:.1f}s" x="{x}" y="{y}" width="110" height="{eh}" rx="4" fill="none" stroke="{TXT}" stroke-width="2.4"/>'
                  f'<path d="M{round(tx+224)},{round(ty + 20 + 2*st_p + st_h/2)} L{x},{y + eh//2}" stroke="{MET1}" stroke-opacity=".35" stroke-width="1.2"/>')
     # left text
@@ -394,7 +401,7 @@ def tile_hero():
         s.append(f'<text x="216" y="{y}" style="{FONT};font-size:18px" fill="{TXT2}">{escape(v)}</text>')
         y += 38
     s.append(f'<text x="{tx+tw/2:.1f}" y="{ty+th+50}" text-anchor="middle" style="{FONT};font-size:14px" fill="{TXT2}">'
-             f'Not to scale: the pipeline as drawn in src/rtl/mom_top.sv</text>')
+             f'Not to scale: the pipeline of src/rtl/mom_top.sv. The five rows are cost-table entries; no engine is on the tile.</text>')
     s.append('</svg>\n')
     write("tile_hero.svg", "".join(s), [OUT_TILE])
 
@@ -433,13 +440,13 @@ def measure_anim():
     for i in range(64):
         x, y = gx + (i % 8) * (c + 4), gy + (i // 8) * (c + 4)
         if i < n:
-            col, lab, fg, delay = M1D, "", "#ffffff", i * 0.055
+            col, lab, fg, delay = M1D, "", "@on_accent", i * 0.055
         elif i == n:
-            col, lab, fg, delay = M2D, "80", "#ffffff", n * 0.055 + 0.35
+            col, lab, fg, delay = M2D, "80", "@on_accent", n * 0.055 + 0.35
         elif i < 56:
-            col, lab, fg, delay = "#e7ebf0", "00", DIM, n * 0.055 + 0.6 + (i - n - 1) * 0.07
+            col, lab, fg, delay = "@neutral_t", "00", DIM, n * 0.055 + 0.6 + (i - n - 1) * 0.07
         else:
-            col, lab, fg, delay = PDD, f"{length[i-56]:02x}", "#ffffff", n * 0.055 + 1.0 + (i - 56) * 0.09
+            col, lab, fg, delay = PDD, f"{length[i-56]:02x}", "@on_accent", n * 0.055 + 1.0 + (i - 56) * 0.09
         start = 100 * delay / T
         cell_kf.append(f'@keyframes c{i} {{ 0%,{start:.2f}% {{ opacity: .08 }} {start+1.2:.2f}%,92% {{ opacity: 1 }} 97%,100% {{ opacity: .08 }} }}'
                        f' .c{i} {{ animation-name: c{i}; }}')
@@ -451,7 +458,7 @@ def measure_anim():
     lx, ly = 420, 112
     for k, (col, txt) in enumerate([(M1D, f"{n} image bytes, sent by software"),
                                     (M2D, "the 0x80 marker"),
-                                    ("#cfd6df", "zero bytes"),
+                                    ("@line", "zero bytes"),
                                     (PDD, f"the length, {bits} bits, as 8 bytes")]):
         y = ly + k * 26
         s.append(f'<rect x="{lx}" y="{y-11}" width="14" height="14" rx="3" fill="{col}"/>'
@@ -463,15 +470,15 @@ def measure_anim():
     s.append(f'<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">'
              f'<path d="M0,0 L10,5 L0,10 z" fill="{INK}"/></marker></defs>')
     s.append(f'<g class="flow"><path d="M{gx+8*(c+4)+6},{hy+40} H{hx-6}" stroke="{INK}" stroke-width="2" marker-end="url(#ah)"/></g>')
-    s.append(f'<rect x="{hx}" y="{hy}" width="170" height="84" rx="10" fill="#f3f6fa" stroke="{LINE}"/>'
+    s.append(f'<rect x="{hx}" y="{hy}" width="170" height="84" rx="10" fill="@surface" stroke="{LINE}"/>'
              f'<text x="{hx+85}" y="{hy+32}" text-anchor="middle" style="{FONT};font-size:16px;font-weight:700" fill="{INK}">SHA-256</text>'
              f'<text x="{hx+85}" y="{hy+52}" text-anchor="middle" style="{FONT};font-size:12.5px" fill="{DIM}">64 rounds</text>'
-             f'<rect x="{hx+20}" y="{hy+64}" width="130" height="8" rx="4" fill="#e7ebf0"/>'
+             f'<rect x="{hx+20}" y="{hy+64}" width="130" height="8" rx="4" fill="@neutral_t"/>'
              f'<rect class="bar" x="{hx+20}" y="{hy+64}" width="130" height="8" rx="4" fill="{DFD}"/>')
     s.append(f'<g class="flow"><path d="M{hx+170},{hy+42} H{hx+222}" stroke="{INK}" stroke-width="2" marker-end="url(#ah)"/>'
              f'<text x="{hx+176}" y="{hy+32}" style="{MONO};font-size:11.5px" fill="{DIM}">digest</text></g>')
     px, py = hx + 228, hy - 10
-    s.append(f'<rect x="{px}" y="{py}" width="300" height="140" rx="10" fill="#fdf4fa" stroke="{M2D}" stroke-opacity=".5"/>'
+    s.append(f'<rect x="{px}" y="{py}" width="300" height="140" rx="10" fill="@secure_t" stroke="{M2D}" stroke-opacity=".5"/>'
              f'<text x="{px+18}" y="{py+30}" style="{FONT};font-size:16px;font-weight:700" fill="{INK}">Measurement register</text>'
              f'<text x="{px+18}" y="{py+58}" style="{MONO};font-size:13px" fill="{INK}">PCR ← SHA-256(</text>'
              f'<text x="{px+40}" y="{py+78}" style="{MONO};font-size:13px" fill="{INK}">PCR ‖ digest )</text>'
@@ -512,14 +519,14 @@ def noninterference_anim():
     s.append(f'<text x="28" y="64" style="{FONT};font-size:13.5px" fill="{DIM}">Two copies, the same commands, different keys. If any key bit reached the host port, '
              f'the copies would disagree on some cycle.</text>')
     # shared command stream in the middle
-    s.append(f'<rect x="400" y="96" width="180" height="58" rx="10" fill="#f3f6fa" stroke="{LINE}"/>'
+    s.append(f'<rect x="400" y="96" width="180" height="58" rx="10" fill="@surface" stroke="{LINE}"/>'
              f'<text x="490" y="121" text-anchor="middle" style="{FONT};font-size:14.5px;font-weight:700" fill="{INK}">same commands</text>'
              f'<text x="490" y="141" text-anchor="middle" style="{FONT};font-size:12px" fill="{DIM}">write, seal, read status</text>'
              f'<path d="M400,125 H300 V176" fill="none" stroke="{INK}" stroke-width="1.6"/>'
              f'<path d="M580,125 H680 V176" fill="none" stroke="{INK}" stroke-width="1.6"/>')
     outs = {}
     for side, x0 in (("A", 60), ("B", 560)):
-        s.append(f'<rect x="{x0}" y="180" width="360" height="160" rx="12" fill="#fdf4fa" stroke="{M2D}" stroke-opacity=".45"/>'
+        s.append(f'<rect x="{x0}" y="180" width="360" height="160" rx="12" fill="@secure_t" stroke="{M2D}" stroke-opacity=".45"/>'
                  f'<text x="{x0+18}" y="206" style="{FONT};font-size:15px;font-weight:700" fill="{INK}">vault, copy {side}</text>'
                  f'<text x="{x0+342}" y="206" text-anchor="end" style="{FONT};font-size:12px" fill="{DIM}">keys chosen freely by the solver</text>')
         for slot in range(4):
@@ -533,23 +540,23 @@ def noninterference_anim():
     # host-visible outputs
     for side, x0 in outs.items():
         s.append(f'<path d="M{x0+180},340 V368" stroke="{INK}" stroke-width="1.6"/>'
-                 f'<rect x="{x0+70}" y="370" width="220" height="44" rx="8" fill="#f3f6fa" stroke="{LINE}"/>'
+                 f'<rect x="{x0+70}" y="370" width="220" height="44" rx="8" fill="@surface" stroke="{LINE}"/>'
                  f'<text x="{x0+86}" y="396" style="{FONT};font-size:12px" fill="{DIM}">host port</text>'
                  f'<text class="ok" x="{x0+276}" y="397" text-anchor="end" style="{MONO};font-size:15px;font-weight:700" fill="{INK}">0x00080403</text>')
     # the planted leak: a key bit wired to copy A's status word
     s.append(f'<path class="bad" d="M{outs["A"]+75.5},240 V250 H40 V392 H{outs["A"]+70}" fill="none" '
-             f'stroke="#b91c1c" stroke-width="2.2" stroke-dasharray="5 4"/>')
-    s.append(f'<text class="bad" x="{outs["A"]+276}" y="397" text-anchor="end" style="{MONO};font-size:15px;font-weight:700" fill="#b91c1c">0x00080407</text>'
-             f'<text class="bad" x="{outs["B"]+276}" y="397" text-anchor="end" style="{MONO};font-size:15px;font-weight:700" fill="#b91c1c">0x00080403</text>')
+             f'stroke="@danger" stroke-width="2.2" stroke-dasharray="5 4"/>')
+    s.append(f'<text class="bad" x="{outs["A"]+276}" y="397" text-anchor="end" style="{MONO};font-size:15px;font-weight:700" fill="@danger">0x00080407</text>'
+             f'<text class="bad" x="{outs["B"]+276}" y="397" text-anchor="end" style="{MONO};font-size:15px;font-weight:700" fill="@danger">0x00080403</text>')
     s.append(f'<text x="490" y="352" text-anchor="middle" style="{FONT};font-size:11.5px" fill="{DIM}">'
              f'status word: words per key, slots, sealed, filled</text>')
     # verdict in the middle
     s.append(f'<g class="ok"><circle cx="490" cy="392" r="20" fill="{DFD}"/>'
-             f'<text x="490" y="399" text-anchor="middle" style="{FONT};font-size:20px;font-weight:800" fill="#ffffff">=</text>'
+             f'<text x="490" y="399" text-anchor="middle" style="{FONT};font-size:20px;font-weight:800" fill="@on_accent">=</text>'
              f'<text x="490" y="446" text-anchor="middle" style="{FONT};font-size:13px" fill="{INK}">identical on every cycle, for every key: proved unbounded at 4 × 256-bit slots</text></g>')
-    s.append(f'<g class="bad"><circle cx="490" cy="392" r="20" fill="#b91c1c"/>'
-             f'<text x="490" y="399" text-anchor="middle" style="{FONT};font-size:20px;font-weight:800" fill="#ffffff">≠</text>'
-             f'<text x="490" y="446" text-anchor="middle" style="{FONT};font-size:13px" fill="#b91c1c">a planted leak, one key bit on the status word: the proof fails and shows the cycle</text></g>')
+    s.append(f'<g class="bad"><circle cx="490" cy="392" r="20" fill="@danger"/>'
+             f'<text x="490" y="399" text-anchor="middle" style="{FONT};font-size:20px;font-weight:800" fill="@on_accent">≠</text>'
+             f'<text x="490" y="446" text-anchor="middle" style="{FONT};font-size:13px" fill="@danger">a planted leak, one key bit on the status word: the proof fails and shows the cycle</text></g>')
     s.append('</svg>\n')
     write("noninterference_anim.svg", "".join(s), [OUT_MAIN])
 
