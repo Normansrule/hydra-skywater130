@@ -22,14 +22,25 @@ module hydra_rst_sync #(
   input  logic scan_rst_n,
   output logic rst_n         // async assert, sync release
 );
-  logic [STAGES-1:0] sync_q;
+  // The last stage is its own signal. It drives every asynchronous reset in
+  // the design; the earlier stages are only ever data. Kept in one vector,
+  // Verilator 5.05x reports the vector as "flopped as both synchronous and
+  // async" (SYNCASYNCNET), because it judges the whole vector, not the bit.
+  // Same flops, same behaviour; only the names differ.
+  logic [STAGES-2:0] sync_q;   // stages 1 .. STAGES-1
+  logic              rel_q;    // the released reset
 
   always_ff @(posedge clk or negedge arst_n) begin
-    if (!arst_n) sync_q <= {STAGES{1'b0}};
-    else         sync_q <= {sync_q[STAGES-2:0], 1'b1};
+    if (!arst_n) begin
+      sync_q <= {(STAGES-1){1'b0}};
+      rel_q  <= 1'b0;
+    end else begin
+      sync_q <= (sync_q << 1) | (STAGES-1)'(1);
+      rel_q  <= sync_q[STAGES-2];
+    end
   end
 
-  assign rst_n = scan_mode ? scan_rst_n : sync_q[STAGES-1];
+  assign rst_n = scan_mode ? scan_rst_n : rel_q;
 
 `ifdef FORMAL
   logic past_valid = 1'b0;

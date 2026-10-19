@@ -11,8 +11,9 @@
  *   regs.txt   x0..x31 after the program, 16 hex digits each, from Sixfold's
  *              cycle-exact model (model/core.js) -- the model Sixfold's own
  *              regression checks its RTL against
- *   info.txt   "<tohost> <cycles> <entry>"  (cycles from the model, built
- *              without caches, matching the wrapper's memory)
+ *   info.txt   "<tohost> <cycles> <entry> <cycles with caches>": the model
+ *              without caches (the wrapper's flat memory) and with
+ *              Sixfold's caches, miss latency 10 (the CACHED build)
  * and <out dir>/programs.txt. Nothing here is computed by HYDRA code.
  * Programs that wait for buttons, switches or a UART key never halt in the
  * model and are skipped with a note.
@@ -41,7 +42,13 @@ for (const d of dirs) for (const f of fs.readdirSync(d).filter((n) => n.endsWith
   fs.writeFileSync(path.join(o, 'prog.hex'), asm.toHex(img));
   fs.writeFileSync(path.join(o, 'regs.txt'), c.regs.map((r) => (BigInt.asUintN(64, BigInt(r))).toString(16).padStart(16, '0')).join('\n') + '\n');
   const tohost = c.csr.tohost;
-  fs.writeFileSync(path.join(o, 'info.txt'), `${BigInt(tohost ?? 0).toString(16)} ${c.cycle} ${core.RESET_PC.toString(16)}\n`);
+  // the same program with Sixfold's caches on (the wrapper's CACHED build)
+  const cc = new core.Core(img, { ...core.CONFIGS.performance, caches: true, missLatency: 10 });
+  while (!cc.halted && cc.cycle < 4e6) cc.step();
+  // registers too: a program that reads the cycle counter (23_sha256 does)
+  // ends with different values when the caches change its timing
+  fs.writeFileSync(path.join(o, 'regs_cached.txt'), cc.regs.map((r) => (BigInt.asUintN(64, BigInt(r))).toString(16).padStart(16, '0')).join('\n') + '\n');
+  fs.writeFileSync(path.join(o, 'info.txt'), `${BigInt(tohost ?? 0).toString(16)} ${c.cycle} ${core.RESET_PC.toString(16)} ${cc.cycle}\n`);
   console.log(`kept ${name}: ${c.cycle} cycles, a0 = 0x${BigInt.asUintN(64, BigInt(c.regs[10])).toString(16)}`);
   kept.push(name);
 }

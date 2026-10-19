@@ -129,8 +129,8 @@ module tb_sys_tile_gpu;
   // +dbg: print each engine's predicted cost and capability at every dispatch
   always @(posedge clk) if (rst_n && $test$plusargs("dbg") && dut.disp_valid && dut.disp_accept)
     for (int e = 0; e < 6; e++)
-      $display("  select -> %0d | engine %0d cost %0d valid %0b capable %0b", dut.u_mom.sel_eng, e,
-               dut.u_mom.cost_q[e*32 +: 32], dut.u_mom.cvalid_q[e], dut.u_mom.ccapable_q[e]);
+      $display("  select -> %0d | engine %0d cost %0d full %0b capable %0b", dut.u_mom.sel_eng, e,
+               dut.u_mom.cost_q[e*32 +: 32], dut.u_mom.engine_full[e], dut.u_mom.ccapable_q[e]);
 
   initial begin #200_000_000; $display("FAIL tb_sys_tile_gpu: watchdog"); $fatal(1); end
 

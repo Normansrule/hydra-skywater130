@@ -29,7 +29,7 @@ Owner: Aleksander J. Norman. Repositories:
 
 | target | what it must be | state today |
 |---|---|---|
-| **Tiny Tapeout tile** (`tt_um_hydra_mom`) | research tile, **scheduler only**, low cost and power: cost model, calibration, SPI register map, 4 tags. Never add engines to it | **v3.4 hardened clean at 4×4 on 2026-10-17**: DRC, LVS, antenna 0; setup +11.14 ns, hold +0.107 ns at 66 ns (15.15 MHz); 51.7%; 21/21 tests on the hardened netlist. v3.1 at 3×4 did not route |
+| **Tiny Tapeout tile** (`tt_um_hydra_mom`) | research tile, **scheduler only**, low cost and power: cost model, calibration, SPI register map, 4 tags. Never add engines to it | **v3.10 hardened clean at 4×4 on 2026-10-18** (v3.4 was the first clean one, 2026-10-17): DRC, LVS, antenna 0; setup +14.06 ns, hold +0.105 ns at 66 ns (15.15 MHz); 48.6%; 22/22 tests on the hardened netlist; 1,230 slew warnings left (`docs/timing.json`). v3.1 at 3×4 did not route |
 | **SkyWater 130 OpenFrame chip** (`sky130/rtl/hydra_openframe_top.sv`) | the full chip: CPU, GPU, TPU and the MUX switching between them, pads, bring-up, security | RTL with the scheduler, pad multiplexer and SPI only; simulated through its pads (`make sky130`); Verilator-clean; **never hardened**; no engines yet |
 | **FPGA** (`plans/*.yaml`, `fpga/build/*`) | adaptable to current dev boards, for testing before silicon; serial UART and JTAG paths | images for ULX3S-85F, ECP5 evaluation (`-sys`, `-tpu`, `-two`, `-mem`), Arty A7-35, Tang Nano 20K, Basys 3 (self-test only, no HYDRA logic). **No image has run on a physical board.** ULX3S placed and routed in CI before the baud fix |
 
@@ -90,7 +90,7 @@ Next (specified in `docs/architecture/heterogeneous-system.md`, not built):
 - Formal proofs with SymbiYosys (`make verify` runs 22 proof tasks and 5
   covers; counted from the Makefile, not from `.sby` files).
 - **Mutation testing**: every named deliberate break must be caught —
-  `tt/tile/test/mutate_sim.py` (17/17), `mem/formal/mutate_dma.py` (26/26),
+  `tt/tile/test/mutate_sim.py` (18/18), `mem/formal/mutate_dma.py` (26/26),
   `tools/mutate_mom.py` (32/32: 8 dispatcher, 4 bridge host-path, 7 GPU, 3 six-slot, 5 ABI v2, 5 CPU), `common/formal/mutate_targets.py`, and
   `scripts/ci_selftest.sh` (22 runs). When code changes, update the anchors;
   never delete a mutation to get green.

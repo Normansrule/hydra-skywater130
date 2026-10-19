@@ -52,6 +52,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #     took dlygate4sd3_1 for every fanout buffer instead; slew 3,298, cap 8,
 #     but setup -2.403 ns at max_ss_100C_1v60. Rejected by this ladder.
 RUNGS = [
+    ("realbuf35",
+     "v3.9, clean 2026-10-18 but not adopted: slew 759 at max_ss (v3.6: 775) and 16 at each typical corner (v3.6: 0)",
+     {"DESIGN_REPAIR_MAX_SLEW_PCT": 35, "DESIGN_REPAIR_MAX_CAP_PCT": 20,
+      "EXTRA_EXCLUDED_CELLS": ["sky130_fd_sc_hd__clkdlybuf4s*", "sky130_fd_sc_hd__dlygate4sd*",
+                               "sky130_fd_sc_hd__dlymetal6s*", "sky130_fd_sc_hd__buf_1",
+                               "sky130_fd_sc_hd__clkbuf_1"]}),
     ("realbuf2",
      "v3.6, signed off 2026-10-17: no weak or delay buffers at all; slew 775 (slow corners only), cap 0, setup +14.84 ns",
      {"DESIGN_REPAIR_MAX_SLEW_PCT": 20, "DESIGN_REPAIR_MAX_CAP_PCT": 20,

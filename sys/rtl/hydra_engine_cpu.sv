@@ -42,7 +42,14 @@
 
 module hydra_engine_cpu #(
   parameter int unsigned TAGW = 4,
-  parameter int unsigned MEM_BYTES = 65536
+  parameter int unsigned MEM_BYTES = 65536,
+  // 0  memory read in the same cycle, no caches (Riscv64_top with
+  //    CACHES_ENABLE = 0): the simulation arrangement
+  // 1  Sixfold's own instruction and data caches over a line-wide block
+  //    memory (its fpga/rtl/Main_Memory.sv, the arrangement its FPGA system
+  //    uses): synthesizable, block RAM on an FPGA, SRAM macros on a chip
+  parameter bit          CACHED = 1'b0,
+  parameter int unsigned MISS_LATENCY = 10
 ) (
   input  wire              clk,
   input  wire              rst_n,
@@ -61,7 +68,7 @@ module hydra_engine_cpu #(
   input  wire [31:0]       ld_data,
   output logic             ld_refused,
   input  wire [13:0]       rd_addr,
-  output logic [31:0]      rd_data,
+  output logic [31:0]      rd_data,         // one cycle after rd_addr
   input  wire [4:0]        dbg_reg,
   output wire [63:0]       dbg_data,
 
@@ -94,17 +101,15 @@ module hydra_engine_cpu #(
   wire host_owns  = eng_ready && !accept;
 
   // ---- memory ------------------------------------------------------------------
-  logic [7:0] mem [MEM_BYTES];
   wire [63:0] icache_addr, dcache_addr, dcache_din;
   wire [7:0]  dcache_we;
   wire        dcache_re;
-  wire [15:0] ia = icache_addr[15:0];
-  wire [15:0] da = {dcache_addr[15:3], 3'b000};
+  wire [31:0] icache_dout;
+  wire        icache_hit, dcache_hit;
+  wire [63:0] mem_dout;
   wire        is_dev = (dcache_addr[63:8] == MMIO_BASE[63:8]);
-  wire [31:0] icache_dout = {mem[ia + 16'd3], mem[ia + 16'd2], mem[ia + 16'd1], mem[ia]};
-  wire [63:0] mem_dout = is_dev ? 64'd0 :
-      {mem[da + 16'd7], mem[da + 16'd6], mem[da + 16'd5], mem[da + 16'd4],
-       mem[da + 16'd3], mem[da + 16'd2], mem[da + 16'd1], mem[da]};
+  wire        host_we = ld_we && host_owns;
+  wire        core_store_ok = (st == C_RUN) && !HALTED && !is_dev;
 
   // machine timer, reset with the core, as in Riscv64_top
   logic [63:0] mtime, mtimecmp;
@@ -117,17 +122,62 @@ module hydra_engine_cpu #(
         for (int b = 0; b < 8; b++) if (dcache_we[b]) mtimecmp[8*b +: 8] <= dcache_din[8*b +: 8];
     end
   end
-  wire [63:0] dcache_dout = (dcache_addr == MMIO_MTIME) ? mtime
-                          : (dcache_addr == MMIO_MTIMECMP) ? mtimecmp : mem_dout;
+  wire [63:0] dev_dout = (dcache_addr == MMIO_MTIME) ? mtime
+                       : (dcache_addr == MMIO_MTIMECMP) ? mtimecmp : 64'd0;
+  wire [63:0] dcache_dout = (dcache_addr == MMIO_MTIME || dcache_addr == MMIO_MTIMECMP) ? dev_dout : mem_dout;
 
-  wire host_we = ld_we && host_owns;
-  always_ff @(posedge clk) begin
-    if (host_we)
-      for (int b = 0; b < 4; b++) mem[{ld_addr, 2'b00} + 16'(b)] <= ld_data[8*b +: 8];
-    else if (st == C_RUN && !HALTED && !is_dev)
-      for (int b = 0; b < 8; b++) if (dcache_we[b]) mem[da + 16'(b)] <= dcache_din[8*b +: 8];
-    rd_data <= {mem[{rd_addr, 2'b11}], mem[{rd_addr, 2'b10}], mem[{rd_addr, 2'b01}], mem[{rd_addr, 2'b00}]};
-  end
+  generate
+    if (!CACHED) begin : g_flat
+      logic [7:0] mem [MEM_BYTES];
+      wire [15:0] ia = icache_addr[15:0];
+      wire [15:0] da = {dcache_addr[15:3], 3'b000};
+      assign icache_dout = {mem[ia + 16'd3], mem[ia + 16'd2], mem[ia + 16'd1], mem[ia]};
+      assign icache_hit  = 1'b1;
+      assign dcache_hit  = 1'b1;
+      assign mem_dout = is_dev ? 64'd0 :
+          {mem[da + 16'd7], mem[da + 16'd6], mem[da + 16'd5], mem[da + 16'd4],
+           mem[da + 16'd3], mem[da + 16'd2], mem[da + 16'd1], mem[da]};
+      always_ff @(posedge clk) begin
+        if (host_we)
+          for (int b = 0; b < 4; b++) mem[{ld_addr, 2'b00} + 16'(b)] <= ld_data[8*b +: 8];
+        else if (core_store_ok)
+          for (int b = 0; b < 8; b++) if (dcache_we[b]) mem[da + 16'(b)] <= dcache_din[8*b +: 8];
+        rd_data <= {mem[{rd_addr, 2'b11}], mem[{rd_addr, 2'b10}], mem[{rd_addr, 2'b01}], mem[{rd_addr, 2'b00}]};
+      end
+    end else begin : g_cached
+      // Sixfold's caches and its block memory, as in its Sixfold_System.sv.
+      // The host shares the memory's one write port and its data refill
+      // read port, and only while the core is not running.
+      wire [63:0] irefill_addr, drefill_addr;
+      wire [255:0] irefill_line, drefill_line;
+      wire [63:0] cache_data;
+      InstructionCache #(.MISS_LATENCY(MISS_LATENCY)) u_icache (
+        .clk(clk), .reset(core_reset), .FREEZE(HALTED),
+        .FETCH_ADDRESS(icache_addr), .INSTRUCTION(icache_dout), .HIT(icache_hit),
+        .REFILL_ADDRESS(irefill_addr), .REFILL_LINE(irefill_line));
+      DataCache #(.MISS_LATENCY(MISS_LATENCY)) u_dcache (
+        .clk(clk), .reset(core_reset), .FREEZE(HALTED),
+        .LOAD_REQUEST(dcache_re), .ADDRESS(dcache_addr), .WRITE_MASK(dcache_we), .WRITE_DATA(dcache_din),
+        .READ_DATA(cache_data), .HIT(dcache_hit),
+        .REFILL_ADDRESS(drefill_addr), .REFILL_LINE(drefill_line));
+      assign mem_dout = is_dev ? 64'd0 : cache_data;
+      // host words are 32 bits: put one in its doubleword lane
+      wire [15:0] host_byte = {ld_addr, 2'b00};
+      wire [15:0] w_addr = host_we ? {host_byte[15:3], 3'b000} : dcache_addr[15:0];
+      wire [7:0]  w_mask = host_we ? (host_byte[2] ? 8'hF0 : 8'h0F) : (core_store_ok ? dcache_we : 8'h00);
+      wire [63:0] w_data = host_we ? {ld_data, ld_data} : dcache_din;
+      wire [15:0] rd_byte = {rd_addr, 2'b00};
+      wire [15:0] d_refill = (st == C_RUN) ? drefill_addr[15:0] : rd_byte;
+      MainMemory #(.LINES(MEM_BYTES / 32)) u_mem (
+        .clk(clk), .WRITE_ADDRESS(w_addr), .WRITE_MASK(w_mask), .WRITE_DATA(w_data),
+        .INSTRUCTION_REFILL_ADDRESS(irefill_addr[15:0]), .INSTRUCTION_REFILL_LINE(irefill_line),
+        .DATA_REFILL_ADDRESS(d_refill), .DATA_REFILL_LINE(drefill_line));
+      // the line arrives the cycle after its address; pick the host's word
+      logic [2:0] rd_word_q;
+      always_ff @(posedge clk) rd_word_q <= rd_byte[4:2];
+      assign rd_data = drefill_line[32*rd_word_q +: 32];
+    end
+  endgenerate
   always_ff @(posedge clk or negedge rst_n)
     if (!rst_n) ld_refused <= 1'b0; else ld_refused <= ld_we && !host_owns;
 
@@ -142,7 +192,7 @@ module hydra_engine_cpu #(
     .TIMER_INTERRUPT_LINE(mtime >= mtimecmp), .EXTERNAL_INTERRUPT_LINE(1'b0),
     .dcache_addr(dcache_addr), .icache_addr(icache_addr), .dcache_we(dcache_we),
     .dcache_din(dcache_din), .dcache_dout(dcache_dout), .icache_dout(icache_dout),
-    .icache_hit(1'b1), .dcache_re(dcache_re), .dcache_hit(1'b1),
+    .icache_hit(icache_hit), .dcache_re(dcache_re), .dcache_hit(dcache_hit),
     .csr(csr_tohost), .HALTED(HALTED),
     .DEBUG_REGISTER_ADDRESS(dbg_reg), .DEBUG_REGISTER_DATA(dbg_data),
     .TRACE_VALID(), .TRACE_FETCH1_PC(), .TRACE_FETCH2_PC(), .TRACE_DECODE_PC(), .TRACE_EXECUTE_PC(),

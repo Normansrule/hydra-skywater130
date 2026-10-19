@@ -13,6 +13,7 @@
 `timescale 1ns/1ps
 `default_nettype none
 module tb_hydra_engine_cpu;
+  parameter bit CACHED = 1'b0;      // -Ptb_hydra_engine_cpu.CACHED=1: Sixfold's caches over block memory
   logic clk = 0, rst_n = 0;
   always #5 clk = ~clk;
 
@@ -31,7 +32,7 @@ module tb_hydra_engine_cpu;
   logic [4:0]   dbg_reg = 0;
   wire  [63:0]  dbg_data;
 
-  hydra_engine_cpu dut (
+  hydra_engine_cpu #(.CACHED(CACHED)) dut (
     .clk(clk), .rst_n(rst_n),
     .eng_valid(eng_valid), .eng_ready(eng_ready), .eng_wd(128'd0), .eng_tag(eng_tag),
     .eng_done(eng_done), .eng_done_tag(eng_done_tag), .job_status(job_status), .tohost(tohost),
@@ -50,7 +51,7 @@ module tb_hydra_engine_cpu;
   reg [7:0]  img [0:65535];
   reg [63:0] want [0:31];
   reg [63:0] want_tohost;
-  integer    want_cycles, fd, r;
+  integer    want_cycles, want_cycles_cached, fd, r;
   reg [31:0] entry;
 
   task automatic cfg(input bit a, input logic [31:0] v);
@@ -97,9 +98,13 @@ module tb_hydra_engine_cpu;
     if (!$value$plusargs("dir=%s", dir)) begin $display("FAIL: +dir= not given"); $fatal(1); end
     for (int a = 0; a < 65536; a++) img[a] = 8'h00;
     $readmemh({dir, "/prog.hex"}, img);
-    $readmemh({dir, "/regs.txt"}, want);
+    // with caches the model's timing differs, and so do registers that read
+    // the cycle counter: each build is compared with its own model run
+    if (CACHED) $readmemh({dir, "/regs_cached.txt"}, want);
+    else        $readmemh({dir, "/regs.txt"}, want);
     fd = $fopen({dir, "/info.txt"}, "r");
-    r = $fscanf(fd, "%h %d %h", want_tohost, want_cycles, entry);
+    r = $fscanf(fd, "%h %d %h %d", want_tohost, want_cycles, entry, want_cycles_cached);
+    if (CACHED) want_cycles = want_cycles_cached;
     $fclose(fd);
     repeat (4) @(posedge clk); rst_n = 1; repeat (4) @(posedge clk);
 
@@ -121,7 +126,8 @@ module tb_hydra_engine_cpu;
     check(st == 2'd0, $sformatf("job status %0d, expected 0", st));
     check(tohost === want_tohost, $sformatf("TOHOST %0h, model %0h", tohost, want_tohost));
     compare_regs(dir);
-    $display("%s: %0d cycles in the core, %0d in Sixfold's model", dir, perf_cycles, want_cycles);
+    $display("%s: %0d cycles in the core, %0d in Sixfold's model (%s)", dir, perf_cycles, want_cycles,
+             CACHED ? "caches on" : "no caches");
     check(perf_cycles == want_cycles, "cycle count differs from Sixfold's cycle-exact model");
 
     // a second job on the same core must start clean and give the same answer

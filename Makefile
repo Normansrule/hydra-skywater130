@@ -220,7 +220,7 @@ padmux:                       ## model comparison + formal proofs
 	  sby -f hydra_rst_sync.sby prove | tail -1
 	cd tt/formal && sby -f hydra_tt_spi.sby prove | tail -1
 
-tile:                         ## the research tile's cocotb suite (21 tests, register map)
+tile:                         ## the research tile's cocotb suite (22 tests, register map)
 	# Regenerate to a TEMPORARY file and compare, rather than overwriting
 	# project.v and asking git whether it changed. The git form failed for
 	# any uncommitted work -- including work that was perfectly consistent --
@@ -318,6 +318,27 @@ cpu-quick:                    ## the CPU wrapper on one program plus every refus
 	iverilog -g2012 -o $(SIMTMP)/hydra_cpu_q $(SIXFOLD_RTL) sys/rtl/hydra_engine_cpu.sv sys/tb/tb_hydra_engine_cpu.sv 2>&1 | \
 	  { grep -v -e 'sorry: constant selects' || true; }
 	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_cpu_q +dir=$(SIMTMP)/cpuvec_q/05_fibonacci +neg
+
+SIXFOLD_CACHED_RTL = $(filter-out %Riscv64_top.sv %Scratchpad_Memory.sv, \
+                       $(addprefix $(SIXFOLD)/,$(shell cat $(SIXFOLD)/src/sources.f 2>/dev/null))) \
+                     $(SIXFOLD)/fpga/rtl/Main_Memory.sv
+cpu-cached:                   ## the synthesizable CPU build (Sixfold's caches + block memory): every program vs the model with caches
+	@test -f $(SIXFOLD)/src/Riscv64.sv || { echo "FAIL cpu-cached: $(SIXFOLD) missing"; exit 1; }
+	rm -rf $(SIMTMP)/cpuvec_c && node tools/cpu_vectors.mjs $(SIXFOLD) $(SIMTMP)/cpuvec_c > /dev/null
+	iverilog -g2012 -Ptb_hydra_engine_cpu.CACHED=1 -o $(SIMTMP)/hydra_cpu_c $(SIXFOLD_CACHED_RTL) \
+	  sys/rtl/hydra_engine_cpu.sv sys/tb/tb_hydra_engine_cpu.sv 2>&1 | { grep -v -e 'sorry: constant selects' || true; }
+	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_cpu_c +dir=$(SIMTMP)/cpuvec_c/05_fibonacci +neg
+	@n=0; while read -r p; do \
+	  $(SIM) --tail 1 --show '^PASS' -- vvp -n $(SIMTMP)/hydra_cpu_c +dir=$(SIMTMP)/cpuvec_c/$$p || exit 1; \
+	  n=$$((n+1)); done < $(SIMTMP)/cpuvec_c/programs.txt; \
+	  echo "PASS cpu-cached: $$n Sixfold programs on its caches and block memory give the cached model's registers, TOHOST and cycle count"
+
+cpu-synth:                    ## synthesize the cached CPU build for ECP5 (yosys); prints the resource count
+	@mkdir -p build/cpu_synth
+	sv2v $(SIXFOLD_CACHED_RTL) sys/rtl/hydra_engine_cpu.sv > build/cpu_synth/cpu.v
+	yosys -q -l build/cpu_synth/yosys.log -p "read_verilog build/cpu_synth/cpu.v; chparam -set CACHED 1 hydra_engine_cpu; \
+	  synth_ecp5 -top hydra_engine_cpu; tee -q -o build/cpu_synth/stat.txt stat"
+	@grep -E 'LUT4|TRELLIS_FF|DP16KD|TRELLIS_DPR16X4' build/cpu_synth/stat.txt && echo "PASS cpu-synth: the cached CPU maps to ECP5 cells"
 
 cpu:                          ## the Sixfold CPU in its HYDRA wrapper: every program vs Sixfold's own model, cycle for cycle
 	@test -f $(SIXFOLD)/src/Riscv64.sv || { echo "FAIL cpu: $(SIXFOLD) missing -- git submodule update --init"; exit 1; }

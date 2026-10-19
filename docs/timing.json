@@ -615,6 +615,214 @@
           0
         ]
       ]
+    },
+    {
+      "label": "2026-10-18, tile v3.9, CLOCK_PERIOD 66 ns",
+      "version": "v3.9",
+      "source": "build/harden-ladder/20261018-170542/checks.out",
+      "settings": "v3.6 cell exclusions with DESIGN_REPAIR_MAX_SLEW_PCT 35 (was 20); logic unchanged from v3.8",
+      "period_ns": 66,
+      "critical_path_ns": 55.686,
+      "fmax_slow_MHz": 17.96,
+      "utilisation": 0.489908,
+      "slew_violations": 759,
+      "cap_violations": 0,
+      "drc": 0,
+      "lvs": 0,
+      "antenna": 0,
+      "slew_report": {
+        "max_ss_100C_1v60": {
+          "slew": [
+            759,
+            -0.723
+          ],
+          "cap": [
+            0,
+            null
+          ]
+        },
+        "nom_tt_025C_1v80": {
+          "slew": [
+            16,
+            -0.115
+          ],
+          "cap": [
+            0,
+            null
+          ]
+        }
+      },
+      "slew_by_corner": {
+        "max_ss_100C_1v60": 759,
+        "nom_ss_100C_1v60": 480,
+        "min_ss_100C_1v60": 265,
+        "max_tt_025C_1v80": 16,
+        "nom_tt_025C_1v80": 16,
+        "min_tt_025C_1v80": 16,
+        "max_ff_n40C_1v95": 0,
+        "nom_ff_n40C_1v95": 0,
+        "min_ff_n40C_1v95": 0
+      },
+      "corners": [
+        [
+          "max_ss_100C_1v60",
+          10.314,
+          0.884,
+          0
+        ],
+        [
+          "nom_ss_100C_1v60",
+          11.27,
+          0.876,
+          0
+        ],
+        [
+          "min_ss_100C_1v60",
+          12.351,
+          0.868,
+          0
+        ],
+        [
+          "max_tt_025C_1v80",
+          39.04,
+          0.32,
+          0
+        ],
+        [
+          "nom_tt_025C_1v80",
+          39.567,
+          0.316,
+          0
+        ],
+        [
+          "min_tt_025C_1v80",
+          40.147,
+          0.314,
+          0
+        ],
+        [
+          "max_ff_n40C_1v95",
+          49.438,
+          0.111,
+          0
+        ],
+        [
+          "nom_ff_n40C_1v95",
+          49.725,
+          0.109,
+          0
+        ],
+        [
+          "min_ff_n40C_1v95",
+          49.847,
+          0.107,
+          0
+        ]
+      ]
+    },
+    {
+      "label": "2026-10-18, tile v3.10, CLOCK_PERIOD 66 ns",
+      "version": "v3.10",
+      "source": "build/harden-ladder/20261018-174736/checks.out",
+      "settings": "v3.6 settings; scheduler liveness fix (live queue-full mask in the selector)",
+      "period_ns": 66,
+      "critical_path_ns": 51.938,
+      "fmax_slow_MHz": 19.25,
+      "utilisation": 0.486062,
+      "slew_violations": 1230,
+      "cap_violations": 0,
+      "drc": 0,
+      "lvs": 0,
+      "antenna": 0,
+      "slew_report": {
+        "max_ss_100C_1v60": {
+          "slew": [
+            1230,
+            -0.721
+          ],
+          "cap": [
+            0,
+            null
+          ]
+        },
+        "nom_tt_025C_1v80": {
+          "slew": [
+            11,
+            -0.133
+          ],
+          "cap": [
+            0,
+            null
+          ]
+        }
+      },
+      "slew_by_corner": {
+        "max_ss_100C_1v60": 1230,
+        "nom_ss_100C_1v60": 819,
+        "min_ss_100C_1v60": 557,
+        "max_tt_025C_1v80": 21,
+        "nom_tt_025C_1v80": 11,
+        "min_tt_025C_1v80": 11,
+        "max_ff_n40C_1v95": 0,
+        "nom_ff_n40C_1v95": 0,
+        "min_ff_n40C_1v95": 0
+      },
+      "corners": [
+        [
+          "max_ss_100C_1v60",
+          14.062,
+          0.886,
+          0
+        ],
+        [
+          "nom_ss_100C_1v60",
+          14.823,
+          0.879,
+          0
+        ],
+        [
+          "min_ss_100C_1v60",
+          15.644,
+          0.871,
+          0
+        ],
+        [
+          "max_tt_025C_1v80",
+          41.286,
+          0.318,
+          0
+        ],
+        [
+          "nom_tt_025C_1v80",
+          41.708,
+          0.316,
+          0
+        ],
+        [
+          "min_tt_025C_1v80",
+          42.157,
+          0.313,
+          0
+        ],
+        [
+          "max_ff_n40C_1v95",
+          49.223,
+          0.11,
+          0
+        ],
+        [
+          "nom_ff_n40C_1v95",
+          49.381,
+          0.106,
+          0
+        ],
+        [
+          "min_ff_n40C_1v95",
+          49.539,
+          0.105,
+          0
+        ]
+      ]
     }
   ]
 }

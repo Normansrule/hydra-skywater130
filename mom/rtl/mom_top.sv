@@ -196,7 +196,7 @@ module mom_top
   logic                         eval_busy;
   // The sweep writes the SELECTOR's registers directly. Lane registers of
   // its own would be the same 330 flip-flops twice: cost, predicted time,
-  // valid and capable for five engines, held once by the sweep and again by
+  // capable for five engines, held once by the sweep and again by
   // the cost register a cycle later. Writing in place is safe because a
   // sweep only starts when that register is free, and c_valid is low for its
   // whole duration, so the selector never reads a half-written set.
@@ -215,7 +215,7 @@ module mom_top
         .dtype(f_wd.dtype), .op_class(f_wd.op_class), .lat_hint(f_wd.lat_hint),
         .lambda_sh(lambda_sh_of(f_wd.pwr_hint)),
         .param(params[e]), .k_cal(k_cal[e]),
-        .queue_depth(queue_depth[e]), .engine_busy_full(engine_full[e]),
+        .queue_depth(queue_depth[e]), .engine_busy_full(1'b0),
         .bw_dma_log2(csr_bw_dma_log2), .eps_mem(csr_eps_mem),
         .e_shift(csr_e_shift),
         .cost(cost[e]), .t_pred(t_pred[e]), .valid(cvalid[e]),
@@ -269,7 +269,7 @@ module mom_top
       .dtype(f_wd.dtype), .op_class(f_wd.op_class), .lat_hint(f_wd.lat_hint),
       .lambda_sh(lambda_sh_of(f_wd.pwr_hint)),
       .param(params[idx]), .k_cal(k_cal[idx]),
-      .queue_depth(queue_depth[idx]), .engine_busy_full(engine_full[idx]),
+      .queue_depth(queue_depth[idx]), .engine_busy_full(1'b0),
       .bw_dma_log2(csr_bw_dma_log2), .eps_mem(csr_eps_mem),
       .e_shift(csr_e_shift),
       .cost(s_cost), .t_pred(s_tpred), .valid(s_valid), .capable(s_capable)
@@ -300,19 +300,28 @@ module mom_top
   // typical corner and 62 ns at ss_100C_1v60, where it violated setup by
   // 6.5 ns at a 55 ns period. No amount of buffering fixes a path that
   // long; the fix is a register in the middle. This stage captures the
-  // engines' outputs (cost, t_pred, valid, capable) together with the
+  // engines' outputs (cost, t_pred, capable) together with the
   // feature word they were computed from, and mom_select reads the
   // registered copy. Dispatch latency becomes four cycles instead of three,
   // which a roofline dispatcher does not notice.
   //
   // Handshake: a plain pipeline register that accepts when empty or when
-  // stage 3 drains it. queue_depth/engine_full as seen by the cost engines
-  // are one cycle old; that only shades the estimate, and the scoreboard's
-  // own full check is on live state, so a full engine is still refused.
+  // stage 3 drains it. queue_depth as seen by the cost engines is one cycle
+  // old; that only shades the estimate.
+  //
+  // Whether an engine's queue is full is NOT decided here (v3.10). The cost
+  // engines are told no engine is full, so the register holds a real cost
+  // for every capable engine, and the selector masks full engines with the
+  // scoreboard's live engine_full. Before this, "full" was captured once per
+  // sweep: a descriptor whose only capable engine was full when it was
+  // costed was held with no valid lane, and nothing re-costed it, so it
+  // waited forever even after that engine drained (found with five NTT
+  // descriptors on the tile, QMAX 4). With the live mask it dispatches the
+  // cycle a slot frees, and a full engine is still never chosen.
   // ---------------------------------------------------------------------------
   logic [NENG-1:0][COST_W-1:0] cost_q;
   logic [NENG-1:0][COST_W-1:0] t_pred_q;
-  logic [NENG-1:0]             cvalid_q, ccapable_q;
+  logic [NENG-1:0]             ccapable_q;
   work_desc_t                   c_wd, a_wd;
   logic                         c_valid, a_valid;
   wire                          c_ready;                 // stage 3 drains us
@@ -344,7 +353,6 @@ module mom_top
       c_valid    <= 1'b0;
       cost_q     <= {NENG*COST_W{1'b0}};
       t_pred_q   <= {NENG*COST_W{1'b0}};
-      cvalid_q   <= {NENG{1'b0}};
       ccapable_q <= {NENG{1'b0}};
       c_wd       <= {WD_W{1'b0}};
     end else if (COST_SHARED) begin
@@ -352,7 +360,6 @@ module mom_top
       if (lane_we) begin
         cost_q[lane_idx]     <= lane_cost;
         t_pred_q[lane_idx]   <= lane_tpred;
-        cvalid_q[lane_idx]   <= lane_valid;
         ccapable_q[lane_idx] <= lane_capable;
       end
       if (eval_done) begin
@@ -366,7 +373,6 @@ module mom_top
       if (a_valid) begin
         cost_q     <= cost;              // stage B output for the a_wd descriptor
         t_pred_q   <= t_pred;
-        cvalid_q   <= cvalid;
         ccapable_q <= ccapable;
         c_wd       <= a_wd;
       end
@@ -379,7 +385,7 @@ module mom_top
   logic              sel_capable;
 
   mom_select #(.NENG(NENG)) u_sel (
-    .cost(cost_q), .valid(cvalid_q & eng_elig), .capable(ccapable_q & eng_elig),
+    .cost(cost_q), .valid(ccapable_q & ~engine_full & eng_elig), .capable(ccapable_q & eng_elig),
     .sel_engine(sel_eng), .sel_cost(sel_cost),
     .any_valid(sel_ok), .any_capable(sel_capable),
     .sel_margin(obs_margin)
@@ -436,7 +442,7 @@ module mom_top
   // (the cost engines take the linear byte count), the winning cost (the
   // margin is what is reported) and the direction of the last calibration
   // step. Named for the linter; removed by synthesis.
-  wire _unused_ok = &{1'b0, f_lg_q, sel_cost, cal_last_dir};
+  wire _unused_ok = &{1'b0, f_lg_q, sel_cost, cal_last_dir, cvalid, lane_valid};
 
 endmodule
 
