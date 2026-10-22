@@ -13,6 +13,8 @@ flashing, and its last frame is complete on its own.
                             engines, the winner, the tag and the calibration
   demo_array(.dark).gif     make tpu: the 4x4 systolic array on a 4x4x64 job,
                             operands moving in from two edges
+  demo_fpga(.dark).gif      make memboard: the FPGA memory image driven through its
+                            serial port in simulation, one frame per step
 
     python3 tools/gen_readme_gifs.py          write docs/img/demo_*.gif
     python3 tools/gen_readme_gifs.py --check  fail if a GIF is stale
@@ -223,17 +225,107 @@ def array(mode):
     save(f"demo_array{'.dark' if mode == 'dark' else ''}.gif", frames, durs)
 
 
+def fpga(mode):
+    """The FPGA memory image in action, one frame per step of its recorded
+    serial-port simulation (docs/atlas/fpga.json, make memboard). The board
+    is a drawing; the bytes, writes, dispatch and completion are recorded."""
+    import atlas_site, atlas_tile
+    f = ROOT / "docs/atlas/fpga.json"
+    if not f.exists():
+        return
+    fp = json.loads(f.read_text())
+    phases = atlas_site.fpga_phases(fp, atlas_tile.registers())
+    p = T.LIGHT if mode == "light" else T.DARK
+    role = {"signal": (p["signal"], p["signal_t"]), "control": (p["control"], p["control_t"]),
+            "compute": (p["compute"], p["compute_t"]), "memory": (p["memory"], p["memory_t"])}
+    B = {"host": (20, 150, 180, 180, "signal", "Host PC"), "ftdi": (270, 200, 76, 64, "signal", "USB"),
+         "uart": (400, 200, 110, 60, "signal", "UART"), "bridge": (540, 200, 120, 60, "control", "Serial bridge"),
+         "regs": (700, 78, 130, 58, "control", "Register map"), "sched": (862, 78, 286, 58, "control", "Scheduler (MOM)"),
+         "xbar": (862, 166, 286, 36, "control", "Crossbar"),
+         "eng0": (862, 228, 52, 58, "compute", "CPU"), "eng1": (920, 228, 52, 58, "compute", "Vec"),
+         "eng2": (978, 228, 56, 58, "compute", "Array"), "eng3": (1040, 228, 52, 58, "compute", "NTT"),
+         "eng4": (1098, 228, 52, 58, "compute", "Crypto"),
+         "bankA": (700, 344, 96, 62, "memory", "Bank A"), "bankB": (810, 344, 96, 62, "memory", "Bank B"),
+         "bankC": (920, 344, 96, 62, "memory", "Bank C")}
+    W, H = 1200, 600
+    f_t, f_s, f_m, f_b = font(2, 22), font(0, 15), font(1, 15), font(2, 14)
+    frames, caps = [], []
+    seen = []
+    ev = [e for e in fp["events"] if e["k"] in ("in", "out")]
+    for i, ph in enumerate(phases):
+        im = Image.new("RGB", (W, H), rgb(p["bg"]))
+        d = ImageDraw.Draw(im)
+        d.text((24, 18), "The FPGA memory image, in action", font=f_t, fill=rgb(p["ink"]))
+        d.text((24, 50), f"Recorded RTL trace (simulation, not a board) · make memboard · {fp['plan']} · PASS · step {i + 1} of {len(phases)}",
+               font=f_m, fill=rgb(p["dim"]))
+        o = 70                                    # the drawing sits below the title
+        d.rounded_rectangle([240, 18 + o, 1182, 464 + o], 20, fill=rgb(p["memory_t"]), outline=rgb(p["memory"]), width=2)
+        d.rounded_rectangle([380, 60 + o, 1170, 452 + o], 10, fill=rgb(p["raised"]), outline=rgb(p["line"]), width=2)
+        for k in range(38):
+            for yy in (52, 452):
+                d.rectangle([396 + k * 20.2, yy + o, 404 + k * 20.2, yy + 8 + o], fill=rgb(p["dim"]))
+        d.text((400, 422 + o), "ECP5-85F FPGA", font=f_b, fill=rgb(p["ink2"]))
+        d.text((862, 296 + o), "only the array is real in this image; the other slots are latency models", font=font(0, 12), fill=rgb(p["ink2"]))
+        d.text((262, 30 + o), "ECP5 evaluation board (a drawing)", font=f_b, fill=rgb(p["ink2"]))
+        # wires first, the same orthogonal routes as the page's drawing
+        WR = [("rx", "M200 222H270", "signal"), ("tx", "M270 242H200", "signal"), ("fu", "M346 222H400", "signal"),
+              ("uf", "M400 242H346", "signal"), ("ub", "M510 230H540", "signal"), ("br", "M660 222H680V107H700", "control"),
+              ("rs", "M830 107H862", "control"), ("sx", "M1005 136V166", "control"), ("xe", "M1005 202V228", "control"),
+              ("bm", "M660 238H680V375H700", "memory"), ("ab", "M748 344V318H1006V286", "memory"),
+              ("bb", "M858 344V318", "memory"), ("ec", "M1006 286V330H968V344", "memory")]
+        LIT = {"reg": "rx fu ub br rs tx uf", "mem": "rx fu ub bm tx uf", "read": "rx fu ub bm tx uf",
+               "disp": "rs sx xe", "comp": "ab bb ec xe sx", "other": "rx fu ub"}[ph["kind"]].split()
+        for nm, path, r in WR:
+            pts, x, y = [], 0, 0
+            for tok in path.replace("M", " M ").replace("H", " H ").replace("V", " V ").split():
+                if tok in "MHV":
+                    cmd = tok; continue
+                v = float(tok)
+                if cmd == "M":
+                    if not pts or len(pts[-1]) == 2:
+                        x = v; cmd = "M2"; continue
+                if cmd == "M2":
+                    y = v; pts.append((x, y + o)); cmd = "M"; continue
+                if cmd == "H":
+                    x = v
+                elif cmd == "V":
+                    y = v
+                pts.append((x, y + o))
+            on = nm in LIT
+            d.line(pts, fill=rgb(role[r][0] if on else p["line"]), width=4 if on else 2, joint="curve")
+        for nm, (x, y, w, h, r, lab) in B.items():
+            on = nm in ph["blocks"] or (nm == "ftdi" and "uart" in ph["blocks"])
+            c, t = role[r]
+            d.rounded_rectangle([x, y + o, x + w, y + h + o], 8, fill=rgb(c if on else t), outline=rgb(c), width=2)
+            fnt = f_b if w > 60 else font(2, 12)
+            tw = d.textlength(lab, font=fnt)
+            ty = y + 12 + o if nm == "host" else y + h / 2 - 8 + o
+            d.text((x + w / 2 - tw / 2, ty), lab, font=fnt, fill=rgb(p["on_accent"] if on else p["ink"]))
+        seen = [e for e in ev if e["c"] <= ph["c1"]][-6:]
+        for k, e in enumerate(seen):
+            s = ("→ " if e["k"] == "in" else "← ") + f"{e['b']:02X}" + (f"  {chr(e['b'])}" if 32 <= e["b"] < 127 else "")
+            d.text((34, 178 + k * 24 + o), s, font=f_m, fill=rgb(p["signal"] if e["k"] == "in" else p["memory"]))
+        txt = f"Cycle {ph['c0']:,}: {ph['text']}."
+        d.rounded_rectangle([20, 548, W - 20, 590], 10, fill=rgb(p["surface"]))
+        d.text((36, 559), txt[:150], font=f_s, fill=rgb(p["ink"]))
+        frames.append(im.convert("P", palette=Image.ADAPTIVE, colors=96))
+        caps.append(txt)
+    durs = [1700] * (len(frames) - 1) + [3500]
+    save(f"demo_fpga{'.dark' if mode == 'dark' else ''}.gif", frames, durs)
+
+
 def main():
     for m in ("light", "dark"):
         dispatch(m)
         array(m)
+        fpga(m)
     if CHECK:
         if STALE:
             print("\n".join(f"readme-gifs: {s} is out of date -- run: make readme-art" for s in STALE))
             sys.exit(1)
         print("readme-gifs: previews match the recorded traces")
     else:
-        print("gen_readme_gifs: demo_dispatch and demo_array, light and dark")
+        print("gen_readme_gifs: demo_dispatch, demo_array and demo_fpga, light and dark")
 
 
 if __name__ == "__main__":

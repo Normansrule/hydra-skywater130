@@ -1,52 +1,69 @@
 """
 atlas_theme.py -- one palette for every figure and for the project page.
 
-Graphite and ivory, with four signal colours that each mean one thing, and
-always appear next to a label and a symbol so colour is never the only cue:
+Mask Room. A photolithography room is lit by an amber safelight, because
+white light would expose the resist; the mask itself is chrome on quartz.
+So the light theme is the room (warm, nearly monochrome, colour kept for
+meaning) and the dark theme is the mask. The colours that mean something
+are the colours of sky130 mask layers, and each always appears next to a
+label and a drawn shape, so colour is never the only cue:
 
-  signal   cyan    data and requests moving (descriptor, bytes, operands)   ▸
-  control  amber   decisions, registers, handshakes, timing               ◆
-  compute  violet  arithmetic engines (array, vector unit, butterflies)   ■
-  memory   teal    scratchpad banks and streamers                         ▤
-  secure   rose    security IP (vault, mailbox, hash, measurement)        ◈
+  signal   metal blue        data and requests moving (descriptor, bytes)    ▸
+  control  safelight amber   decisions, registers, handshakes, timing       ◆
+  compute  metal-2 violet    arithmetic engines (array, vector, butterflies) ■
+  memory   diffusion green   scratchpad banks and streamers                 ▤
+  secure   polysilicon red   security IP (vault, mailbox, hash, measurement) ◈
+
+DIE is the die view's own palette. A mask is dark in either theme, so the
+layout is always drawn on its substrate colour, in the layer colours.
 
 Figures are written once with @token colours (for example fill="@ink") and
-emitted twice, NAME.svg (ivory, light) and NAME.dark.svg (graphite), so a
-README can offer both through <picture> and prefers-color-scheme. A figure
-shown through <img> cannot see the page's theme; two files can be chosen by it.
+emitted twice, NAME.svg (light) and NAME.dark.svg (dark), so a README can
+offer both through <picture> and prefers-color-scheme.
 """
 import re
 
 LIGHT = {
-    "bg": "#f4f1e8", "surface": "#fbf9f3", "raised": "#ffffff", "line": "#d6cfbf",
-    "line2": "#e6e0d3", "ink": "#1c1d21", "ink2": "#4b4d55", "dim": "#6b6d74",
-    "grid": "#1c1d21",
-    "signal": "#0a7488", "control": "#9a5300", "compute": "#6a3fcf", "memory": "#0b7a5c",
-    "secure": "#ad2f57", "danger": "#b42318", "ok": "#0b7a5c",
-    "signal_t": "#d9eef2", "control_t": "#f6e6cf", "compute_t": "#e8e0f8", "memory_t": "#d6efe5",
-    "secure_t": "#f6dde5", "danger_t": "#f7dcd8", "neutral_t": "#ebe6da",
-    "on_accent": "#ffffff",
-    # categorical, for telling RTL instances apart on the layout (never a meaning of its own)
-    "cat1": "#0a7488", "cat2": "#9a5300", "cat3": "#6a3fcf", "cat4": "#0b7a5c", "cat5": "#ad2f57",
-    "cat6": "#3d5fc4", "cat7": "#7a6a00", "cat8": "#a0379a", "cat9": "#2f7d32",
+    # the safelit room: deep amber-filtered paper, ink nearly black-brown; never a white page
+    "bg": "#d6c9a3", "surface": "#c9ba90", "raised": "#e2d6b4", "line": "#9e8e62",
+    "line2": "#b5a67b", "ink": "#16130b", "ink2": "#352d1d", "dim": "#4a4130",
+    "grid": "#16130b",
+    "signal": "#18378a", "control": "#653400", "compute": "#5e1f7c", "memory": "#134a27",
+    "secure": "#7f1b26", "danger": "#821a0a", "ok": "#134a27",
+    "signal_t": "#bcc3d6", "control_t": "#dcbf86", "compute_t": "#ccb8c8", "memory_t": "#b7c6a8",
+    "secure_t": "#d8b5a6", "danger_t": "#dcb39f", "neutral_t": "#cbbd94",
+    "on_accent": "#fff6e0",
+    # categorical, for telling RTL instances apart (never a meaning of its own)
+    "cat1": "#18378a", "cat2": "#653400", "cat3": "#5e1f7c", "cat4": "#134a27", "cat5": "#7f1b26",
+    "cat6": "#00505a", "cat7": "#4d4500", "cat8": "#72205c", "cat9": "#2c4c0b",
 }
 DARK = {
-    "bg": "#121417", "surface": "#181b20", "raised": "#20242b", "line": "#363c47",
-    "line2": "#2a2f38", "ink": "#ece8de", "ink2": "#b9b5ab", "dim": "#8d8b85",
-    "grid": "#ece8de",
-    "signal": "#4cc6de", "control": "#efac46", "compute": "#ac8ef6", "memory": "#47c49c",
-    "secure": "#ef7fa0", "danger": "#f27a6e", "ok": "#47c49c",
-    "signal_t": "#17323a", "control_t": "#3a2b14", "compute_t": "#2a2140", "memory_t": "#163329",
-    "secure_t": "#3c1d28", "danger_t": "#3e1d1a", "neutral_t": "#262a31",
-    "on_accent": "#121417",
-    "cat1": "#4cc6de", "cat2": "#efac46", "cat3": "#ac8ef6", "cat4": "#47c49c", "cat5": "#ef7fa0",
-    "cat6": "#7d9bff", "cat7": "#d8cb52", "cat8": "#e08ad9", "cat9": "#8fd36b",
+    # the mask: chrome on quartz
+    "bg": "#0b0c0f", "surface": "#14161b", "raised": "#1c1f26", "line": "#353a45",
+    "line2": "#242830", "ink": "#ece9e0", "ink2": "#b4b0a6", "dim": "#918e86",
+    "grid": "#ece9e0",
+    "signal": "#86a8ff", "control": "#ffc145", "compute": "#d197f2", "memory": "#67cf8b",
+    "secure": "#ff8a8a", "danger": "#ff7d66", "ok": "#67cf8b",
+    "signal_t": "#18223d", "control_t": "#3a2c0e", "compute_t": "#2d1d3a", "memory_t": "#15301f",
+    "secure_t": "#3d1a1d", "danger_t": "#401b14", "neutral_t": "#22252c",
+    "on_accent": "#0b0c0f",
+    "cat1": "#86a8ff", "cat2": "#ffc145", "cat3": "#d197f2", "cat4": "#67cf8b", "cat5": "#ff8a8a",
+    "cat6": "#4fd3d9", "cat7": "#e3d35a", "cat8": "#f08bd0", "cat9": "#a6dc6a",
+}
+# The die view: substrate and layers, drawn the same in both themes.
+DIE = {
+    "substrate": "#07080b", "cell": "#13161c", "fill": "#0d0f13",
+    "nwell": "#1b2a3a", "diff": "#3a9d5d", "tap": "#2a7a4a", "poly": "#d2493f", "licon": "#e9e3d3",
+    "li1": "#8e7fe8", "mcon": "#d9d4c8", "met1": "#4a78e0", "via": "#e3e6ee", "met2": "#b866d9",
+    "via2": "#e3e6ee", "met3": "#29aaa3", "via3": "#e3e6ee", "met4": "#cfa73c", "power": "#3a3f4a",
+    "lit": "#ffcc45", "lit_core": "#fff4cf", "pick": "#ffffff",
+    "ink": "#ece9e0", "ink2": "#b4b0a6",
 }
 ROLES = ("signal", "control", "compute", "memory", "secure")
 SYMBOL = {"signal": "▸", "control": "◆", "compute": "■", "memory": "▤", "secure": "◈"}
 
-FONT = "font-family:'IBM Plex Sans','Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"
-MONO = "font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
+FONT = "font-family:'Ubuntu Sans','Ubuntu',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"
+MONO = "font-family:'Ubuntu Sans Mono','Ubuntu Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
 
 TOKEN = re.compile(r"@([a-z][a-z0-9_]*)")
 

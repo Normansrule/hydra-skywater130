@@ -13,6 +13,10 @@ from disk and from GitHub Pages. Everything on it is generated from this folder 
 | `traces/*.json` | recorded runs of passing tests: signals per cycle, events, command, commits, tool versions, source hashes | `tools/atlas_traces.py` |
 | `physical.json` | the tile's placed cells, each attributed to an RTL instance only by netlist names | `tools/atlas_physical.py` |
 | `flow.json` | one harden, step by step, with the facts its own logs state | `tools/atlas_flow.py` |
+| `die.json`, `die.bin` | the tile's routed layout: every placed cell (class, RTL instance as `physical.json` attributes it, cell type, orientation), every routed wire segment and via of every signal net, the power grid, the pins; and each used cell type's own drawing from the PDK's GDS. Packed little-endian arrays, gzip, with the table of contents in the JSON | `tools/atlas_die.py layout` |
+| `die-gl.json`, `die-gl.bin` | **Gate-Level Trace**: the value of every one of the layout's nets in every cycle of one dispatch decision, from the tile's own test run on that run's hardened netlist; refused unless the test passes and its pins equal the Recorded RTL Trace of the same test in every cycle of the window | `tools/atlas_die.py gl` |
+| `fpga.json` | **Recorded RTL Trace**: the ecp5-evn-mem image's RTL driven through its serial port by `make memboard`: every byte each way, scratchpad writes, the dispatch, engine busy time and the completion; plus that plan's place-and-route numbers from `docs/metrics.json`. A simulation, never shown as a board run | `tools/atlas_fpga.py` (`make atlas-fpga`) |
+| `fonts/` | the page's two typefaces, cut to the characters it uses, with their licence | `tools/atlas_fonts.py` |
 
 Numbers on the page come from these files, `docs/metrics.json` and `docs/timing.json`. Pins and registers are read
 from `tt/tile/info.yaml` and the tile's RTL by `tools/atlas_tile.py` each time the page is built.
@@ -32,6 +36,14 @@ cd ~/src/hydra-skywater130 && make atlas-physical RUN=$HOME/src/tinytapeout-hydr
 
 Maps a finished harden (refused unless its netlist was built from the current `tt/tile/src/project.v`) and
 summarises its steps. The page names the run and says whether `docs/timing.json` records it.
+
+```bash
+cd ~/src/hydra-skywater130 && make atlas-die RUN=$HOME/src/tinytapeout-hydra/runs/wokwi
+```
+
+Extracts that run's routed layout for the die view and records the gate-level decision that lights it (a few
+seconds each). `site-check` fails if the recording, the layout and `physical.json` are not from the same netlist,
+or if the test, testbench or `project.v` changed after the recording.
 
 ```bash
 cd ~/src/hydra-skywater130 && make site-check
@@ -63,6 +75,6 @@ presentation; the cycle counter shows only recorded cycles.
 
 | item | status | reason |
 |---|---|---|
-| Gate-level traces | DEFERRED | a hardened netlist keeps only pins and some register names, so a gate-level replay can show pins, not the decision inside; it should be recorded from the release harden, compared pin for pin with the RTL trace of the same test. The gate-level test results themselves are in `make tile-gl` |
-| 3D layout | DEFERRED | the layout data has cell positions only, no metal layers; a 2D view shows all of it |
+| Gate-level traces in the player | DEFERRED | the die view replays one decision at gate level, net by net (`die-gl.json`); the player's tabular replays stay RTL traces, because a netlist keeps only pins and some register names, so the player's named signals do not exist in it |
+| 3D layout | DEFERRED | the die view draws every layer in 2D, in order; a 3D stack would add depth without adding information |
 | Hardware captures | BLOCKED BY MISSING EVIDENCE | no image has run on a board |

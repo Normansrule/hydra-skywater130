@@ -258,6 +258,9 @@ readme-art:                   ## regenerate every README figure from the reposit
 	python3 tools/gen_readme_visuals.py
 	python3 tools/gen_readme_gifs.py
 
+readme-shots:                 ## screenshots of the atlas page for both READMEs (headless Chromium; not part of readme-check)
+	python3 tools/gen_readme_shots.py
+
 readme-check:                 ## lead figures current; README numbers match the latest harden
 	@python3 tools/gen_readme_hero.py --check
 	@python3 tools/gen_readme_visuals.py --check
@@ -272,10 +275,20 @@ site-check:                   ## the page and diagram still match the repository
 atlas:                        ## the atlas data: what each build elaborates, every trace re-recorded from passing tests
 	python3 tools/atlas_derive.py
 	python3 tools/atlas_traces.py
+	python3 tools/atlas_fpga.py
 	python3 tools/gen_site.py
 
 atlas-physical:               ## map a hardened run's placed cells to RTL instances (RUN= run dir, LADDER= its id)
 	python3 tools/atlas_physical.py $(or $(RUN),$(HOME)/src/tinytapeout-hydra/runs/wokwi) $(if $(LADDER),--ladder $(LADDER)) $(if $(NOTE),--note "$(NOTE)")
+	python3 tools/gen_site.py
+
+atlas-fpga:                   ## the FPGA memory image driven through its serial port, recorded for the page (make memboard)
+	python3 tools/atlas_fpga.py
+	python3 tools/gen_site.py
+
+atlas-die:                    ## the routed layout and a gate-level recording of one decision, for the die view (RUN= run dir)
+	python3 tools/atlas_die.py layout $(or $(RUN),$(HOME)/src/tinytapeout-hydra/runs/wokwi)
+	python3 tools/atlas_die.py gl $(or $(RUN),$(HOME)/src/tinytapeout-hydra/runs/wokwi)
 	python3 tools/gen_site.py
 
 atlas-flow:                   ## one harden run, step by step, from its own logs (RUN= run dir, LABEL= what it is)

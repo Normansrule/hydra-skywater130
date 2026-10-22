@@ -273,7 +273,7 @@ def tile_events(s, en, n_eng=5):
                    "cost": s.at("lane_cost", c), "tpred": s.at("lane_tpred", c),
                    "valid": s.at("lane_valid", c), "capable": s.at("lane_capable", c),
                    "opc_ok": s.at("ce_opc_ok", c), "dt_ok": s.at("ce_dt_ok", c),
-                   "full": s.at("ce_full", c), "k": s.at("ce_k", c), "qd": s.at("ce_qd", c)})
+                   "full": s.at("ce_full", c), "kf": s.at("ce_k", c), "qd": s.at("ce_qd", c)})
     for c in s.rises("c_valid"):
         costs = lanes(s.at("cost_q", c), n_eng, 32)
         # since v3.10 the selector reads the scoreboard's LIVE full flags

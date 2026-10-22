@@ -102,13 +102,13 @@ def pinout():
                 body.append(f'<text x="{tx}" y="{y+13}" text-anchor="{anc}" style="{FONT};font-size:11.5px" fill="{VIOLET}">{escape(reg)}</text>')
 
     body.append(f'<text x="{chip_x-44}" y="{top-12}" text-anchor="end" style="{FONT};font-size:12px;'
-                f'font-weight:700;letter-spacing:.08em" fill="{TEAL}">INPUTS · ui_in</text>')
+                f'font-weight:700" fill="{TEAL}">Inputs · ui_in</text>')
     body.append(f'<text x="{chip_x+chip_w+44}" y="{top-12}" style="{FONT};font-size:12px;'
-                f'font-weight:700;letter-spacing:.08em" fill="{AMBER}">OUTPUTS · uo_out</text>')
+                f'font-weight:700" fill="{AMBER}">Outputs · uo_out</text>')
 
     by = top + 8 * row + 48
     body.append(f'<text x="44" y="{by}" style="{FONT};font-size:12px;font-weight:700;'
-                f'letter-spacing:.08em" fill="{VIOLET}">BIDIRECTIONAL · uio</text>')
+                f'" fill="{VIOLET}">Bidirectional · uio</text>')
     for i in range(8):
         c, r = i % 2, i // 2
         x, y = 44 + c * 720, by + 30 + r * 40
@@ -156,10 +156,10 @@ def fpga_wiring():
 
     w, top, rh = 900, 78, 24
     h = top + len(rows) * rh + 70
-    cols = [(34, "CORE PORT", TEAL), (250, "BOARD SIGNAL", INK),
-            (470, "SCHEMATIC NAME", DIM), (720, "FPGA BALL", AMBER)]
+    cols = [(34, "Core port", TEAL), (250, "Board signal", INK),
+            (470, "Schematic name", DIM), (720, "FPGA ball", AMBER)]
     body = [f'<text x="{x}" y="{top-18}" style="{FONT};font-size:11px;font-weight:700;'
-            f'letter-spacing:.08em" fill="{c}">{t}</text>' for x, t, c in cols]
+            f'" fill="{c}">{t}</text>' for x, t, c in cols]
     for i, (core, bs, vend, ball) in enumerate(rows):
         y = top + i * rh
         if i % 2 == 0:
