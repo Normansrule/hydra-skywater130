@@ -59,7 +59,7 @@ Maintained by [@Normansrule](https://github.com/Normansrule)
 
 ## Screenshots
 
-The atlas opens on the hardened tile and zooms in as you scroll. These are its five steps, shot from the page
+The atlas opens on the hardened tile and zooms in as you scroll. These are its six steps, shot from the page
 itself (the die is always drawn dark, like a mask; the rest of the page follows your light or dark setting):
 
 <picture>
@@ -83,12 +83,25 @@ itself (the die is always drawn dark, like a mask; the rest of the page follows 
 </picture>
 
 <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/atlas-exploded.dark.png">
+  <img src="docs/img/atlas-exploded.png" width="100%" alt="Step 5: the mask pulled apart. The tile's cells and its four metal layers drawn as a turning 3D stack, each layer labelled with its count: 70,901 cells, 63,873 metal-1, 40,194 metal-2, 2,445 metal-3 and 395 metal-4 rectangles, with the nets high at the select glowing on every layer.">
+</picture>
+
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/atlas-switched.dark.png">
-  <img src="docs/img/atlas-switched.png" width="100%" alt="Step 5: the whole tile again with every net that is high at the select glowing amber, and the card: 1,813 nets switched to make one decision, 12% of the tile's nets, changing value 3,911 times in 28 cycles.">
+  <img src="docs/img/atlas-switched.png" width="100%" alt="Step 6: the whole tile again with every net that is high at the select glowing amber, and the card: 1,813 nets switched to make one decision, 12% of the tile's nets, changing value 3,911 times in 28 cycles.">
+</picture>
+
+After the story, one number per screen, each on a block of colour, its fill exposed as you scroll to it; every
+number is read from the layout, the gate-level recording or the FPGA simulation:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/atlas-numbers.dark.png">
+  <img src="docs/img/atlas-numbers.png" width="100%" alt="A full-screen red block with the word Switched and the number 1,813 in giant condensed type: nets that changed value to make one decision, 3,911 times in 28 cycles of the gate-level recording.">
 </picture>
 
 The same layout is a free explorer on the [Physical layout](https://normansrule.github.io/hydra-skywater130/#layout)
-tab: zoom from the whole tile to single transistors, step through the recorded cycles, switch layers on and off,
+tab: zoom from the whole tile to single transistors, pull the layers apart in 3D and turn them, step through the recorded cycles, switch layers on and off,
 select a wire to name its net and the RTL block that drives it, or find a net by name.
 
 <picture>
@@ -262,9 +275,11 @@ always drawn as a mask, whichever theme you're in.
   bar that always tells the truth about size; the step cards ride beside it. Everywhere else, surfaces are
   separated by tone, not lines.
 - **Motion with physics, and only where it informs.** The camera rides a critically damped spring, so it settles
-  without overshoot; a net that switches flashes and fades with an afterglow (its glow rises with a 45 ms time
-  constant and falls with a 260 ms one; the flash fades with 420 ms); a step card arrives with a short exposure wipe; controls answer a press. Scrolling through
-  step 3 scrubs the recorded cycles. With reduced motion on, the camera jumps, nothing flashes and nothing wipes.
+  without overshoot, and the same spring tilts the layout into an exploded stack of its real layers; a net that switches flashes and fades with an afterglow (its glow rises with a 45 ms time
+  constant and falls with a 260 ms one; the flash fades with 420 ms); a step card arrives with a short exposure wipe, and a big number's fill is exposed the same way as you scroll
+  to it; a band of real figures scrolls between sections; the FPGA board leans toward your pointer; controls answer a
+  press. Scrolling through
+  step 3 scrubs the recorded cycles. With reduced motion on, the camera jumps, nothing flashes, nothing wipes and the band stands still.
 - **The data is the picture.** Every rectangle is from the harden's DEF file, every cell's insides from the
   process design kit's GDS, and every glowing wire from a gate-level run of that exact netlist whose pins equal the
   RTL trace in every cycle. A logical box never claims a die position.

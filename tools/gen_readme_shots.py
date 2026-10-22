@@ -24,14 +24,16 @@ import glob, json, os, pathlib, subprocess, tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SETTLE = ("setTimeout(()=>{const v=document.getElementById('die-hero')._die;if(v){Object.assign(v.cam,v.tgt);"
-          "v.v={x:0,y:0,l:0};v.kick()}},1500)")
+          "v.v={x:0,y:0,l:0,tilt:0,yaw:0};v.kick()}},1500)")
 # name, hash, height, scroll (viewport heights, or a selector), destinations
 SHOTS = [
     ("atlas-story", "overview", 900, 0, ["docs/img"]),
     ("atlas-dispatch", "overview", 900, 2.0, ["docs/img", "tt/tile/docs/img"]),
     ("atlas-decision", "overview", 900, 3.0, ["docs/img"]),
     ("atlas-cells", "overview", 900, 4.0, ["docs/img", "tt/tile/docs/img"]),
-    ("atlas-switched", "overview", 900, 5.0, ["docs/img", "tt/tile/docs/img"]),
+    ("atlas-exploded", "overview", 900, 5.0, ["docs/img", "tt/tile/docs/img"]),
+    ("atlas-switched", "overview", 900, 6.0, ["docs/img", "tt/tile/docs/img"]),
+    ("atlas-numbers", "overview", 900, ".bn-red", ["docs/img"]),
     ("atlas-fpga", "overview", 900, "#fpga", ["docs/img"]),
     ("atlas-demo", "demos/crossover/4391", 1180, None, ["docs/img"]),
     ("atlas-array", "demos/tpu/60", 1050, None, ["docs/img"]),

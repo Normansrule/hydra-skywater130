@@ -552,6 +552,7 @@ def render(metrics):
     tour = tour_steps(cx)
     t_last = timing[-1]
     facts = die_facts(die, traces)
+    bignums, marquee = big_numbers(facts, die.get('fpga'), metrics, timing)
     match = phys and next((r for r in timing if r.get("slew_violations") == phys["metrics"].get("design__max_slew_violation__count")
                            and abs(r.get("utilisation", -1) - (phys["metrics"].get("design__instance__utilization") or -2)) < 1e-6), None)
     die_ver = match["version"] if match else "latest"
@@ -570,10 +571,11 @@ def render(metrics):
                   "; ".join(esc(p) for p in problems[:6]) + "</div>")
 
     return PAGE.format(
-        css=CSS, js=JS + DIE_JS + FPGA_JS, data=blob, light=T.css_vars(T.LIGHT), dark=T.css_vars(T.DARK), fonts=fonts,
+        css=CSS, js=JS + DIE_JS + FPGA_JS + NUM_JS, data=blob, light=T.css_vars(T.LIGHT) + ";--grain:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .08 0 0 0 0 .02 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E\")",
+        dark=T.css_vars(T.DARK) + ";--grain:none", fonts=fonts,
         story=story_html(facts, die_ver, str(tp["tiles"]).replace("x", "×")), die_text=die_text(facts, die),
         die_bin=b64(die["die.bin"]) if "die" in die else "", diegl_bin=b64(die["die-gl.bin"]) if "die-gl" in die else "",
-        die_ver=esc(die_ver), fpga_plan=esc((die.get('fpga') or {}).get('plan', '')),
+        die_ver=esc(die_ver), bignums=bignums, marquee=marquee, fpga_plan=esc((die.get('fpga') or {}).get('plan', '')),
         fpga_text=fpga_text(die.get('fpga'), fpga_phases(die.get('fpga'), rg)),
         status=st_html, tour=tour, views="".join(views), build_opts=build_opts,
         cards="".join(card_html), pin_svg=pin_svg(tp), pin_rows=pin_rows, reg_rows=reg_rows,
@@ -819,6 +821,12 @@ def story_html(f, tile_ver, tiles):
          f'<p>Closer in, every cell is drawn from the process design kit\'s own layout of its type ({f["macros"]} types, '
          f'{f["tpl"]:,} rectangles): green diffusion, red polysilicon gates, violet local interconnect and blue metal 1. '
          f'<span id="story-cell">This is one of the cost engine\'s registers.</span></p>'),
+        ("The mask, pulled apart",
+         f'<p>Lift the four metal layers off the cells and the routing shows its order: {w["met1"]:,} metal-1, '
+         f'{w["met2"]:,} metal-2, {w["met3"]:,} metal-3 and {w["met4"]:,} metal-4 rectangles, joined by '
+         f'{f["vias"]:,} vias. The glowing wires on every layer are the nets that are high at the select.</p>'
+         '<p class="small">Keep scrolling to turn the stack. In the explorer, the 3D switch does the same, and you can '
+         'drag to turn it.</p>'),
         (f'{f.get("switched", 0):,} nets switched to make one decision',
          f'<p>That is {f.get("switched", 0) / f["nets"] * 100:.0f}% of the tile\'s nets, changing value '
          f'{f.get("changes", 0):,} times in {f.get("c1", 0) - f.get("c0", 0) + 1} cycles, for one {esc(job)} sent to the '
@@ -934,6 +942,45 @@ def fpga_text(fp, phases):
         return ""
     lis = "".join(f"<li>cycle {p['c0']:,}: {esc(p['text'])}.</li>" for p in phases)
     return f"<details class='textalt'><summary>This run as text</summary><ol>{lis}</ol></details>"
+
+
+
+def big_numbers(f, fp, metrics, timing):
+    """One number per screen, each on a full-bleed block of a role colour,
+    every one read from the data files: the layout, the gate-level run, the
+    FPGA image's simulation."""
+    if not f:
+        return "", ""
+    disp = next((e for e in (fp or {}).get("events", []) if e["k"] == "disp"), None)
+    comp = next((e for e in (fp or {}).get("events", []) if e["k"] == "comp"), None)
+    items = [
+        ("amber", "Placed cells", f"{f['cells']:,}",
+         f"standard cells on {f['w']:.1f} × {f['h']:.1f} µm of the hardened tile, every one drawn above from the layout file."),
+        ("blue", "Nets", f"{f['nets']:,}",
+         "wires between them, routed on four metal layers, each one you can find by name in the explorer."),
+        ("red", "Switched", f"{f.get('switched', 0):,}",
+         f"nets changed value to make one decision, {f.get('changes', 0):,} times in {f.get('c1', 0) - f.get('c0', 0) + 1} cycles of the gate-level recording."),
+    ]
+    if disp and comp:
+        items.append(("green", "Cycles on the array", f"{comp['c'] - disp['c']}",
+                      "from dispatch to done for the FPGA memory image's job, in its own simulation (not a board run)."))
+    secs = "".join(
+        f'<section class="bignum bn-{c}" aria-label="{esc(k)}"><div class="bn-in wrap">'
+        f'<p class="bn-k">{esc(k)}</p>'
+        f'<p class="bn-n"><span class="o" aria-hidden="true">{n}</span><span class="f">{n}</span></p>'
+        f'<p class="bn-t">{esc(tx)}</p></div></section>' for c, k, n, tx in items)
+    t_last = timing[-1]
+    gl = next((v["result"] for v in metrics["verification"] if v.get("target") == "tile-gl"), None)
+    facts = [f"{f['cells']:,} cells", f"{f['nets']:,} nets", f"{f.get('switched', 0):,} switched in one decision",
+             f"setup {min(c[1] for c in t_last['corners']):+.2f} ns at {len(t_last['corners'])} corners",
+             f"DRC {t_last['drc']} · LVS {t_last['lvs']}"]
+    if gl:
+        facts.append(f"{gl} gate-level tests")
+    if fp and fp.get("pnr"):
+        facts.append(f"{fp['pnr']['luts']:,} LUTs on ECP5")
+    one = "".join(f"<span>{esc(x)}</span><i></i>" for x in facts)
+    band = f'<div class="marquee" aria-hidden="true"><div class="mq">{one}{one}</div></div>'
+    return secs, band
 
 
 def flow_html(flow):
@@ -1140,6 +1187,40 @@ dl.pnr{display:grid;grid-template-columns:1fr auto;gap:4px 14px;margin:0;font-si
 @media (max-width:980px){.fpga{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){.fb-w.on,.fb-b.busy rect{animation:none}}
 
+
+/* paper grain in the safelit room; none on the mask */
+body{background-image:var(--grain,none)}
+.mask,.story,.band{background-image:none}
+/* the exploded stack's layer names */
+.layerlabels{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity 260ms ease}
+.layerlabels.on{opacity:1}
+.layerlabels i{position:absolute;transform:translateY(-50%);font:var(--fs-1)/1.2 var(--mono);font-style:normal;color:var(--ink2);white-space:nowrap;
+ background:var(--surface);padding:3px 9px;border-radius:6px}
+.layerlabels b{color:var(--ink);font:600 var(--fs-1) var(--sans);margin-right:6px}
+/* one number per screen, on a block of colour; the fill is exposed as it scrolls in */
+.bignum{position:relative;min-height:88svh;padding:var(--sp-6) 0;display:flex;align-items:center;overflow:hidden;--p:0}
+.bn-in{position:relative;width:100%}
+.bn-amber{background:#ffc145;color:#16130b}.bn-blue{background:#2346c4;color:#fbfaf6}
+.bn-red{background:#a8231b;color:#fbfaf6}.bn-green{background:#11683a;color:#fbfaf6}
+.bn-k{font:700 var(--fs-4)/1 var(--sans);font-stretch:75%;margin:0 0 var(--sp-3)}
+.bn-n{position:relative;margin:0;font-weight:800;font-stretch:75%;font-size:clamp(120px,24vw,340px);line-height:.82;letter-spacing:-.01em;
+ font-variant-numeric:tabular-nums;transform:scale(calc(.94 + var(--p) * .06));transform-origin:left center}
+.bn-n .o{color:transparent;-webkit-text-stroke:3px currentColor}
+.bn-n .f{position:absolute;left:0;top:0;clip-path:inset(0 calc((1 - var(--p)) * 100%) 0 0)}
+.bn-t{font-size:var(--fs-4);line-height:1.35;max-width:34ch;margin:var(--sp-4) 0 0}
+/* the fact band */
+.marquee{overflow:hidden;background:#16130b;color:#ffc145;padding:14px 0;white-space:nowrap}
+.mq{display:inline-flex;align-items:center;gap:28px;animation:mq 46s linear infinite;padding-left:28px}
+.mq span{font:700 clamp(20px,2.4vw,32px)/1 var(--sans);font-stretch:75%}
+.mq i{width:12px;height:12px;background:#ffc145;transform:rotate(45deg);flex:none}
+@keyframes mq{to{transform:translateX(-50%)}}
+@media (hover:hover){.marquee:hover .mq{animation-play-state:paused}}
+/* the FPGA board answers the pointer with a slight tilt */
+.fpgastage{perspective:1400px}.fpgastage svg{transition:transform 240ms var(--ease-out);transform-origin:center}
+.zoombtns button#ex-3d{font-size:var(--fs-1)}.zoombtns button[aria-pressed="true"]{background:var(--control);color:var(--on-accent)}
+@media (max-width:760px){.bignum{min-height:62svh}}
+@media (prefers-reduced-motion:reduce){.mq{animation:none}.bignum{--p:1}.bn-n{transform:none}.fpgastage svg{transition:none}.layerlabels{transition:none}}
+
 /* ---- the rest of the atlas ---- */
 .split{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:var(--sp-5);align-items:center}
 .split figure{margin:0;background:var(--surface);border-radius:var(--r);padding:var(--sp-4)}
@@ -1331,6 +1412,7 @@ PAGE = """<!DOCTYPE html>
       <div class="scalebar" id="hero-scale" aria-hidden="true"><span></span><b></b></div>
       <div class="dielabels" id="hero-labels" aria-hidden="true"></div>
       <div class="cellmark" id="hero-target" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <div class="layerlabels" id="hero-layers" aria-hidden="true"></div>
       <div class="lane-hud" id="hero-hud" aria-hidden="true"></div>
     </div>
     <div class="intro wrap">
@@ -1341,6 +1423,9 @@ PAGE = """<!DOCTYPE html>
     </div>
     <div class="steps">{story}</div>
   </div>
+  {marquee}
+  <div class="bignums">{bignums}</div>
+  {marquee}
 
   <div class="band mask"><div class="wrap">
   <h2>Where things stand</h2>
@@ -1427,7 +1512,8 @@ PAGE = """<!DOCTYPE html>
       <div class="coords" id="ex-xy" aria-hidden="true"></div>
       <div class="zoombtns" role="group" aria-label="Zoom">
         <button type="button" id="ex-in" aria-label="Zoom in">+</button><button type="button" id="ex-out" aria-label="Zoom out">−</button>
-        <button type="button" id="ex-fit" aria-label="Fit the whole tile">Fit</button></div>
+        <button type="button" id="ex-fit" aria-label="Fit the whole tile">Fit</button>
+        <button type="button" id="ex-3d" aria-pressed="false" aria-label="Pull the layers apart in 3D">3D</button></div>
     </div>
     <div class="exside">
       <div class="excontrols" role="group" aria-label="Gate-level recording">
@@ -1885,7 +1971,7 @@ function prepare(L,G){
 // ---------- WebGL --------------------------------------------------------
 const VS_RECT=`#version 300 es
 in vec2 corner;in vec4 rect;in uint net;
-uniform vec2 uC;uniform float uS;uniform vec2 uView;uniform sampler2D uState;uniform float uMinPx;uniform int uLitPass;uniform int uPick;uniform int uFocus;uniform uint uMask;
+uniform vec2 uC;uniform float uS;uniform vec2 uView;uniform mat2 uR;uniform float uLift;uniform sampler2D uState;uniform float uMinPx;uniform int uLitPass;uniform int uPick;uniform int uFocus;uniform uint uMask;
 out float vCov;out float vGlow;out float vFlash;out float vSel;out float vDim;
 void main(){vec2 sz=rect.zw*uS;float g=0.0,fl=0.0;uint m=0u;
  if(net!=65535u){vec4 st=texelFetch(uState,ivec2(int(net)%128,int(net)/128),0);g=st.r;fl=st.b;m=uint(st.g*255.0+0.5);}
@@ -1893,7 +1979,7 @@ void main(){vec2 sz=rect.zw*uS;float g=0.0,fl=0.0;uint m=0u;
  vCov=min(1.0,(sz.x/s2.x)*(sz.y/s2.y));vGlow=g;vFlash=fl;vSel=(uPick>=0&&int(net)==uPick)?1.0:0.0;
  vDim=(uFocus==1&&((uMask>>(m&31u))&1u)==0u)?0.28:1.0;
  if(uLitPass==1&&g<0.02&&fl<0.02&&vSel<0.5){gl_Position=vec4(2.0,2.0,0.0,1.0);return;}
- vec2 c=(rect.xy+rect.zw*0.5-uC)*uS+(corner-0.5)*s2;gl_Position=vec4(c/(uView*0.5),0.0,1.0);}`;
+ vec2 w=rect.xy+rect.zw*0.5-uC+(corner-0.5)*s2/uS;vec2 c=(uR*w)*uS+vec2(0.0,uLift);gl_Position=vec4(c/(uView*0.5),0.0,1.0);}`;
 const FS_RECT=`#version 300 es
 precision highp float;precision highp int;in float vCov;in float vGlow;in float vFlash;in float vSel;in float vDim;
 uniform vec4 uColor;uniform vec3 uLit;uniform vec3 uCore;uniform int uLitPass;uniform float uExp;out vec4 o;
@@ -1902,23 +1988,23 @@ void main(){if(uLitPass==1){float a=vSel>0.5?1.0:clamp(vGlow*0.34*vDim+vFlash*0.
  float a=uColor.a*vCov*vDim;vec3 c=uColor.rgb*(1.0+0.25*vGlow);o=vec4(c*a,a)*uExp;}`;
 const VS_CELL=`#version 300 es
 in vec2 corner;in vec4 rect;in uvec2 cm;
-uniform vec2 uC;uniform float uS;uniform vec2 uView;uniform float uMinPx;uniform int uFocus;uniform uint uMask;uniform vec4 uClass[8];uniform vec4 uMod[16];
+uniform vec2 uC;uniform float uS;uniform vec2 uView;uniform mat2 uR;uniform float uLift;uniform float uMinPx;uniform int uFocus;uniform uint uMask;uniform vec4 uClass[8];uniform vec4 uMod[16];
 out vec4 vCol;
 void main(){vec2 sz=rect.zw*uS;vec2 s2=max(sz,vec2(uMinPx));float cov=min(1.0,(sz.x/s2.x)*(sz.y/s2.y));
  uint m=cm.y&127u;vec4 col=uClass[int(cm.x)];
  if(uFocus==1){bool on=m>0u&&((uMask>>m)&1u)==1u;col=on?vec4(uMod[int(m)].rgb,(cm.y&128u)!=0u?0.55:0.9):vec4(col.rgb*0.6,col.a);}
  vCol=vec4(col.rgb*col.a*cov,col.a*cov);
- vec2 c=(rect.xy+rect.zw*0.5-uC)*uS+(corner-0.5)*s2;gl_Position=vec4(c/(uView*0.5),0.0,1.0);}`;
+ vec2 w=rect.xy+rect.zw*0.5-uC+(corner-0.5)*s2/uS;vec2 c=(uR*w)*uS+vec2(0.0,uLift);gl_Position=vec4(c/(uView*0.5),0.0,1.0);}`;
 const FS_COL=`#version 300 es
 precision highp float;precision highp int;in vec4 vCol;uniform float uExp;out vec4 o;void main(){o=vCol*uExp;}`;
 const VS_TPL=`#version 300 es
 in vec3 pos;in vec4 inst;
-uniform vec2 uC;uniform float uS;uniform vec2 uView;uniform float uCellH;uniform vec4 uLayer[8];uniform int uOn;uniform float uFade;
+uniform vec2 uC;uniform float uS;uniform vec2 uView;uniform mat2 uR;uniform float uLift;uniform float uCellH;uniform vec4 uLayer[8];uniform int uOn;uniform float uFade;
 out vec4 vCol;
 void main(){int ly=int(pos.z+0.5);vec2 p=pos.xy;float w=inst.z,h=uCellH;int o=int(inst.w+0.5);
  if(o==1)p.y=h-p.y;else if(o==2){p.x=w-p.x;p.y=h-p.y;}else if(o==3)p.x=w-p.x;
  vec4 col=((uOn>>ly)&1)==1?uLayer[ly]:vec4(0.0);col.a*=uFade;vCol=vec4(col.rgb*col.a,col.a);
- vec2 c=(inst.xy+p-uC)*uS;gl_Position=vec4(c/(uView*0.5),0.0,1.0);}`;
+ vec2 c=(uR*(inst.xy+p-uC))*uS+vec2(0.0,uLift);gl_Position=vec4(c/(uView*0.5),0.0,1.0);}`;
 
 function sh(gl,type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);
   if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error('shader: '+gl.getShaderInfoLog(s));return s}
@@ -1932,7 +2018,7 @@ const LAYER_UI=[['cells','Cells','#3a3f4a'],['diff','Diffusion','diff'],['poly',
 const TPL_LAYERS=DM?DM.cell_layers:[];
 
 class DieView{
-  constructor(canvas,o){this.cv=canvas;canvas._die=this;this.o=o||{};this.cam={x:0,y:0,l:0};this.tgt={x:0,y:0,l:0};this.v={x:0,y:0,l:0};
+  constructor(canvas,o){this.cv=canvas;canvas._die=this;this.o=o||{};this.cam={x:0,y:0,l:0,tilt:0,yaw:0};this.tgt={x:0,y:0,l:0,tilt:0,yaw:0};this.v={x:0,y:0,l:0,tilt:0,yaw:0};
     this.show={cells:1,diff:1,poly:1,li1:1,met1:1,met2:1,met3:1,met4:1,vias:1,power:1};this.focus=false;this.mask=0;this.pick=-1;
     this.cycle=null;this.raf=0;this.last=0;this.visible=true;this.listeners=[]}
   init(P){this.P=P;const gl=this.cv.getContext('webgl2',{antialias:true,premultipliedAlpha:true,alpha:false,preserveDrawingBuffer:false});
@@ -1966,7 +2052,7 @@ class DieView{
     if(this.cv.width!==w||this.cv.height!==h){this.cv.width=w;this.cv.height=h}this.dpr=dpr}
   fitScale(w,h){const cw=this.cv.clientWidth||800,chh=this.cv.clientHeight||600;return Math.log(Math.min(cw/w,chh/h))}
   fit(now){const P=this.P;this.frame(-P.W*0.03,-P.H*0.03,P.W*1.03,P.H*1.03,now,null)}
-  setTarget(x,y,l,now){this.tgt.x=x;this.tgt.y=y;this.tgt.l=l;if(now||RM.matches){this.cam.x=x;this.cam.y=y;this.cam.l=l;this.v={x:0,y:0,l:0}}this.kick()}
+  setTarget(x,y,l,now){this.tgt.x=x;this.tgt.y=y;this.tgt.l=l;if(now||RM.matches){this.cam.x=x;this.cam.y=y;this.cam.l=l;this.v.x=this.v.y=this.v.l=0}this.kick()}
   // fit a layout box into a part of the canvas (CSS px: {x,y,w,h}), or all of it
   frame(x0,y0,x1,y1,now,rg){const cw=this.cv.clientWidth||800,chh=this.cv.clientHeight||600;const r=rg||{x:0,y:0,w:cw,h:chh};
     const l=Math.log(Math.min(r.w/((x1-x0)*1.04),r.h/((y1-y0)*1.04))),s=Math.exp(l);
@@ -1979,9 +2065,9 @@ class DieView{
   tick(t){this.raf=0;const dt=this.last?Math.min(0.25,(t-this.last)/1000):0.016;this.last=t;let moving=false;
     // camera: a critically damped spring on centre and log-scale
     // (in steps of at most 1/60 s, so a slow frame does not slow the camera or make it unstable)
-    if(!RM.matches){const k=this.o.stiff||140,c=2*Math.sqrt(k),n=Math.ceil(dt/0.0167),h=dt/n;for(const a of ['x','y','l']){for(let q=0;q<n;q++){const d0=this.tgt[a]-this.cam[a];this.v[a]+=(k*d0-c*this.v[a])*h;this.cam[a]+=this.v[a]*h}const d=this.tgt[a]-this.cam[a];
-        const eps=a==='l'?1e-4:0.002/Math.exp(this.cam.l);if(Math.abs(d)>eps||Math.abs(this.v[a])>eps)moving=true;else{this.cam[a]=this.tgt[a];this.v[a]=0}}}
-    else{this.cam.x=this.tgt.x;this.cam.y=this.tgt.y;this.cam.l=this.tgt.l}
+    if(!RM.matches){const k=this.o.stiff||140,c=2*Math.sqrt(k),n=Math.ceil(dt/0.0167),h=dt/n;for(const a of ['x','y','l','tilt','yaw']){for(let q=0;q<n;q++){const d0=this.tgt[a]-this.cam[a];this.v[a]+=(k*d0-c*this.v[a])*h;this.cam[a]+=this.v[a]*h}const d=this.tgt[a]-this.cam[a];
+        const eps=(a==='l'||a==='tilt'||a==='yaw')?1e-4:0.002/Math.exp(this.cam.l);if(Math.abs(d)>eps||Math.abs(this.v[a])>eps)moving=true;else{this.cam[a]=this.tgt[a];this.v[a]=0}}}
+    else{Object.assign(this.cam,this.tgt)}
     // nets: rise fast, fall with an afterglow
     // a net that switches flashes and fades (the flash is the news, the level is the state)
     let glowing=false;const up=1-Math.exp(-dt/0.045),dn=1-Math.exp(-dt/0.26),fd=Math.exp(-dt/0.42);
@@ -1995,16 +2081,20 @@ class DieView{
     gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
     gl.bindTexture(gl.TEXTURE_2D,this.tex);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,128,this.th,gl.RGBA,gl.UNSIGNED_BYTE,this.stbuf);
     const pxum=Math.exp(this.cam.l);const view=[W,H];
+    // the exploded view: plan turned by yaw, squashed by the pitch, each layer lifted
+    const tl=Math.max(0,Math.min(1,this.cam.tilt)),cy0=Math.cos(this.cam.yaw*tl),sy0=Math.sin(this.cam.yaw*tl),sq=1-0.52*tl;
+    const R=new Float32Array([cy0,sy0*sq,-sy0,cy0*sq]);const gap=tl*H*0.105;this._R=R;this._gap=gap;
+    const lift=(pp,k)=>{gl.uniformMatrix2fv(pp.u.uR,false,R);gl.uniform1f(pp.u.uLift,(k-1.6)*gap)};
     const common=(pp)=>{gl.useProgram(pp.p);gl.uniform2f(pp.u.uC,this.cam.x,this.cam.y);gl.uniform1f(pp.u.uS,s);gl.uniform2f(pp.u.uView,view[0],view[1]);
       if(pp.u.uMinPx)gl.uniform1f(pp.u.uMinPx,1.0*this.dpr*0.75);if(pp.u.uFocus)gl.uniform1i(pp.u.uFocus,this.focus?1:0);if(pp.u.uMask)gl.uniform1ui(pp.u.uMask,this.mask>>>0);if(pp.u.uExp)gl.uniform1f(pp.u.uExp,this.exposure)};
     // cells
     if(this.show.cells){const pc=this.pc;common(pc);const cls=DM.classes.map(k=>{const c=rgb(k==='fill'?PAL.fill:PAL.cell);return [c[0],c[1],c[2],1]});
       const cl=new Float32Array(32);cls.forEach((c,i)=>cl.set(c,i*4));gl.uniform4fv(pc.u.uClass,cl);
       const md=new Float32Array(64);DM.modules.forEach((m,i)=>{const c=rgb(MODCOL[m]||'#cccccc');md.set([c[0],c[1],c[2],1],(i+1)*4)});gl.uniform4fv(pc.u.uMod,md);
-      gl.bindVertexArray(this.vCells.vao);gl.drawArraysInstanced(gl.TRIANGLE_STRIP,0,4,this.vCells.k)}
+      lift(pc,0);gl.bindVertexArray(this.vCells.vao);gl.drawArraysInstanced(gl.TRIANGLE_STRIP,0,4,this.vCells.k)}
     // inside the cells, once there is room to see them
     const tplFade=Math.max(0,Math.min(1,(pxum-10)/8));
-    if(tplFade>0){const pt=this.pt;gl.useProgram(pt.p);gl.uniform2f(pt.u.uC,this.cam.x,this.cam.y);gl.uniform1f(pt.u.uS,s);gl.uniform2f(pt.u.uView,W,H);gl.uniform1f(pt.u.uCellH,DM.cell_h_um);gl.uniform1f(pt.u.uFade,tplFade);gl.uniform1f(pt.u.uExp,this.exposure);
+    if(tplFade>0){const pt=this.pt;gl.useProgram(pt.p);gl.uniform2f(pt.u.uC,this.cam.x,this.cam.y);gl.uniform1f(pt.u.uS,s);gl.uniform2f(pt.u.uView,W,H);gl.uniform1f(pt.u.uCellH,DM.cell_h_um);gl.uniform1f(pt.u.uFade,tplFade);gl.uniform1f(pt.u.uExp,this.exposure);lift(pt,0);
       const lc=new Float32Array(32);let on=0;TPL_LAYERS.forEach((nm,i)=>{const key=nm==='tap'?'diff':(nm==='licon'||nm==='mcon')?'li1':nm==='nwell'?'diff':nm;
         const col=rgb(PAL[nm]||'#888888');const al={nwell:.22,diff:.85,tap:.7,poly:.9,licon:.9,li1:.7,mcon:.9,met1:.75}[nm]||.8;lc.set([col[0],col[1],col[2],al],i*4);if(this.show[key])on|=1<<i});
       gl.uniform4fv(pt.u.uLayer,lc);gl.uniform1i(pt.u.uOn,on);gl.bindVertexArray(this.vT);gl.bindBuffer(gl.ARRAY_BUFFER,this.instBuf);
@@ -2015,40 +2105,42 @@ class DieView{
     // wires, vias and power, bottom to top
     const pr=this.pr;common(pr);gl.uniform1i(pr.u.uPick,this.pick);gl.uniform1i(pr.u.uLitPass,0);
     const lit=rgb(PAL.lit),core=rgb(PAL.lit_core);gl.uniform3f(pr.u.uLit,lit[0],lit[1],lit[2]);gl.uniform3f(pr.u.uCore,core[0],core[1],core[2]);
-    const drawSet=(v,col,a)=>{if(!v)return;const c=rgb(col);gl.uniform4f(pr.u.uColor,c[0],c[1],c[2],a);gl.bindVertexArray(v.vao);gl.drawArraysInstanced(gl.TRIANGLE_STRIP,0,4,v.k)};
+    const drawSet=(v,col,a,k)=>{if(!v)return;lift(pr,k||0);const c=rgb(col);gl.uniform4f(pr.u.uColor,c[0],c[1],c[2],a);gl.bindVertexArray(v.vao);gl.drawArraysInstanced(gl.TRIANGLE_STRIP,0,4,v.k)};
     const viaA=Math.max(0,Math.min(1,(pxum-1.5)/4));
     // close in, metal thins out so the cells' own layers show through
     const mA=1-0.55*Math.max(0,Math.min(1,(pxum-14)/30));
-    if(this.show.power)drawSet(this.vP[1],PAL.power,.75);
-    if(this.show.met1)drawSet(this.vW.met1,PAL.met1,.62*mA);
-    if(this.show.vias&&viaA>0){drawSet(this.vV.mcon,PAL.mcon,.7*viaA);drawSet(this.vV.via,PAL.via,.8*viaA)}
-    if(this.show.met2)drawSet(this.vW.met2,PAL.met2,.62*mA);
-    if(this.show.vias&&viaA>0)drawSet(this.vV.via2,PAL.via2,.8*viaA);
-    if(this.show.met3)drawSet(this.vW.met3,PAL.met3,.7*mA);
-    if(this.show.vias&&viaA>0)drawSet(this.vV.via3,PAL.via3,.8*viaA);
-    if(this.show.met4)drawSet(this.vW.met4,PAL.met4,.72*mA);
-    if(this.show.power)drawSet(this.vP[4],PAL.power,.55);
+    if(this.show.power)drawSet(this.vP[1],PAL.power,.75,1);
+    if(this.show.met1)drawSet(this.vW.met1,PAL.met1,.62*mA,1);
+    if(this.show.vias&&viaA>0){drawSet(this.vV.mcon,PAL.mcon,.7*viaA,1);drawSet(this.vV.via,PAL.via,.8*viaA,2)}
+    if(this.show.met2)drawSet(this.vW.met2,PAL.met2,.62*mA,2);
+    if(this.show.vias&&viaA>0)drawSet(this.vV.via2,PAL.via2,.8*viaA,3);
+    if(this.show.met3)drawSet(this.vW.met3,PAL.met3,.7*mA,3);
+    if(this.show.vias&&viaA>0)drawSet(this.vV.via3,PAL.via3,.8*viaA,4);
+    if(this.show.met4)drawSet(this.vW.met4,PAL.met4,.72*mA,4);
+    if(this.show.power)drawSet(this.vP[4],PAL.power,.55,4);
     // the lit pass: every net that is high, on top, so activity reads from afar
     gl.uniform1i(pr.u.uLitPass,1);gl.blendFunc(gl.ONE,gl.ONE);
-    for(const l of ['met1','met2','met3','met4'])if(this.show[l])drawSet(this.vW[l],'#000000',1);
+    ['met1','met2','met3','met4'].forEach((l,k)=>{if(this.show[l])drawSet(this.vW[l],'#000000',1,k+1)});
     gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.bindVertexArray(null)}
   // screen <-> layout
   toWorld(px,py){const r=this.cv.getBoundingClientRect(),s=Math.exp(this.cam.l);return [this.cam.x+(px-r.left-r.width/2)/s,this.cam.y-(py-r.top-r.height/2)/s]}
-  toScreen(x,y){const r=this.cv.getBoundingClientRect(),s=Math.exp(this.cam.l);return [r.width/2+(x-this.cam.x)*s,r.height/2-(y-this.cam.y)*s]}
+  toScreen(x,y,k){const r=this.cv.getBoundingClientRect(),s=Math.exp(this.cam.l),R=this._R||[1,0,0,1];const dx=x-this.cam.x,dy=y-this.cam.y;
+    const px=(R[0]*dx+R[2]*dy)*s,py=(R[1]*dx+R[3]*dy)*s+((k||0)-1.6)*(this._gap||0)/this.dpr;return [r.width/2+px,r.height/2-py]}
   zoomAt(px,py,f){const [wx,wy]=this.toWorld(px,py);const r=this.cv.getBoundingClientRect();const nl=Math.max(this.fitScale(this.P.W*3,this.P.H*3),Math.min(Math.log(400),this.tgt.l+Math.log(f)));
-    const s=Math.exp(nl);this.tgt.l=nl;this.tgt.x=wx-(px-r.left-r.width/2)/s;this.tgt.y=wy+(py-r.top-r.height/2)/s;if(RM.matches){this.cam={...this.tgt,l:this.tgt.l};}this.kick()}
+    const s=Math.exp(nl);this.tgt.l=nl;this.tgt.x=wx-(px-r.left-r.width/2)/s;this.tgt.y=wy+(py-r.top-r.height/2)/s;if(RM.matches){Object.assign(this.cam,this.tgt)}this.kick()}
   pan(dx,dy){const s=Math.exp(this.tgt.l);this.tgt.x-=dx/s;this.tgt.y+=dy/s;this.cam.x-=dx/Math.exp(this.cam.l);this.cam.y+=dy/Math.exp(this.cam.l);this.kick()}
   bind(){const cv=this.cv;const pts=new Map();let moved=0,lastT=0,vx=0,vy=0;
     cv.addEventListener('wheel',e=>{e.preventDefault();const f=Math.exp(-e.deltaY*(e.deltaMode===1?0.05:0.0018));this.zoomAt(e.clientX,e.clientY,f)},{passive:false});
     cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);pts.set(e.pointerId,{x:e.clientX,y:e.clientY});moved=0;vx=vy=0;lastT=performance.now()});
     cv.addEventListener('pointermove',e=>{const r=this.cv.getBoundingClientRect();const [wx,wy]=this.toWorld(e.clientX,e.clientY);this.o.onHover&&this.o.onHover(wx,wy);
       const p=pts.get(e.pointerId);if(!p)return;
+      if(pts.size===1&&this.tgt.tilt>0.5){const dx=e.clientX-p.x;moved+=Math.abs(dx)+Math.abs(e.clientY-p.y);this.tgt.yaw+=dx*0.006;p.x=e.clientX;p.y=e.clientY;this.kick();return}
       if(pts.size===1){const dx=e.clientX-p.x,dy=e.clientY-p.y;moved+=Math.abs(dx)+Math.abs(dy);this.pan(dx,dy);const t=performance.now(),d=Math.max(1,t-lastT);vx=dx/d;vy=dy/d;lastT=t}
       else if(pts.size===2){const [a,b]=[...pts.values()];const d0=Math.hypot(a.x-b.x,a.y-b.y);p.x=e.clientX;p.y=e.clientY;const [a2,b2]=[...pts.values()];
         const d1=Math.hypot(a2.x-b2.x,a2.y-b2.y);if(d0>0)this.zoomAt((a2.x+b2.x)/2,(a2.y+b2.y)/2,d1/d0);moved+=10;return}
       p.x=e.clientX;p.y=e.clientY});
     const up=e=>{const was=pts.has(e.pointerId);pts.delete(e.pointerId);if(!was)return;
-      if(moved<5&&e.type==='pointerup'){const [wx,wy]=this.toWorld(e.clientX,e.clientY);this.o.onPick&&this.o.onPick(this.pickAt(wx,wy,6/Math.exp(this.cam.l)))}
+      if(moved<5&&e.type==='pointerup'&&this.cam.tilt<0.05){const [wx,wy]=this.toWorld(e.clientX,e.clientY);this.o.onPick&&this.o.onPick(this.pickAt(wx,wy,6/Math.exp(this.cam.l)))}
       else if(!RM.matches&&pts.size===0&&performance.now()-lastT<80){this.pan(vx*140,vy*140)}};   // a flick keeps going a little
     cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
     cv.addEventListener('dblclick',e=>{e.preventDefault();this.zoomAt(e.clientX,e.clientY,2.5)});
@@ -2105,7 +2197,7 @@ async function story(){const root=$('#story'),cv=$('#die-hero');if(!root||!cv)re
   let flop=-1,fd=1e18;const fi=DM.classes.indexOf('flop'),ci=DM.modules.indexOf('u_mom.g_shared.u_ce')+1;
   for(let i=0;i<P.n;i++)if(P.cellcm[i*2]===fi&&P.cellcm[i*2+1]===ci){const d=(P.cells[i*4]-ce.x)**2+(P.cells[i*4+1]-ce.y)**2;if(d<fd){fd=d;flop=i}}
   if(flop<0)for(let i=0;i<P.n;i++)if(P.cellcm[i*2]===fi){flop=i;break}
-  const fx=P.cells[flop*4]+P.cells[flop*4+2]/2,fy=P.cells[flop*4+1]+DM.cell_h_um/2;K.push([fx-9,fy-6,fx+9,fy+6]);K.push(full);
+  const fx=P.cells[flop*4]+P.cells[flop*4+2]/2,fy=P.cells[flop*4+1]+DM.cell_h_um/2;K.push([fx-9,fy-6,fx+9,fy+6]);K.push([-P.W*0.42,-P.H*0.62,P.W*1.42,P.H*1.62]);K.push(full);
   const sc=$('#story-cell');
   const ev=(D.traces[DG&&DG.trace]||{events:[]}).events;const go=(ev.find(e=>e.k==='go'&&P.c0<=e.c&&e.c<=P.c1)||{c:P.c0}).c;
   const sel=ev.find(e=>e.k==='select'&&P.c0<=e.c&&e.c<=P.c1);const cEnd=sel?sel.c:P.c1;
@@ -2128,14 +2220,20 @@ async function story(){const root=$('#story'),cv=$('#die-hero');if(!root||!cv)re
     const rStep=wide?{x:36,y:36,w:Math.max(200,card.left-cv.getBoundingClientRect().left-72),h:chh-72}:{x:16,y:20,w:cw-32,h:Math.max(160,chh-card.height-56)};
     const rg={x:mix2(rIntro.x,rStep.x,e0),y:mix2(rIntro.y,rStep.y,e0),w:mix2(rIntro.w,rStep.w,e0),h:mix2(rIntro.h,rStep.h,e0)};
     view.exposure=0.5+0.5*e0;view.frame(cx-w/2,cy-h/2,cx+w/2,cy+h/2,false,rg);
+    // step 5 peels the mask apart: tilt rises and falls around it, and the stack turns as you scroll
+    const tb=Math.max(0,Math.min(1,1-Math.abs(f-4)/0.75));view.tgt.tilt=RM.matches?(Math.abs(f-4)<0.5?1:0):tb*tb*(3-2*tb);
+    view.tgt.yaw=RM.matches?-0.5:-0.9+(f-3.3)*0.75;if(RM.matches)Object.assign(view.cam,view.tgt);
     // which cells are coloured: the dispatch unit from step 2 to step 4
     const foc=f>0.5&&f<2.55;view.focus=foc;view.mask=maskOf(D.dispatch);labMax=wide?card.left-cv.getBoundingClientRect().left-16:0;
     labels($('#hero-labels'),view,f>0.7&&f<1.5,labMax);root.dataset.f=f.toFixed(2);
     // the cycle: looping before step 3, scrubbed by scroll through it, then held at the select
     if(P.snap){if(f<1.55){view.anim=!RM.matches;if(RM.matches)view.setCycle(cEnd)}else{view.anim=false;const tt=Math.min(1,Math.max(0,(f-1.55)/0.9));view.setCycle(go+(cEnd-go)*tt)}}
     view.kick()}
+  const lay=$('#hero-layers');const LN=[['cells and their transistors',P.n],['metal 1',DM.counts.met1],['metal 2',DM.counts.met2],['metal 3',DM.counts.met3],['metal 4',DM.counts.met4]];
+  if(lay)lay.innerHTML=LN.map(([a,b],k)=>`<i data-k="${k}"><b>${a}</b> ${b.toLocaleString()}${k?' rectangles':' cells'}</i>`).join('');
   const tg=$('#hero-target');if(tg)tg.dataset.name=DM.macros[P.cellmac[flop]].replace('sky130_fd_sc_hd__','');
   view.o.onFrame=v=>{scalebar($('#hero-scale'),v);
+    if(lay){const on=v.cam.tilt>0.6;lay.classList.toggle('on',on);if(on)[...lay.children].forEach(i=>{const k=+i.dataset.k;const [x,y]=v.toScreen(P.W,P.H*0.5,k);i.style.left=(x+18)+'px';i.style.top=y+'px'})}
     if(tg){const on=f>2.7&&f<3.45;tg.classList.toggle('on',on);if(on){const [x0,y1]=v.toScreen(P.cells[flop*4],P.cells[flop*4+1]),[x1,y0]=v.toScreen(P.cells[flop*4]+P.cells[flop*4+2],P.cells[flop*4+1]+DM.cell_h_um);
       tg.style.left=(x0-6)+'px';tg.style.top=(y0-6)+'px';tg.style.width=(x1-x0+12)+'px';tg.style.height=(y1-y0+12)+'px'}}
 if(v.anim&&P.snap){const now=performance.now();if(now-loopT>420){loopT=now;const c=v.cycle==null||v.cycle>=P.c1?P.c0:v.cycle+1;v.setCycle(c)}}
@@ -2188,6 +2286,10 @@ async function explorer(){if(EX)return;const cv=$('#die-ex');if(!cv)return;EX=1;
   const xy=$('#ex-xy');view.o.onHover=(x,y)=>{xy.textContent=`x ${x.toFixed(2)} µm  y ${y.toFixed(2)} µm`};
   view.o.onFrame=v=>{scalebar($('#ex-scale'),v);labels($('#ex-labels'),v,v.focus&&Math.exp(v.cam.l)<6)};
   const c=()=>{const r=cv.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]};
+  // the exploded stack: drag turns it; select a wire again once it is flat
+  const b3=$('#ex-3d');if(b3)b3.onclick=()=>{const on=view.tgt.tilt<0.5;view.tgt.tilt=on?1:0;if(on){view.tgt.yaw=-0.6;
+      view.frame(-P.W*0.42,-P.H*0.62,P.W*1.42,P.H*1.62)}else{view.tgt.yaw=0;view.fit()}if(RM.matches)Object.assign(view.cam,view.tgt);
+    b3.setAttribute('aria-pressed',on);b3.textContent=on?'Flat':'3D';$('#ex-net').innerHTML=on?'<p class="muted">The layers are pulled apart: drag sideways to turn the stack. Switch back to Flat to select wires.</p>':'<p class="muted">Select a wire to see its net.</p>';view.kick()};
   $('#ex-in').onclick=()=>view.zoomAt(...c(),1.8);$('#ex-out').onclick=()=>view.zoomAt(...c(),1/1.8);$('#ex-fit').onclick=()=>view.fit();
   view.fit(true);view.kick()}
 
@@ -2265,5 +2367,21 @@ $('#fpga-prov').textContent=`${F.label} · ${F.result} · ${F.command} · repo $
 const p=F.pnr;if(p)$('#fpga-pnr').innerHTML=`<dt>Look-up tables</dt><dd class="num">${p.luts.toLocaleString()}</dd><dt>Flip-flops</dt><dd class="num">${p.ffs.toLocaleString()}</dd>`+
   `<dt>Multipliers</dt><dd class="num">${p.mult}</dd><dt>Fastest clock</dt><dd class="num">${p.fmax.toFixed(2)} MHz</dd><dt>Board runs</dt><dd>none yet</dd>`;
 go(0);
+})();
+"""
+
+NUM_JS = r"""
+(()=>{
+// one number per screen: its fill is exposed as the block scrolls to the middle
+const RM=matchMedia('(prefers-reduced-motion: reduce)');const bs=[...document.querySelectorAll('.bignum')];
+function upd(){if(RM.matches){bs.forEach(b=>b.style.setProperty('--p',1));return}const vh=innerHeight;
+  bs.forEach(b=>{const r=b.getBoundingClientRect();const p=Math.max(0,Math.min(1,(vh-r.top)/(vh*0.75)));b.style.setProperty('--p',p.toFixed(3))})}
+addEventListener('scroll',upd,{passive:true});addEventListener('resize',upd);upd();
+// the FPGA board tilts a little toward the pointer (fine pointers only)
+const st=document.querySelector('.fpgastage'),sv=st&&st.querySelector('svg');
+if(st&&sv&&matchMedia('(hover:hover) and (pointer:fine)').matches){
+  st.addEventListener('pointermove',e=>{if(RM.matches)return;const r=st.getBoundingClientRect();const x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;
+    sv.style.transform=`rotateY(${(x*7).toFixed(2)}deg) rotateX(${(-y*6).toFixed(2)}deg)`});
+  st.addEventListener('pointerleave',()=>{sv.style.transform=''})}
 })();
 """
