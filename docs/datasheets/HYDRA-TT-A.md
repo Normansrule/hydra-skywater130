@@ -9,7 +9,7 @@ here comes from silicon, because no tile has been fabricated or tested.
 | Design | `tt_um_hydra_mom`, [tinytapeout-hydra](https://github.com/Normansrule/tinytapeout-hydra) |
 | Source revision | v3.2: tile commit `452a59a4` plus the R7, MODEL-01/02 and RTL-04 fixes, the lint cleanup and the 4×4 return in this release |
 | Scope | **scheduler only.** It has no compute engines, no encryption and no security mode. It decides which of five engine slots *would* be cheapest and reports that decision |
-| Process | SkyWater sky130, Tiny Tapeout 4×4 tiles (v3.2; 3×4 did not route; not yet hardened) |
+| Process | SkyWater sky130, Tiny Tapeout 4×4 tiles (3×4 did not route). This sheet was written for v3.2; the latest harden, v3.10 (2026-10-18, one LibreLane run), signed off with DRC, LVS and antenna 0 and timing met at all nine corners, and still has 1,230 slew warnings at the slowest corner (`docs/timing.json`). Not fabricated |
 | ID register | `HYM3` |
 | Descriptor ABI | version 1, 128 bits (`mom/rtl/mom_pkg.sv`) |
 | Tags in flight | 4 |

@@ -23,6 +23,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 import atlas_theme as T          # noqa: E402
 import atlas_tile                # noqa: E402
+import atlas_boards              # noqa: E402
 
 ATLAS = ROOT / "docs/atlas"
 REPO = "Normansrule/hydra-skywater130"
@@ -571,7 +572,7 @@ def render(metrics):
                   "; ".join(esc(p) for p in problems[:6]) + "</div>")
 
     return PAGE.format(
-        css=CSS, js=JS + DIE_JS + FPGA_JS + NUM_JS, data=blob, light=T.css_vars(T.LIGHT) + ";--grain:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .08 0 0 0 0 .02 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E\")",
+        css=CSS + atlas_boards.CSS, js=JS + DIE_JS + FPGA_JS + NUM_JS + REVEAL_JS + LAMP_JS + atlas_boards.JS, boards=atlas_boards.section(metrics), data=blob, light=T.css_vars(T.LIGHT) + ";--grain:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .08 0 0 0 0 .02 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E\")",
         dark=T.css_vars(T.DARK) + ";--grain:none", fonts=fonts,
         story=story_html(facts, die_ver, str(tp["tiles"]).replace("x", "×")), die_text=die_text(facts, die),
         die_bin=b64(die["die.bin"]) if "die" in die else "", diegl_bin=b64(die["die-gl.bin"]) if "die-gl" in die else "",
@@ -802,7 +803,8 @@ def story_html(f, tile_ver, tiles):
          f'{f["cells"]:,} placed cells, {f["fill"]:,} of them filler, decoupling and tap cells that only complete the rows, '
          f'and {f["nets"]:,} nets routed as {w["met1"]:,} metal-1, {w["met2"]:,} metal-2, {w["met3"]:,} metal-3 and '
          f'{w["met4"]:,} metal-4 rectangles. Every one is drawn from the {esc(tile_ver)} harden\'s own layout file.</p>'
-         f'<p class="small">A wire glows while its net is high in a recorded simulation of this very netlist.</p>'),
+         f'<p class="small">A wire glows while its net is high in a recorded simulation of this very netlist, and a spark '
+         f'marks each net at the moment it changes value: every sparkle is one real event.</p>'),
         ("The dispatch unit is everywhere at once",
          f'<p>A flattened layout has no module boxes, so here are the dispatch unit\'s {disp:,} cells, coloured by the RTL '
          f'block each one belongs to: the cost engine ({n("u_mom.g_shared.u_ce") + n("u_mom.g_shared"):,} with its walker), '
@@ -967,7 +969,8 @@ def big_numbers(f, fp, metrics, timing):
     secs = "".join(
         f'<section class="bignum bn-{c}" aria-label="{esc(k)}"><div class="bn-in wrap">'
         f'<p class="bn-k">{esc(k)}</p>'
-        f'<p class="bn-n"><span class="o" aria-hidden="true">{n}</span><span class="f">{n}</span></p>'
+        f'<p class="bn-n" role="img" aria-label="{n}" data-n="{n}"><span class="o" aria-hidden="true">{n}</span>'
+        f'<span class="f" aria-hidden="true">{n}</span></p>'
         f'<p class="bn-t">{esc(tx)}</p></div></section>' for c, k, n, tx in items)
     t_last = timing[-1]
     gl = next((v["result"] for v in metrics["verification"] if v.get("target") == "tile-gl"), None)
@@ -1038,7 +1041,7 @@ nav.tabs a[aria-current="page"]{background:var(--bg);color:var(--ink);font-weigh
 .theme button{font:var(--fs-1) var(--sans);background:none;border:0;color:var(--ink2);padding:5px 10px;border-radius:6px;cursor:pointer;min-height:34px}
 .theme button[aria-pressed="true"]{background:var(--raised);color:var(--ink);font-weight:600}
 main{padding:0 0 var(--sp-7)}
-section.panel{display:block}
+section.panel{display:block;scroll-margin-top:200vh}
 section.panel.wrap{padding-top:var(--sp-5)}
 .js section.panel[hidden]{display:none}
 .js section.panel.enter{animation:enter 240ms var(--ease-out)}
@@ -1221,6 +1224,23 @@ body{background-image:var(--grain,none)}
 @media (max-width:760px){.bignum{min-height:62svh}}
 @media (prefers-reduced-motion:reduce){.mq{animation:none}.bignum{--p:1}.bn-n{transform:none}.fpgastage svg{transition:none}.layerlabels{transition:none}}
 
+
+/* reveal on scroll: things arrive as they come into view, once; exposure wipe on section titles */
+.js .rv{opacity:.3;transform:translateY(18px);transition:opacity 520ms var(--ease-out),transform 620ms var(--ease-out);transition-delay:var(--d,0ms)}
+.js .rv.in{opacity:1;transform:none}
+.js .rvh{opacity:.3;transition:opacity 700ms var(--ease-out)}
+.js .rvh.in{opacity:1;transform:none}
+@media (hover:hover) and (pointer:fine){
+ .target,.card,.tourstep,.fpgaside,.split figure{transition:transform 260ms var(--ease-out),background-color 150ms ease}
+ .target:hover,.card:hover,.split figure:hover{transform:translateY(-4px)}
+ .tourstep:hover{transform:translateY(-4px)}}
+/* the decision bars grow from zero when they come into view */
+.js .split figure .bar{transform:scaleX(var(--g,0));transform-origin:left center;transform-box:fill-box;transition:transform 900ms var(--ease-out)}
+.js .split figure.in .bar{--g:1}
+.js .split figure .bar:nth-of-type(n){transition-delay:var(--d,0ms)}
+@media (prefers-reduced-motion:reduce){.js .rv,.js .rvh{opacity:1;transform:none;clip-path:none;transition:none}
+ .js .split figure .bar{transform:none;transition:none}.target:hover,.card:hover,.tourstep:hover,.split figure:hover{transform:none}}
+
 /* ---- the rest of the atlas ---- */
 .split{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:var(--sp-5);align-items:center}
 .split figure{margin:0;background:var(--surface);border-radius:var(--r);padding:var(--sp-4)}
@@ -1364,7 +1384,7 @@ footer p{max-width:90ch}
  .btn:active,.controls button:active,.tourstep:active,.theme button:active,.zoombtns button:active,.excontrols button:active{transform:none}
  .costs .bar{transition:none}.js section.panel.enter{animation:none}.scrollcue span{animation:none}
  .js .step.armed .stepcard{clip-path:none}.diestate .bar i{animation:none;width:100%}}
-@media print{.top,.controls,.theme,.zoombtns{display:none}.js section.panel[hidden]{display:block}body{background:#fff}.diestage{position:static}}
+@media print{.rv,.rvh{opacity:1!important;transform:none!important;clip-path:none!important}.top,.controls,.theme,.zoombtns{display:none}.js section.panel[hidden]{display:block}body{background:#fff}.diestage{position:static}}
 """
 
 PAGE = """<!DOCTYPE html>
@@ -1391,7 +1411,7 @@ PAGE = """<!DOCTYPE html>
   <nav class="tabs" aria-label="Sections">
     <a href="#overview">Overview</a><a href="#architecture">Architecture</a><a href="#layout">Physical layout</a>
     <a href="#blocks">Blocks</a><a href="#demos">Demos</a><a href="#tile">Tiny Tapeout</a>
-    <a href="#build">Build</a><a href="#evidence">Evidence</a>
+    <a href="#boards">Boards</a><a href="#build">Build</a><a href="#evidence">Evidence</a>
   </nav>
   <div class="theme" role="group" aria-label="Colour theme">
     <button type="button" data-theme="system" aria-pressed="true">Auto</button>
@@ -1500,7 +1520,7 @@ PAGE = """<!DOCTYPE html>
   <h2 id="h-layout">The tile's layout, wire by wire</h2>
   {phys_note}
   <p>Every cell, wire and via of the routed layout, and inside each cell the process design kit's own drawing of it.
-  Wires glow while their net is high in the gate-level recording below. Scroll or pinch to zoom, drag to move, select
+  Wires glow while their net is high in the gate-level recording below, and each spark is one net changing value. Scroll or pinch to zoom, drag to move, select
   a wire to name its net, or find one by name. Keys: arrows move, <kbd>+</kbd> and <kbd>−</kbd> zoom, <kbd>0</kbd> fits.</p>
   <div class="explorer mask" id="explorer">
     <div class="diestage" id="ex-stage"><i class="mk tl"></i><i class="mk tr"></i><i class="mk bl"></i><i class="mk br"></i>
@@ -1614,6 +1634,12 @@ PAGE = """<!DOCTYPE html>
   <div id="worked"></div>
 </section>
 
+<section class="panel wrap" id="boards" aria-labelledby="h-boards">
+  <h2 id="h-boards">On the boards</h2>
+  <p>Each FPGA image as its plan wires it: the host on a USB serial link, the blocks the image compiles in, and every board net it drives, with the FPGA ball each one lands on. The wiring is read from the image's plan and from the board file built from the vendor's own constraint file. <b>No image has run on a board yet</b>; the bring-up procedure is <code>docs/bringup/ulx3s-85f.md</code>.</p>
+  {boards}
+</section>
+
 <section class="panel wrap" id="build" aria-labelledby="h-build">
   <h2 id="h-build">From RTL to layout</h2>
   {flow}
@@ -1623,7 +1649,7 @@ cd ~/src/hydra-skywater130 && make tile tile-gl     # tile tests on RTL, then on
 cd ~/src/hydra-skywater130 && make harden           # LibreLane on the tile (unattended)
 cd ~/src/hydra-skywater130 && make atlas site       # re-derive builds, re-record traces, rebuild this page</code></pre>
   <p>The page is static: GitHub Pages serves <code>docs/site/</code> through <code>.github/workflows/pages.yml</code>
-  once Pages is set to "GitHub Actions" in the repository settings. Nothing runs in the browser but replay.</p>
+  at <a href="https://normansrule.github.io/hydra-skywater130/">normansrule.github.io/hydra-skywater130</a>. Nothing runs in the browser but replay.</p>
 </section>
 
 <section class="panel wrap" id="evidence" aria-labelledby="h-ev">
@@ -1956,6 +1982,10 @@ function prepare(L,G){
   P.inst=new Float32Array(n*4);P.runs=[...Array(TX*TY)].map(()=>[]);
   order.forEach((i,k)=>{P.inst[k*4]=P.cells[i*4];P.inst[k*4+1]=P.cells[i*4+1];P.inst[k*4+2]=P.cells[i*4+2];P.inst[k*4+3]=L.cell_orient[i];
     const t=tile[i],m=L.cell_macro[i],r=P.runs[t],last=r[r.length-1];if(last&&last[0]===m)last[2]++;else r.push([m,k,1])});
+  // up to three wire rectangles per net (x, y, w, h, layer): a spark lands on the net that changed
+  P.netpts=new Float32Array(P.nets.length*15);P.netn=new Uint8Array(P.nets.length);
+  ['met1','met2','met3','met4'].forEach((l,k)=>{const w=P.wires[l];if(!w)return;for(let i=0;i<w.k;i++){const n=w.net[i],c=P.netn[n];if(c>=3)continue;
+    P.netpts.set([w.rect[i*4],w.rect[i*4+1],w.rect[i*4+2],w.rect[i*4+3],k+1],n*15+c*5);P.netn[n]=c+1}});
   // where each RTL block's cells are: median and spread, for labels and the story
   P.modcells={};for(let i=0;i<n;i++){const m=P.cellcm[i*2+1]&127;if(!m)continue;const name=DM.modules[m-1];
     (P.modcells[name]=P.modcells[name]||[]).push(i)}
@@ -1983,9 +2013,16 @@ void main(){vec2 sz=rect.zw*uS;float g=0.0,fl=0.0;uint m=0u;
 const FS_RECT=`#version 300 es
 precision highp float;precision highp int;in float vCov;in float vGlow;in float vFlash;in float vSel;in float vDim;
 uniform vec4 uColor;uniform vec3 uLit;uniform vec3 uCore;uniform int uLitPass;uniform float uExp;out vec4 o;
+uniform vec4 uLamp;uniform vec3 uFx;
+// lighting over the real geometry, never data: an inspection lamp (x, y, radius, amount in device pixels), the
+// thin-film colour of a bare wafer (amount, phase) and the exposure slit (x, or far left when off)
+vec3 fx(vec3 c){vec2 p=gl_FragCoord.xy;float r=max(uLamp.z,1.0),d=length(p-uLamp.xy)/r;float L=1.0+uLamp.w*exp(-d*d*2.6);
+ vec3 tf=0.55+0.45*cos(6.2832*(vec3(0.0,0.33,0.67)+(p.x*0.55+p.y)/(r*4.0)+uFx.y));c=mix(c,c*tf*1.5,uFx.x);
+ float sd=(p.x-uFx.z)/(r*0.16),sl=exp(-sd*sd);c=mix(c,vec3(0.80,0.74,1.0)*max(max(c.r,c.g),c.b)*1.4,0.65*sl);
+ return c*(L+2.4*sl);}
 void main(){if(uLitPass==1){float a=vSel>0.5?1.0:clamp(vGlow*0.34*vDim+vFlash*0.95,0.0,1.0)*mix(0.45,1.0,vCov);
-   vec3 c=vSel>0.5?vec3(1.0):mix(uLit,uCore,vFlash);o=vec4(c*a,a)*uExp;return;}
- float a=uColor.a*vCov*vDim;vec3 c=uColor.rgb*(1.0+0.25*vGlow);o=vec4(c*a,a)*uExp;}`;
+   vec3 c=vSel>0.5?vec3(1.0):fx(mix(uLit,uCore,vFlash));o=vec4(c*a,a)*uExp;return;}
+ float a=uColor.a*vCov*vDim;vec3 c=fx(uColor.rgb*(1.0+0.25*vGlow));o=vec4(c*a,a)*uExp;}`;
 const VS_CELL=`#version 300 es
 in vec2 corner;in vec4 rect;in uvec2 cm;
 uniform vec2 uC;uniform float uS;uniform vec2 uView;uniform mat2 uR;uniform float uLift;uniform float uMinPx;uniform int uFocus;uniform uint uMask;uniform vec4 uClass[8];uniform vec4 uMod[16];
@@ -1996,7 +2033,15 @@ void main(){vec2 sz=rect.zw*uS;vec2 s2=max(sz,vec2(uMinPx));float cov=min(1.0,(s
  vCol=vec4(col.rgb*col.a*cov,col.a*cov);
  vec2 w=rect.xy+rect.zw*0.5-uC+(corner-0.5)*s2/uS;vec2 c=(uR*w)*uS+vec2(0.0,uLift);gl_Position=vec4(c/(uView*0.5),0.0,1.0);}`;
 const FS_COL=`#version 300 es
-precision highp float;precision highp int;in vec4 vCol;uniform float uExp;out vec4 o;void main(){o=vCol*uExp;}`;
+precision highp float;precision highp int;in vec4 vCol;uniform float uExp;out vec4 o;
+uniform vec4 uLamp;uniform vec3 uFx;
+// lighting over the real geometry, never data: an inspection lamp (x, y, radius, amount in device pixels), the
+// thin-film colour of a bare wafer (amount, phase) and the exposure slit (x, or far left when off)
+vec3 fx(vec3 c){vec2 p=gl_FragCoord.xy;float r=max(uLamp.z,1.0),d=length(p-uLamp.xy)/r;float L=1.0+uLamp.w*exp(-d*d*2.6);
+ vec3 tf=0.55+0.45*cos(6.2832*(vec3(0.0,0.33,0.67)+(p.x*0.55+p.y)/(r*4.0)+uFx.y));c=mix(c,c*tf*1.5,uFx.x);
+ float sd=(p.x-uFx.z)/(r*0.16),sl=exp(-sd*sd);c=mix(c,vec3(0.80,0.74,1.0)*max(max(c.r,c.g),c.b)*1.4,0.65*sl);
+ return c*(L+2.4*sl);}
+void main(){o=vec4(fx(vCol.rgb),vCol.a)*uExp;}`;
 const VS_TPL=`#version 300 es
 in vec3 pos;in vec4 inst;
 uniform vec2 uC;uniform float uS;uniform vec2 uView;uniform mat2 uR;uniform float uLift;uniform float uCellH;uniform vec4 uLayer[8];uniform int uOn;uniform float uFade;
@@ -2005,6 +2050,26 @@ void main(){int ly=int(pos.z+0.5);vec2 p=pos.xy;float w=inst.z,h=uCellH;int o=in
  if(o==1)p.y=h-p.y;else if(o==2){p.x=w-p.x;p.y=h-p.y;}else if(o==3)p.x=w-p.x;
  vec4 col=((uOn>>ly)&1)==1?uLayer[ly]:vec4(0.0);col.a*=uFade;vCol=vec4(col.rgb*col.a,col.a);
  vec2 c=(uR*(inst.xy+p-uC))*uS+vec2(0.0,uLift);gl_Position=vec4(c/(uView*0.5),0.0,1.0);}`;
+
+const VS_SPARK=`#version 300 es
+in vec4 sp;uniform vec2 uC;uniform float uS;uniform vec2 uView;uniform mat2 uR;uniform float uGap;uniform float uNow;uniform float uLife;uniform float uSz;
+out float vAge;
+void main(){float age=(uNow-sp.z)/uLife;vAge=age;if(age<0.0||age>1.0){gl_Position=vec4(2.0,2.0,0.0,1.0);gl_PointSize=0.0;return;}
+ vec2 c=(uR*(sp.xy-uC))*uS+vec2(0.0,(sp.w-1.6)*uGap);gl_Position=vec4(c/(uView*0.5),0.0,1.0);
+ gl_PointSize=mix(17.0,4.0,sqrt(age))*uSz;}`;
+const FS_SPARK=`#version 300 es
+precision highp float;in float vAge;uniform vec3 uLit;uniform vec3 uCore;out vec4 o;
+void main(){vec2 p=gl_PointCoord*2.0-1.0;float r2=dot(p,p);
+ float star=exp(-r2*10.0)+0.9*exp(-abs(p.y)*26.0)*exp(-abs(p.x)*2.6)+0.9*exp(-abs(p.x)*26.0)*exp(-abs(p.y)*2.6);
+ float a=0.75*star*pow(1.0-vAge,1.6);vec3 c=mix(uCore,uLit,vAge);o=vec4(c*a,a);}`;
+const VS_FULL=`#version 300 es
+out vec2 uv;void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));uv=p;gl_Position=vec4(p*2.0-1.0,0.0,1.0);}`;
+const FS_BLUR=`#version 300 es
+precision highp float;in vec2 uv;uniform sampler2D uTex;uniform vec2 uDir;out vec4 o;
+void main(){vec4 a=texture(uTex,uv)*0.2270;
+ a+=(texture(uTex,uv+uDir*1.3846)+texture(uTex,uv-uDir*1.3846))*0.3162;a+=(texture(uTex,uv+uDir*3.2308)+texture(uTex,uv-uDir*3.2308))*0.0703;o=a;}`;
+const FS_COMP=`#version 300 es
+precision highp float;in vec2 uv;uniform sampler2D uTex;uniform float uAmt;out vec4 o;void main(){o=texture(uTex,uv)*uAmt;}`;
 
 function sh(gl,type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);
   if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error('shader: '+gl.getShaderInfoLog(s));return s}
@@ -2045,6 +2110,12 @@ class DieView{
     this.glow=new Float32Array(this.nn);this.target=new Float32Array(this.nn);this.flash=new Float32Array(this.nn);this.exposure=1;this.region=null;
     this.tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,128,this.th,0,gl.RGBA,gl.UNSIGNED_BYTE,this.stbuf);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+    // sparks: a ring of (x, y, birth, layer); bloom: two half-size targets
+    this.ps=prog(gl,VS_SPARK,FS_SPARK);this.pb=prog(gl,VS_FULL,FS_BLUR);this.pq=prog(gl,VS_FULL,FS_COMP);
+    this.NSP=4096;this.sp=new Float32Array(this.NSP*4).fill(-1e9);this.spi=0;this.spDirty=true;this.spLast=-1e9;
+    this.spv=gl.createVertexArray();gl.bindVertexArray(this.spv);this.spb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.spb);
+    gl.bufferData(gl.ARRAY_BUFFER,this.sp,gl.DYNAMIC_DRAW);const sa=this.ps.a('sp');gl.enableVertexAttribArray(sa);gl.vertexAttribPointer(sa,4,gl.FLOAT,false,0,0);
+    gl.bindVertexArray(null);this.fvao=gl.createVertexArray();this.bloom=this.o.bloom!==false;this.slow=0;
     this.cv.addEventListener('webglcontextlost',e=>{e.preventDefault();this.lost=true;this.o.onError&&this.o.onError('lost')});
     this.fit(true);this.resize();new ResizeObserver(()=>{this.resize();this.kick()}).observe(this.cv);
     if(this.o.interactive)this.bind();this.kick();return this}
@@ -2059,7 +2130,14 @@ class DieView{
     this.setTarget((x0+x1)/2-(r.x+r.w/2-cw/2)/s,(y0+y1)/2+(r.y+r.h/2-chh/2)/s,l,now)}
   setCycle(c){if(!this.P.snap)return;c=Math.max(this.P.c0,Math.min(this.P.c1,Math.round(c)));if(c===this.cycle)return;
     const s=this.P.snap[c-this.P.c0];const first=this.cycle==null;this.cycle=c;
-    for(let i=0;i<this.nn;i++){const v=s[i]===1?1:0;if(!first&&v!==this.target[i]&&!RM.matches)this.flash[i]=1;this.target[i]=v}
+    const now=(this.freezeT!=null?this.freezeT:performance.now()/1000);let spawned=0;
+    for(let i=0;i<this.nn;i++){const v=s[i]===1?1:0;if(!first&&v!==this.target[i]&&!RM.matches){this.flash[i]=1;
+        // one spark for this value change, on one of the net's own wires
+        const m=this.P.netn[i];if(m&&spawned<700){const q=i*15+5*Math.floor(Math.random()*m),R=this.P.netpts,j=this.spi*4;
+          this.sp[j]=R[q]+Math.random()*R[q+2];this.sp[j+1]=R[q+1]+Math.random()*R[q+3];this.sp[j+2]=now+Math.random()*0.3;this.sp[j+3]=R[q+4];
+          this.spi=(this.spi+1)%this.NSP;spawned++}}
+      this.target[i]=v}
+    if(spawned){this.spDirty=true;this.spLast=now}
     if(RM.matches||first)this.glow.set(this.target);this.kick();this.o.onCycle&&this.o.onCycle(c)}
   kick(){if(!this.raf&&this.gl&&!this.lost)this.raf=requestAnimationFrame(t=>this.tick(t))}
   tick(t){this.raf=0;const dt=this.last?Math.min(0.25,(t-this.last)/1000):0.016;this.last=t;let moving=false;
@@ -2074,8 +2152,13 @@ class DieView{
     for(let i=0;i<this.nn;i++){const g=this.glow[i],tg=this.target[i];if(g!==tg){const ng=g+(tg-g)*(tg>g?up:dn);this.glow[i]=Math.abs(ng-tg)<0.004?tg:ng;glowing=true}
       let f=this.flash[i];if(f>0){f=f*fd;if(f<0.01)f=0;this.flash[i]=f;glowing=true}
       this.stbuf[i*4]=Math.round(this.glow[i]*255);this.stbuf[i*4+2]=Math.round(f*255)}
-    this.draw();this.o.onFrame&&this.o.onFrame(this);
-    if((moving||glowing||this.anim)&&this.visible)this.kick()}
+    const f0=performance.now();this.draw();this.o.onFrame&&this.o.onFrame(this);
+    // a device that cannot keep up loses the bloom first (the wires and sparks stay): a slow-frame average
+    // over a few seconds, measured on the draw itself, never on a hidden tab
+    if(this.bloom&&document.visibilityState==='visible'&&this.freezeT==null){const ms=performance.now()-f0;this.fms=this.fms==null?ms:this.fms*0.95+ms*0.05;
+      if(this.fms>34&&++this.slow>90){this.bloom=false;this.o.onQuality&&this.o.onQuality('bloom off')}else if(this.fms<=34)this.slow=0}
+    const sparking=(this.freezeT!=null?this.freezeT:performance.now()/1000)-this.spLast<(this.sparkLife||0.7)+0.2;
+    if((moving||glowing||this.anim||sparking)&&this.visible)this.kick()}
   draw(){const gl=this.gl,P=this.P;if(!gl||this.lost)return;this.resize();const W=this.cv.width,H=this.cv.height,s=Math.exp(this.cam.l)*this.dpr;
     gl.viewport(0,0,W,H);const bg=rgb(PAL.substrate);gl.clearColor(bg[0],bg[1],bg[2],1);gl.clear(gl.COLOR_BUFFER_BIT);
     gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
@@ -2086,7 +2169,10 @@ class DieView{
     const R=new Float32Array([cy0,sy0*sq,-sy0,cy0*sq]);const gap=tl*H*0.105;this._R=R;this._gap=gap;
     const lift=(pp,k)=>{gl.uniformMatrix2fv(pp.u.uR,false,R);gl.uniform1f(pp.u.uLift,(k-1.6)*gap)};
     const common=(pp)=>{gl.useProgram(pp.p);gl.uniform2f(pp.u.uC,this.cam.x,this.cam.y);gl.uniform1f(pp.u.uS,s);gl.uniform2f(pp.u.uView,view[0],view[1]);
-      if(pp.u.uMinPx)gl.uniform1f(pp.u.uMinPx,1.0*this.dpr*0.75);if(pp.u.uFocus)gl.uniform1i(pp.u.uFocus,this.focus?1:0);if(pp.u.uMask)gl.uniform1ui(pp.u.uMask,this.mask>>>0);if(pp.u.uExp)gl.uniform1f(pp.u.uExp,this.exposure)};
+      if(pp.u.uMinPx)gl.uniform1f(pp.u.uMinPx,1.0*this.dpr*0.75);if(pp.u.uFocus)gl.uniform1i(pp.u.uFocus,this.focus?1:0);if(pp.u.uMask)gl.uniform1ui(pp.u.uMask,this.mask>>>0);if(pp.u.uExp)gl.uniform1f(pp.u.uExp,this.exposure);
+      if(pp.u.uFx){const f=this._noFx?null:this.fx,d=this.dpr;
+        if(f){gl.uniform4f(pp.u.uLamp,f.x*d,H-f.y*d,f.r*d,f.lamp||0);gl.uniform3f(pp.u.uFx,f.film||0,f.phase||0,f.slit==null?-1e6:f.slit*d)}
+        else{gl.uniform4f(pp.u.uLamp,0,0,1,0);gl.uniform3f(pp.u.uFx,0,0,-1e6)}}};
     // cells
     if(this.show.cells){const pc=this.pc;common(pc);const cls=DM.classes.map(k=>{const c=rgb(k==='fill'?PAL.fill:PAL.cell);return [c[0],c[1],c[2],1]});
       const cl=new Float32Array(32);cls.forEach((c,i)=>cl.set(c,i*4));gl.uniform4fv(pc.u.uClass,cl);
@@ -2121,7 +2207,31 @@ class DieView{
     // the lit pass: every net that is high, on top, so activity reads from afar
     gl.uniform1i(pr.u.uLitPass,1);gl.blendFunc(gl.ONE,gl.ONE);
     ['met1','met2','met3','met4'].forEach((l,k)=>{if(this.show[l])drawSet(this.vW[l],'#000000',1,k+1)});
+    const now=(this.freezeT!=null?this.freezeT:performance.now()/1000);
+    const sparks=(scale)=>{if(RM.matches)return;const ps=this.ps;gl.useProgram(ps.p);gl.uniform2f(ps.u.uC,this.cam.x,this.cam.y);gl.uniform1f(ps.u.uS,s);
+      gl.uniform2f(ps.u.uView,W,H);gl.uniformMatrix2fv(ps.u.uR,false,R);gl.uniform1f(ps.u.uGap,gap);gl.uniform1f(ps.u.uNow,now);gl.uniform1f(ps.u.uLife,this.sparkLife||0.7);
+      gl.uniform1f(ps.u.uSz,this.dpr*scale);gl.uniform3f(ps.u.uLit,lit[0],lit[1],lit[2]);gl.uniform3f(ps.u.uCore,core[0],core[1],core[2]);
+      gl.bindVertexArray(this.spv);if(this.spDirty){gl.bindBuffer(gl.ARRAY_BUFFER,this.spb);gl.bufferSubData(gl.ARRAY_BUFFER,0,this.sp);this.spDirty=false}
+      gl.drawArrays(gl.POINTS,0,this.NSP)};
+    sparks(1);
+    // bloom: what glows is drawn again at half size, blurred both ways and added back
+    if(this.bloom){const bw=Math.max(1,W>>1),bh=Math.max(1,H>>1);this.target2(bw,bh);
+      gl.bindFramebuffer(gl.FRAMEBUFFER,this.fA.fb);gl.viewport(0,0,bw,bh);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+      this._noFx=true;common(pr);this._noFx=false;gl.uniform1i(pr.u.uLitPass,1);gl.uniform1i(pr.u.uPick,this.pick);gl.uniform3f(pr.u.uLit,lit[0],lit[1],lit[2]);gl.uniform3f(pr.u.uCore,core[0],core[1],core[2]);
+      ['met1','met2','met3','met4'].forEach((l,k)=>{if(this.show[l])drawSet(this.vW[l],'#000000',1,k+1)});sparks(0.5);
+      gl.disable(gl.BLEND);gl.bindVertexArray(this.fvao);const pb=this.pb;gl.useProgram(pb.p);
+      for(const [src,dst,dx,dy] of [[this.fA,this.fB,1/bw,0],[this.fB,this.fA,0,1/bh],[this.fA,this.fB,2/bw,0],[this.fB,this.fA,0,2/bh]]){
+        gl.bindFramebuffer(gl.FRAMEBUFFER,dst.fb);gl.bindTexture(gl.TEXTURE_2D,src.tex);gl.uniform2f(pb.u.uDir,dx,dy);gl.drawArrays(gl.TRIANGLES,0,3)}
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
+      const pq=this.pq;gl.useProgram(pq.p);gl.bindTexture(gl.TEXTURE_2D,this.fA.tex);gl.uniform1f(pq.u.uAmt,1.1*this.exposure);gl.drawArrays(gl.TRIANGLES,0,3);
+      gl.bindTexture(gl.TEXTURE_2D,this.tex)}
     gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.bindVertexArray(null)}
+  target2(w,h){const gl=this.gl;if(this.fA&&this.fA.w===w&&this.fA.h===h)return;
+    const mk=()=>{const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+      for(const [k,v] of [[gl.TEXTURE_MIN_FILTER,gl.LINEAR],[gl.TEXTURE_MAG_FILTER,gl.LINEAR],[gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE],[gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE]])gl.texParameteri(gl.TEXTURE_2D,k,v);
+      const fb=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);return {tex,fb,w,h}};
+    this.fA=mk();this.fB=mk();gl.bindTexture(gl.TEXTURE_2D,this.tex)}
   // screen <-> layout
   toWorld(px,py){const r=this.cv.getBoundingClientRect(),s=Math.exp(this.cam.l);return [this.cam.x+(px-r.left-r.width/2)/s,this.cam.y-(py-r.top-r.height/2)/s]}
   toScreen(x,y,k){const r=this.cv.getBoundingClientRect(),s=Math.exp(this.cam.l),R=this._R||[1,0,0,1];const dx=x-this.cam.x,dy=y-this.cam.y;
@@ -2197,7 +2307,7 @@ async function story(){const root=$('#story'),cv=$('#die-hero');if(!root||!cv)re
   let flop=-1,fd=1e18;const fi=DM.classes.indexOf('flop'),ci=DM.modules.indexOf('u_mom.g_shared.u_ce')+1;
   for(let i=0;i<P.n;i++)if(P.cellcm[i*2]===fi&&P.cellcm[i*2+1]===ci){const d=(P.cells[i*4]-ce.x)**2+(P.cells[i*4+1]-ce.y)**2;if(d<fd){fd=d;flop=i}}
   if(flop<0)for(let i=0;i<P.n;i++)if(P.cellcm[i*2]===fi){flop=i;break}
-  const fx=P.cells[flop*4]+P.cells[flop*4+2]/2,fy=P.cells[flop*4+1]+DM.cell_h_um/2;K.push([fx-9,fy-6,fx+9,fy+6]);K.push([-P.W*0.42,-P.H*0.62,P.W*1.42,P.H*1.62]);K.push(full);
+  const fx=P.cells[flop*4]+P.cells[flop*4+2]/2,fy=P.cells[flop*4+1]+DM.cell_h_um/2;K.push([fx-9,fy-6,fx+9,fy+6]);{const nar=cv.clientWidth<760?1.9:1,dx=nar>1?P.W*0.6:0;K.push([-P.W*0.42*nar+dx,-P.H*0.62*nar,P.W*(1+0.42*nar)+dx,P.H*(1+0.62*nar)])}K.push(full);
   const sc=$('#story-cell');
   const ev=(D.traces[DG&&DG.trace]||{events:[]}).events;const go=(ev.find(e=>e.k==='go'&&P.c0<=e.c&&e.c<=P.c1)||{c:P.c0}).c;
   const sel=ev.find(e=>e.k==='select'&&P.c0<=e.c&&e.c<=P.c1);const cEnd=sel?sel.c:P.c1;
@@ -2233,7 +2343,7 @@ async function story(){const root=$('#story'),cv=$('#die-hero');if(!root||!cv)re
   if(lay)lay.innerHTML=LN.map(([a,b],k)=>`<i data-k="${k}"><b>${a}</b> ${b.toLocaleString()}${k?' rectangles':' cells'}</i>`).join('');
   const tg=$('#hero-target');if(tg)tg.dataset.name=DM.macros[P.cellmac[flop]].replace('sky130_fd_sc_hd__','');
   view.o.onFrame=v=>{scalebar($('#hero-scale'),v);
-    if(lay){const on=v.cam.tilt>0.6;lay.classList.toggle('on',on);if(on)[...lay.children].forEach(i=>{const k=+i.dataset.k;const [x,y]=v.toScreen(P.W,P.H*0.5,k);i.style.left=(x+18)+'px';i.style.top=y+'px'})}
+    if(lay){const on=v.cam.tilt>0.6&&cv.clientWidth>=760;lay.classList.toggle('on',on);if(on)[...lay.children].forEach(i=>{const k=+i.dataset.k;const [x,y]=v.toScreen(P.W,P.H*0.5,k);i.style.left=(x+18)+'px';i.style.top=y+'px'})}
     if(tg){const on=f>2.7&&f<3.45;tg.classList.toggle('on',on);if(on){const [x0,y1]=v.toScreen(P.cells[flop*4],P.cells[flop*4+1]),[x1,y0]=v.toScreen(P.cells[flop*4]+P.cells[flop*4+2],P.cells[flop*4+1]+DM.cell_h_um);
       tg.style.left=(x0-6)+'px';tg.style.top=(y0-6)+'px';tg.style.width=(x1-x0+12)+'px';tg.style.height=(y1-y0+12)+'px'}}
 if(v.anim&&P.snap){const now=performance.now();if(now-loopT>420){loopT=now;const c=v.cycle==null||v.cycle>=P.c1?P.c0:v.cycle+1;v.setCycle(c)}}
@@ -2383,5 +2493,66 @@ if(st&&sv&&matchMedia('(hover:hover) and (pointer:fine)').matches){
   st.addEventListener('pointermove',e=>{if(RM.matches)return;const r=st.getBoundingClientRect();const x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;
     sv.style.transform=`rotateY(${(x*7).toFixed(2)}deg) rotateX(${(-y*6).toFixed(2)}deg)`});
   st.addEventListener('pointerleave',()=>{sv.style.transform=''})}
+})();
+"""
+
+REVEAL_JS = r"""
+(()=>{
+// arrive as you scroll: section titles wipe in, cards and steps rise in turn, the chart's bars grow
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const pick=(sel,cls,step)=>document.querySelectorAll(sel).forEach((e,i)=>{e.classList.add(cls);if(step)e.style.setProperty('--d',((i%6)*step)+'ms')});
+pick('section.panel h2:not(#h-overview)','rvh',0);
+pick('ol.tour li','rv',90);pick('.targets .target','rv',110);pick('.cards .card','rv',60);pick('.split figure','rv',0);
+pick('.fpga > div','rv',120);pick('.bn-in > *','rv',120);
+document.querySelectorAll('.split figure .bar').forEach((b,i)=>b.style.setProperty('--d',(i*120)+'ms'));
+// by position, on scroll and on every tab change: nothing waits on an observer that a hidden tab may never run
+let pend=[...document.querySelectorAll('.rv,.rvh,.split figure')];
+const check=()=>{const lim=innerHeight*0.94;pend=pend.filter(e=>{if(RM){e.classList.add('in');return false}
+  const r=e.getBoundingClientRect();if(r.height&&r.top<lim&&r.bottom>0){e.classList.add('in');return false}return true})};
+addEventListener('scroll',check,{passive:true});addEventListener('resize',check);addEventListener('hashchange',()=>setTimeout(check,60));check();
+// and a page printed or left untouched still shows everything
+addEventListener('beforeprint',()=>pend.forEach(e=>e.classList.add('in')));
+// the big numbers count up once, the first time each reaches the middle of the screen
+const nums=[...document.querySelectorAll('.bn-n[data-n]')];
+const run=el=>{const s=el.dataset.n,v=+s.replace(/,/g,''),sp=el.querySelectorAll('span');const t0=performance.now(),dur=1100;
+  const f=now=>{const k=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-k,3),x=Math.round(v*e).toLocaleString('en-US');sp.forEach(z=>z.textContent=x);if(k<1)requestAnimationFrame(f)};requestAnimationFrame(f)};
+if(!RM){let todo=nums.slice();const c2=()=>{todo=todo.filter(n=>{const r=n.getBoundingClientRect();if(r.top<innerHeight*0.7&&r.bottom>0){run(n);return false}return true})};
+  addEventListener('scroll',c2,{passive:true});c2()}
+})();
+"""
+
+LAMP_JS = r"""
+(()=>{
+// mask-room lighting on the opening die, drawn by the die's own shaders so it lights only the layout's geometry:
+// an inspection lamp that follows the pointer (and drifts slowly when left alone), the thin-film colour of a bare
+// wafer that fades as the story zooms in, and one pass of the exposure slit when the page opens. Lighting, not data.
+const st=document.getElementById('hero-stage'),story=document.getElementById('story');if(!st||!story)return;
+const RM=matchMedia('(prefers-reduced-motion: reduce)');
+const V=()=>{const c=document.getElementById('die-hero');return c&&c._die};
+let lx=64,ly=42,tx=64,ty=42,last=-1e9,raf=0,t0=performance.now(),q=0,slit=null;
+const box=()=>{const v=V(),r=st.getBoundingClientRect();if(!v||!v.P||!r.width)return [20,20,80,80];
+  const a=v.toScreen(0,0,0),b=v.toScreen(v.P.W,v.P.H,0);
+  return [Math.min(a[0],b[0])/r.width*100,Math.min(a[1],b[1])/r.height*100,Math.max(a[0],b[0])/r.width*100,Math.max(a[1],b[1])/r.height*100]};
+const push=()=>{const v=V();if(!v)return false;const r=st.getBoundingClientRect();
+  v.fx={x:lx/100*r.width,y:ly/100*r.height,r:Math.min(r.width,r.height)*0.34,lamp:1.3*(1-q),film:0.34*(1-q),phase:q*0.35,slit};v.kick();return true};
+const tick=now=>{raf=0;const idle=now-last>2600;
+  if(idle&&!RM.matches){const t=(now-t0)/1000,b=box(),cx=(b[0]+b[2])/2,cy=(b[1]+b[3])/2;
+    tx=cx+(b[2]-b[0])*0.34*Math.sin(t*0.23);ty=cy+(b[3]-b[1])*0.3*Math.sin(t*0.31+1.1)}
+  const k=RM.matches?1:0.12;lx+=(tx-lx)*k;ly+=(ty-ly)*k;const ok=push();
+  const r=st.getBoundingClientRect(),seen=r.bottom>0&&r.top<innerHeight&&document.visibilityState==='visible'&&q<1;
+  if(!ok||(seen&&(!RM.matches||Math.abs(tx-lx)+Math.abs(ty-ly)>0.05||slit!=null)))raf=requestAnimationFrame(tick)};
+const kick=()=>{if(!raf)raf=requestAnimationFrame(tick)};
+const move=e=>{const r=st.getBoundingClientRect();if(e.clientY<r.top||e.clientY>r.bottom)return;const b=box();
+  tx=Math.max(b[0],Math.min(b[2],(e.clientX-r.left)/r.width*100));ty=Math.max(b[1],Math.min(b[3],(e.clientY-r.top)/r.height*100));last=performance.now();kick()};
+story.addEventListener('pointermove',move,{passive:true});story.addEventListener('pointerdown',move,{passive:true});
+// both belong to the whole-die view and fade over the story's first screen, so the zoomed views keep true colours
+const place=()=>{const r=story.getBoundingClientRect();q=Math.max(0,Math.min(1,-r.top/innerHeight));kick()};
+addEventListener('scroll',place,{passive:true});addEventListener('resize',place);addEventListener('hashchange',place);
+document.addEventListener('visibilitychange',kick);place();
+// the slit, once, as soon as the die is drawn
+if(!RM.matches){let tries=0;const go=()=>{const v=V();if(!v){if(++tries<80)setTimeout(go,125);return}
+  const w=st.getBoundingClientRect().width,t1=performance.now()+350,dur=1900;
+  const run=now=>{const k=(now-t1)/dur;if(k>=1){slit=null;kick();return}
+    if(k>=0){const e=k<0.5?2*k*k:1-Math.pow(-2*k+2,2)/2;slit=-0.1*w+1.2*w*e;kick()}requestAnimationFrame(run)};requestAnimationFrame(run)};go()}
 })();
 """

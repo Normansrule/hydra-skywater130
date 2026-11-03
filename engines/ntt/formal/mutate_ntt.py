@@ -10,9 +10,11 @@ SIM = [
      "assign y = (r >= Q[QW:0]) ? (r - Q[QW:0]) : r[QW-1:0];",
      "assign y = r[QW-1:0];"),
     # KNOWN-EQUIVALENT AT q = 12289, and only there. With BM-1 the largest
-    # intermediate remainder over the whole product range is 22,887, below
-    # 2q = 24,578, so the single conditional subtract closes it and the
-    # results are identical -- verified by sweep, not by argument.
+    # intermediate remainder over every residue pair is 22,862 (23,042 over
+    # every product up to (q-1)^2), below 2q = 24,578, so the single
+    # conditional subtract closes it and the results are identical --
+    # verified by sweep (formal/barrett_margin.c), not by argument. At
+    # q = 3329 the same sweep gives 7,058 > 2q = 6,658: a real fault there.
     #
     # This suite runs at the default modulus. At another q the margin is
     # different and this mutation may well be a real fault, which is the

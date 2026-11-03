@@ -1,6 +1,6 @@
 # The test access port's guarantees.
 #
-# `prove` is unbounded induction, and the property that matters is the
+# `prove` is a bounded model check (see [options]), and the property that matters is the
 # standard's escape hatch: five TCKs with TMS high reach Test-Logic-Reset
 # from ANY state. It is proved from an arbitrary starting state, with no
 # reset assumption at all, because that is exactly the situation this port

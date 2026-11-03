@@ -118,10 +118,11 @@ LIBRARY = [
     ("Pad multiplexer", "OpenFrame pad ownership",         "common/rtl/hydra_padmux.sv",          "padmux"),
 ]
 
-# ROADMAP. Not built. Each names the document that specifies it.
+# ROADMAP. In no chip or hardened build yet. Each names the document that specifies it; the CPU and GPU are
+# built and simulated in the system tile, which is not the OpenFrame top.
 ROADMAP = [
-    ("CPU",            "Sixfold RV64, needs a program-load port",  "docs/architecture/heterogeneous-system.md"),
-    ("GPU",            "Pixelstorm SIMT, sixth dispatch slot",     "docs/architecture/heterogeneous-system.md"),
+    ("CPU",            "Sixfold RV64: simulated in the system tile's CPU slot (make systile-cpu); not in the OpenFrame top",  "docs/architecture/heterogeneous-system.md"),
+    ("GPU",            "Pixelstorm SIMT: simulated as the system tile's sixth slot (make systile-gpu); not in the OpenFrame top",  "docs/architecture/heterogeneous-system.md"),
     ("FHE profile",    "BFV via pinned OpenFHE, leveled",          "docs/security/fhe-profile.md"),
     ("SE boundary",    "authenticated, zeroised, access-checked",  "docs/security/se-contract.md"),
     ("Mode transition", "QUIESCE, DRAIN, ZEROIZE, INSTALL",        "docs/security/mode-transition.md"),
@@ -623,7 +624,7 @@ latency models. Wide figure: scroll sideways, or read the text version.</p>
 here says nothing about being wired into a build; the as-built views above
 are the only claims of connection.</p>
 
-<h2 id="roadmap">Roadmap: specified, not built</h2>
+<h2 id="roadmap">Roadmap: in no chip or hardened build yet</h2>
 <div class="panel"><table>
 <thead><tr><th scope="col">Item</th><th scope="col">What</th><th scope="col">Specification</th>
 <th scope="col">Status</th></tr></thead>
@@ -730,7 +731,7 @@ def check_proof_count(m):
 
 def architecture_md():
     def table(build):
-        return "".join(f"| {label} | `{f}` | `{mod or '(software)'}` |\n"
+        return "".join(f"| {label} | `{f}` | `{mod or ('(the top module)' if f.endswith('.sv') else '(software)')}` |\n"
                        for _, label, _, f, mod, _, _ in build["blocks"])
     return (
         "# HYDRA-130 architecture\n\n"
@@ -748,7 +749,7 @@ def architecture_md():
         "## IP library: built and checked, not all connected\n\n"
         "| block | what | file | check |\n|---|---|---|---|\n" +
         "".join(f"| {l} | {w} | `{f}` | `make {t}` |\n" for l, w, f, t in LIBRARY) + "\n"
-        "## Roadmap: specified, not built\n\n"
+        "## Roadmap: in no chip or hardened build yet\n\n"
         "| item | what | specification |\n|---|---|---|\n" +
         "".join(f"| {l} | {w} | [{d}]({pathlib.Path(d).relative_to('docs')}) |\n" for l, w, d in ROADMAP))
 

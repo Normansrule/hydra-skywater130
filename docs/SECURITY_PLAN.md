@@ -146,8 +146,9 @@ worth keeping is the one this project has followed: a processor is not
 test access port is built (`dbg/rtl/hydra_jtag_tap.sv`) and verified: 132
 clock edges bit-exact against a model written from IEEE 1149.1's state
 diagram, and the standard's escape hatch — five clocks with the mode pin
-high reach Test-Logic-Reset **from any state whatsoever** — checked
-exhaustively over all sixteen states from an unconstrained start.
+high reach Test-Logic-Reset **from any state whatsoever** — a bounded
+model check (depth 10, `dbg/formal/jtag_tap.sby`) from an unconstrained start, which
+covers all sixteen states for this five-clock property.
 
 That property is why there is no reset pin: the port walks itself home from
 wherever it powered up. It is also why the port is worth having beside a
@@ -157,14 +158,16 @@ fault that takes out one leaves the other. The test port has its own clock,
 supplied by the probe, which means it is reachable when the system clock is
 wrong, the bridge is misconfigured, or firmware never started.
 
-Cost: **four pins and 491 standard cells, 4,512 µm²** — three percent of the
-tile. Cheaper than the argument for leaving it out.
+Cost, if it were added: **four pins and 491 standard cells, 4,512 µm²** (a yosys
+and abc estimate, `docs/metrics.json`). Cheaper than the argument for leaving it
+out. No tile or chip build includes it yet: the tile has no test-port pins.
 
 Two things are deliberately not done. There is **no boundary scan**: no scan
 cells at the pads, so SAMPLE, PRELOAD and EXTEST are absent and the chip is
 not boundary-scan testable. Calling this "JTAG compliant" without that
-sentence is a claim a test engineer catches in a minute. The **bridge into the register map** is now written
-(`dbg/rtl/hydra_jtag_bridge.sv`): a toggle handshake through two-flop
+sentence is a claim a test engineer catches in a minute. The **bridge** is now written
+(`dbg/rtl/hydra_jtag_bridge.sv`; its one instance feeds the FPGA JTAG harness's three-register command map,
+not a tile or chip register map): a toggle handshake through two-flop
 synchronisers, with the address and data payload crossing UNSYNCHRONISED on
 purpose, held still by the handshake. Per-bit synchronisers there would cost
 78 flops and make it worse, because each bit would resolve independently and

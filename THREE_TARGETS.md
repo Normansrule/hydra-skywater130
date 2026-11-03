@@ -184,12 +184,15 @@ Recommendation:
 
 1. **OpenFrame, not Caravel.** The SoC is its own processor complex; the
    Caravel management core buys nothing here and costs two thirds of the area.
-2. **44 pads for 45 signals.** `common/rtl/hydra_padmux.sv` (proved,
+2. **44 pads for 45 signals.** `common/rtl/hydra_padmux.sv` (proved at a
+   reduced size, 3 pads and 3 alternatives; the chip builds it at 24 and 2;
    8/8 mutations killed) resolves that: give the pads that differ between
    bring-up and mission modes two functions each, reset to all-inputs, and lock
-   the selection before the keystore is used. `CF_gpio_config` from ChipFoundry
-   handles the pad control bits; the muxed pads must be mode 5 (bidirectional)
-   since the direction changes at runtime.
+   the selection before any security pins are used (the chip has none yet: no
+   keystore, key vault or debug port). The OpenFrame top drives each muxed pad's
+   mode bits itself, 110 while driving and 001 while receiving, switched by its
+   output enable, because the direction changes at runtime; those encodings are
+   not yet checked against the pad cell.
 3. **Harden per block, not flat.** OpenLane running twelve hours without
    placing `ecdsa_top` (session 178) and `global_route` failing at the SoC are
    both symptoms of a flat 400k-cell place-and-route. The OpenFrame template's

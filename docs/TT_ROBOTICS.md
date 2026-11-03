@@ -31,7 +31,7 @@ each vehicle is for.
 ### TinyTapeout: prove one block per tile, for about $100
 Tile 1 exists: the MOM dispatcher, now with its whole interface reachable.
 It answers the question no simulation can — does the roofline model, with
-calibration, make the right call in silicon at 18 MHz.
+calibration, make the right call in silicon at 15.15 MHz (66 ns, the period its hardens signed off at).
 
 **Tile 2, a candidate that does fit**: the secure-sensor front end.
 

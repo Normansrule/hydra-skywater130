@@ -27,7 +27,7 @@ stream K operand slices, collect N×N results, get one completion with the tag.
 | port contract | proved, depth 12 | `tpu_ctrl.sby`, five assertions |
 | mutations | 8 killed, 1 survivor documented | `mutate_tpu.py` |
 | ECP5 area (N=4) | 1,818 LUT4, 964 flops, 16 multipliers | `synth_ecp5` |
-| latency | K + 2N − 2 + N·(N+1) cycles per tile | from the controller |
+| latency | K + 28 cycles per tile at N = 4, accept to done (29 at K = 1, 92 at K = 64) | measured with operands offered every cycle |
 
 ## Scope
 

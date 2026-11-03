@@ -86,7 +86,7 @@ flowchart LR
 
 | block | file | module |
 |---|---|---|
-| Pins | `tt/tile/src/tt_um_hydra_mom.sv` | `(software)` |
+| Pins | `tt/tile/src/tt_um_hydra_mom.sv` | `(the top module)` |
 | SPI slave | `tt/tile/src/rtl/hydra_tt_spi.sv` | `hydra_tt_spi` |
 | Registers | `tt/tile/src/rtl/hydra_tt_regs.sv` | `hydra_tt_regs` |
 | Features | `tt/tile/src/rtl/mom_features.sv` | `mom_features` |
@@ -113,12 +113,12 @@ flowchart LR
 | Security ISA | Zknh + Xhydrasec unit | `isa/rtl/hydra_xsec_unit.sv` | `make xsec` |
 | Pad multiplexer | OpenFrame pad ownership | `common/rtl/hydra_padmux.sv` | `make padmux` |
 
-## Roadmap: specified, not built
+## Roadmap: in no chip or hardened build yet
 
 | item | what | specification |
 |---|---|---|
-| CPU | Sixfold RV64, needs a program-load port | [docs/architecture/heterogeneous-system.md](architecture/heterogeneous-system.md) |
-| GPU | Pixelstorm SIMT, sixth dispatch slot | [docs/architecture/heterogeneous-system.md](architecture/heterogeneous-system.md) |
+| CPU | Sixfold RV64: simulated in the system tile's CPU slot (make systile-cpu); not in the OpenFrame top | [docs/architecture/heterogeneous-system.md](architecture/heterogeneous-system.md) |
+| GPU | Pixelstorm SIMT: simulated as the system tile's sixth slot (make systile-gpu); not in the OpenFrame top | [docs/architecture/heterogeneous-system.md](architecture/heterogeneous-system.md) |
 | FHE profile | BFV via pinned OpenFHE, leveled | [docs/security/fhe-profile.md](security/fhe-profile.md) |
 | SE boundary | authenticated, zeroised, access-checked | [docs/security/se-contract.md](security/se-contract.md) |
 | Mode transition | QUIESCE, DRAIN, ZEROIZE, INSTALL | [docs/security/mode-transition.md](security/mode-transition.md) |

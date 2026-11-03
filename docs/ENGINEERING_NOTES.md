@@ -63,8 +63,8 @@ verification of them covers the tile.
 
 | | |
 |---|---|
-| **Tiny Tapeout research tile** | v3.2 on 4×4 tiles (3×4 did not route), harden pending · v2 on 4×4 **hardened: layout versus schematic match, design rules and antenna clean**, 67.3% utilisation |
-| **Clock** | 15.15 MHz (66 ns) — **every corner meets setup**; slow-corner slack +2.20 ns (v2); sign-off clean |
+| **Tiny Tapeout research tile** | v3.10 on 4×4 tiles (3×4 did not route) **hardened 2026-10-18: layout versus schematic match, design rules and antenna clean**, 48.6% utilisation, 1,230 slew warnings at the slowest corner · the first signed-off harden was v2, at 67.3% utilisation |
+| **Clock** | 15.15 MHz (66 ns) — **every corner meets setup**; slow-corner slack +14.06 ns (v3.10), +2.20 ns (v2) |
 | **Dispatcher** | roofline cost model over five engines, self-calibrating, ~13-cycle decision |
 | **Compute engines** | 4×4 INT8 systolic array · 4-lane 32-bit vector unit · Barrett butterflies at the ML-KEM, ML-DSA and Falcon moduli |
 | **Memory path** | scratchpad banks and an operand streamer feeding all three engines |
@@ -317,7 +317,7 @@ Two things make that unusual:
 
 | id | engine | what it is for |
 |---|---|---|
-| 0 | CPU | scalar slot, the fallback for anything. **Latency model only; no CPU core integrated** |
+| 0 | CPU | scalar slot, the fallback for anything. **A latency model on the tile and the OpenFrame top**; the system tile can put the Sixfold RV64 core here (`CPU_ENGINE = 1`, `make systile-cpu`) |
 | 1 | SIMD | 4-lane 32-bit integer vector unit (not a GPU) |
 | 2 | TPU | INT8 output-stationary systolic array, built 4×4 |
 | 3 | NTT | number-theoretic transform butterflies for lattice cryptography, built 4 lanes, not yet in the system tile |
@@ -636,10 +636,12 @@ today. Beside it, `dbg/` holds an IEEE 1149.1 test access port with its own
 clock, so it is reachable when the system clock is wrong, the bridge is
 misconfigured, or firmware never started: 132 clock edges bit-exact against
 a model written from the standard's state diagram, and the escape hatch —
-five mode-pin-high clocks reach reset from **any** state — checked
-exhaustively over all sixteen. Four pins, 491 cells. No boundary scan, and
-the bridge into the register map is not written yet; both are stated on the
-project page rather than glossed.
+five mode-pin-high clocks reach reset from **any** state — a bounded model
+check (depth 10) from an unconstrained start, which covers all sixteen states for
+this five-clock property. Four pins and 491 cells if it were added; no tile or
+chip build has it yet. No boundary scan, and the bridge (`dbg/rtl/hydra_jtag_bridge.sv`)
+reaches only the FPGA JTAG harness's three-register command map, not a tile or
+chip register map; both are stated on the project page rather than glossed.
 
 **Security instructions for the RV64 core** (`isa/`, spec in
 `docs/ISA_SECURITY.md`): the ratified Zknh SHA-256 instructions, bit-exact

@@ -110,7 +110,9 @@ say "python packages"
 PKGS="cocotb==2.1.0 pytest==9.1.1 pyyaml==6.0.3 pyserial==3.5 apycula==0.34 click==8.4.2"
 if [ "$SYSTEM_PY" -eq 1 ]; then
   # shellcheck disable=SC2086
-  $SUDO pip install --break-system-packages -q $PKGS
+  # --ignore-installed: the runner image ships Debian's PyYAML, which pip cannot uninstall (no RECORD
+  # file); every verify run from 2026-10-18 stopped here before a single check ran
+  $SUDO pip install --break-system-packages --ignore-installed -q $PKGS
 else
   [ -d "$ROOT/.venv" ] || python3 -m venv "$ROOT/.venv"
   # shellcheck disable=SC2086

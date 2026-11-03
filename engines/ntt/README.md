@@ -47,9 +47,12 @@ the model checks.
 
 ## The equivalent mutation, and why it stays
 
-Reducing the Barrett constant by one survives every test. It is not a
-missing test: swept across the whole product range, the largest
-intermediate remainder with `BM−1` is **22,887**, still under 2q = 24,578,
-so the single conditional subtract closes it and the answers are
-identical. The mutation is kept in the list, labelled, with the number —
+Reducing the Barrett constant by one survives every test at the default
+q = 12289. It is not a missing test: swept across every residue pair
+(`engines/ntt/formal/barrett_margin.c`), the largest intermediate remainder
+with `BM−1` is **22,862** (23,042 over every product up to (q−1)²), still
+under 2q = 24,578, so the single conditional subtract closes it and the
+answers are identical. At q = 3329 the same mutation is a real fault: its
+largest remainder is 7,058, over 2q = 6,658, which is why the suite runs at
+the default modulus only. The mutation is kept in the list, labelled, with the number —
 deleting it would lose the evidence that the reduction has margin.

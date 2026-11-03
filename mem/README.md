@@ -13,7 +13,7 @@ results back.
 | `tb/dma_model.py` | operands, bank layout and the expected product |
 | `tb/tb_hydra_dma.sv` | load memory, dispatch, read results back out |
 | `formal/hydra_dma_gemm.sby` | the streamer's contract, proved |
-| `formal/mutate_dma.py` | thirteen breaks across both engines: **13 killed, 0 survivors** |
+| `formal/mutate_dma.py` | 26 breaks of the memory path (22 in simulation, 4 against the proofs): **26 of 26 caught** (`make dma-mutate`) |
 
 ## Bank layout — a contract with whoever fills memory
 

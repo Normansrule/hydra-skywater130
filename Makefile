@@ -261,10 +261,12 @@ readme-art:                   ## regenerate every README figure from the reposit
 readme-shots:                 ## screenshots of the atlas page for both READMEs (headless Chromium; not part of readme-check)
 	python3 tools/gen_readme_shots.py
 
-readme-check:                 ## lead figures current; README numbers match the latest harden
+readme-check:                 ## lead figures current; every README number matches its source
 	@python3 tools/gen_readme_hero.py --check
 	@python3 tools/gen_readme_visuals.py --check
 	@python3 tools/gen_readme_gifs.py --check
+	@python3 tools/check_readme_facts.py
+	@python3 tools/atlas_boards.py --check
 
 site:                         ## regenerate the project page and the architecture diagram
 	python3 tools/gen_site.py

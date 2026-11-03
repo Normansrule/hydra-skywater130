@@ -9,6 +9,13 @@ page. It's for people who design or study heterogeneous hardware: anyone curious
 between a central processing unit (CPU), a graphics processing unit (GPU) and a tensor processing unit (TPU) in
 hardware, and how far each claim here has actually been checked.
 
+<p align="center">
+  <a href="https://normansrule.github.io/hydra-skywater130/"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/site_button.dark.svg">
+    <img src="docs/img/site_button.svg" width="460" alt="View the full site: the Silicon Atlas">
+  </picture></a>
+</p>
+
 [Zoom into the tile](https://normansrule.github.io/hydra-skywater130/) ·
 [Explore the layout](https://normansrule.github.io/hydra-skywater130/#layout) ·
 [Replay a decision](https://normansrule.github.io/hydra-skywater130/#demos/crossover/4391) ·
@@ -18,7 +25,9 @@ hardware, and how far each claim here has actually been checked.
 Maintained by [@Normansrule](https://github.com/Normansrule)
 
 > **Where things stand, by revision.** The **Tiny Tapeout tile** is the scheduler alone; its v3.10 harden has a
-> clean sign-off record from one LibreLane run, which is not fabricated or tested silicon. The **SkyWater 130
+> clean sign-off record from one LibreLane run, which is not fabricated or tested silicon. Tiny Tapeout's own
+> GitHub GDS flow, which builds the submission, does not yet finish: its Verilator 5.018 lint stops on one reset
+> loop in `src/project.v` that the local Verilator 5.032 accepts. The **SkyWater 130
 > OpenFrame chip** top holds the scheduler, a pad multiplexer and the serial peripheral interface (SPI); it is
 > simulated through its pads and has never been hardened. The CPU, GPU and TPU slots run in **system-tile
 > simulations**, not in that top. **No FPGA image has run on a board yet.** The security blocks are checked IP
@@ -43,7 +52,7 @@ Maintained by [@Normansrule](https://github.com/Normansrule)
   force an engine or refuse a mode, with no silent fallback.
 - **Real engines behind it.** A 4×4 INT8 systolic array (the TPU), a 4-lane vector unit, number-theoretic
   transform (NTT) butterflies at three moduli, the Pixelstorm GPU and the Sixfold 64-bit RISC-V CPU, each checked
-  against an independent model.
+  in simulation against an independent model.
 - **Three targets, kept apart.** The scheduler-only Tiny Tapeout tile, the SkyWater 130 OpenFrame chip, and ten
   FPGA build plans. Nothing proved for one is claimed for another.
 - **The Silicon Atlas.** A self-contained project page built from the repository itself. It opens on the tile's
@@ -58,6 +67,13 @@ Maintained by [@Normansrule](https://github.com/Normansrule)
   the sources it describes.
 
 ## Screenshots
+
+The atlas in motion, filmed from the page itself in a headless browser (every frame draws the tile's own layout
+and the gate-level recording):
+
+<p align="center">
+  <img src="docs/img/story.webp" width="100%" alt="The atlas's opening story filmed from the page: the hardened tile's whole routed layout, the dispatch unit's cells coloured by block, one decision lighting the wires cycle by cycle, single standard cells, the cells and four metal layers pulled apart into a turning 3D stack, and the whole tile again with the 1,813 nets that switched.">
+</p>
 
 The atlas opens on the hardened tile and zooms in as you scroll. These are its six steps, shot from the page
 itself (the die is always drawn dark, like a mask; the rest of the page follows your light or dark setting):
@@ -153,6 +169,18 @@ drawn. In words: a host program talks over a serial port to a bridge, which driv
 loads the scratchpad; the register map feeds the scheduler; the decision goes through the crossbar either to the
 systolic array, fed from scratchpad banks by a streamer, or to latency models standing in for the CPU, vector,
 NTT and crypto slots.
+
+### On the board
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/boards.dark.svg">
+  <img src="docs/img/boards.svg" width="100%" alt="ULX3S wiring for the image ulx3s-85f: a PC and the board's USB serial chip on receive ball M1 and transmit ball L4; a 25 MHz oscillator on ball G2 and the reset button on D6; inside the LFE5U-85F, the UART, serial bridge, SPI slave, register map and scheduler in a row; out to the eight LEDs, header pins gp[7:0] and gp[8]. A moving light, labelled an illustration, follows one command to the LEDs. Not yet run on a board.">
+</picture>
+
+The ULX3S image, the next one to bring up, drawn from its plan and from the board file that
+`tools/import_boards.py` builds from the vendor's own pin file: every block it compiles in and every ball it
+uses. The site's [Boards tab](https://normansrule.github.io/hydra-skywater130/#boards) draws all ten images the
+same way.
 
 ## Setup and usage
 
@@ -267,7 +295,8 @@ always drawn as a mask, whichever theme you're in.
   and requests moving, safelight amber for control and decisions, metal-2 violet for compute, diffusion green for
   memory, polysilicon red for security IP. Each comes with a drawn shape (a triangle, a diamond, a square,
   stacked bars, a shield), so colour is never the only cue. In the die view the layers keep their own colours,
-  and a wire that is high glows amber.
+  a wire that is high glows amber with a bloom, and a spark marks each net at
+  the moment it changes value in the recording, so every sparkle is one real event.
 - **One family, two widths.** Ubuntu Sans condensed for headings, at normal width for reading, and Ubuntu Sans
   Mono only for code, signal names and bytes; six text sizes. Both are embedded as small subsets (Ubuntu Font
   Licence, in `docs/atlas/fonts/`), so the page fetches nothing.
@@ -318,6 +347,7 @@ parent system.
 | need | document |
 |---|---|
 | the interactive atlas | [Silicon Atlas](https://normansrule.github.io/hydra-skywater130/) (or `docs/site/index.html` from disk); its data and tools: [docs/atlas](docs/atlas/README.md) |
+| every section of the site | [Overview](https://normansrule.github.io/hydra-skywater130/) · [Architecture](https://normansrule.github.io/hydra-skywater130/#architecture) · [Physical layout](https://normansrule.github.io/hydra-skywater130/#layout) · [Blocks](https://normansrule.github.io/hydra-skywater130/#blocks) · [Demos](https://normansrule.github.io/hydra-skywater130/#demos) · [Tiny Tapeout](https://normansrule.github.io/hydra-skywater130/#tile) · [Boards](https://normansrule.github.io/hydra-skywater130/#boards) · [Build](https://normansrule.github.io/hydra-skywater130/#build) · [Evidence](https://normansrule.github.io/hydra-skywater130/#evidence) |
 | your first simulation | [Getting started](docs/GETTING_STARTED.md) |
 | commands to test and publish | [Publish and test](docs/PUBLISH_AND_TEST.md) |
 | what each part has been shown to do | [Capability matrix](docs/verification/capability-matrix.md) |

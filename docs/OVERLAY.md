@@ -15,7 +15,7 @@ hydra-skywater130/
   Makefile              make verify -- every check below, in order
   THREE_TARGETS.md      the plan and the evidence
   common/               shared RTL used by more than one target
-    rtl/hydra_padmux.sv     pad function mux (proved, 8/8 mutations killed)
+    rtl/hydra_padmux.sv     pad function mux (proved at 3 pads x 3 alternatives, 8/8 mutations killed)
     rtl/hydra_rst_sync.sv   async assert, sync release, scan bypass
     tb/, formal/            model comparison, proofs, mutation runner
   tt/
