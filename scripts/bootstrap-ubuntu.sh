@@ -107,7 +107,9 @@ say "python packages"
 # Pinned to the versions the archived run used (reports/*/tools.txt), so a
 # fresh machine gets the toolchain the evidence came from (SkyWater 130
 # audit BUILD-03). pyserial is only needed on a machine with a board.
-PKGS="cocotb==2.1.0 pytest==9.1.1 pyyaml==6.0.3 pyserial==3.5 apycula==0.34 click==8.4.2"
+# pillow: make readme-check reads the README animations (tools/gen_readme_gifs.py); the first verify run to
+# get that far on GitHub (2026-11-03) stopped on its missing import
+PKGS="cocotb==2.1.0 pytest==9.1.1 pyyaml==6.0.3 pyserial==3.5 apycula==0.34 click==8.4.2 pillow==11.0.0"
 if [ "$SYSTEM_PY" -eq 1 ]; then
   # shellcheck disable=SC2086
   # --ignore-installed: the runner image ships Debian's PyYAML, which pip cannot uninstall (no RECORD
