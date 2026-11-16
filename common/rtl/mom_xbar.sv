@@ -170,7 +170,9 @@ module mom_xbar #(
     // Scanning downwards leaves the LOWEST offset from rr_ptr selected,
     // which is the oldest turn in round-robin order.
     for (scan_i = NENG - 1; scan_i >= 0; scan_i = scan_i - 1) begin
-      scan_e = scan_i + int'(rr_ptr);
+      // zero-extended by concatenation, not an int'() cast: the proof's Yosys
+      // (Ubuntu's 0.33 on the CI runner, 0.38 in the GDS image) rejects casts
+      scan_e = scan_i + {{(32-ENGW){1'b0}}, rr_ptr};
       if (scan_e >= NENG) scan_e = scan_e - NENG;
       if (ready_set[scan_e]) begin
         take_any = 1'b1;

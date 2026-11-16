@@ -123,7 +123,7 @@ SIM_TARGETS = {
             ("completion errors never reported",
              "err_done_unknown <= |done_bad;", "err_done_unknown <= 1'b0;"),
             ("round-robin replaced by fixed priority",
-             "scan_e = scan_i + int'(rr_ptr);", "scan_e = scan_i;"),
+             "scan_e = scan_i + {{(32-ENGW){1'b0}}, rr_ptr};", "scan_e = scan_i;"),
         ],
     },
 }
