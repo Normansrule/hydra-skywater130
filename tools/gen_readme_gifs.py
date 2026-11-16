@@ -40,7 +40,10 @@ NAME = {"ENG_CPU": "CPU", "ENG_SIMD": "Vector unit", "ENG_TPU": "Systolic array"
 
 
 def font(i, size):
-    return ImageFont.truetype(FONTS[i], size)
+    # Pillow switches to the Raqm layout engine when the system happens to have FriBiDi (GitHub's runner image
+    # does, a bare Ubuntu does not), and Raqm measures text differently, which moved the FPGA animation's
+    # centred labels (CI run 43813110695). The basic engine is the same everywhere; this text needs nothing more.
+    return ImageFont.truetype(FONTS[i], size, layout_engine=ImageFont.Layout.BASIC)
 
 
 def norm(x):
