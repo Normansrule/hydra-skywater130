@@ -1,6 +1,6 @@
 {
  "frames": 20,
- "sha256": "829e360b25458d3858764c957677fe206477782291fa51e19ef0528eab44b5bc",
+ "sha256": "5f22ea6c6d8cde7763eb294f73982ba14726392acae311bba626314774f4ada0",
  "alt": "The 4x4 systolic array on a 4x4x64 job, replayed from make tpu",
  "poster": 12
 }

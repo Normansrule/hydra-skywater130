@@ -28,8 +28,11 @@ import atlas_theme as T  # noqa: E402
 
 OUT = ROOT / "docs/img"
 TR = ROOT / "docs/atlas/traces"
-FONTS = ["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]
+# shipped with the repository (tools/fonts/, DejaVu licence), so text has the same metrics on every machine
+FONTS = [str(ROOT / "tools/fonts" / f) for f in ("DejaVuSans.ttf", "DejaVuSansMono.ttf", "DejaVuSans-Bold.ttf")]
+GIFS = ROOT / "docs/img/gifs.json"
+GIF_MAN = json.loads(GIFS.read_text()) if GIFS.exists() else {}
+NEW_MAN = {}
 CHECK = "--check" in sys.argv
 STALE = []
 NAME = {"ENG_CPU": "CPU", "ENG_SIMD": "Vector unit", "ENG_TPU": "Systolic array", "ENG_NTT": "Butterflies",
@@ -40,7 +43,53 @@ def font(i, size):
     return ImageFont.truetype(FONTS[i], size)
 
 
-def save(name, frames, durations, dirs=None):
+def norm(x):
+    """A drawing argument as plain data: fonts by face and size, numbers rounded, containers recursively."""
+    if isinstance(x, ImageFont.FreeTypeFont):
+        return ["font", pathlib.Path(x.path).name, x.size]
+    if isinstance(x, float):
+        return round(x, 4)
+    if isinstance(x, (list, tuple)):
+        return [norm(v) for v in x]
+    if isinstance(x, dict):
+        return {k: norm(v) for k, v in sorted(x.items())}
+    return x
+
+
+class Rec:
+    """ImageDraw that also writes down every call, so a frame can be compared by what was drawn on it
+    rather than by pixels, which differ between font builds and rasterizers."""
+    def __init__(self, im, ops):
+        self._d, self._ops = ImageDraw.Draw(im), ops
+        ops.append(["new", list(im.size), norm(im.getpixel((0, 0)))])
+    def __getattr__(self, n):
+        f = getattr(self._d, n)
+        if not callable(f):
+            return f
+        def call(*a, **k):
+            self._ops.append([n, norm(a), norm(k)])
+            return f(*a, **k)
+        return call
+
+
+def frame_hashes(ops):
+    """One hash per frame: the ops from one 'new' (a fresh canvas) to the next."""
+    import hashlib
+    out, cur = [], None
+    for op in ops:
+        if op[0] == "new":
+            if cur is not None:
+                out.append(cur.hexdigest()[:16])
+            cur = hashlib.sha256()
+        cur.update(json.dumps(op, ensure_ascii=False).encode())
+    if cur is not None:
+        out.append(cur.hexdigest()[:16])
+    return out
+
+
+def save(name, frames, durations, dirs=None, ops=None):
+    rec = {"frames": frame_hashes(ops or []), "durations": list(durations)}
+    NEW_MAN[name] = rec
     buf = io.BytesIO()
     frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=durations,
                    loop=0, optimize=False, disposal=1)
@@ -48,8 +97,17 @@ def save(name, frames, durations, dirs=None):
     for d in dirs or [OUT]:
         f = d / name
         if CHECK:
-            if not f.exists() or f.read_bytes() != data:
-                STALE.append(str(f.relative_to(ROOT)))
+            old = GIF_MAN.get(name)
+            why = ("missing" if not f.exists() else "not in docs/img/gifs.json" if not old else
+                   f"{len(old['frames'])} frames recorded, {len(rec['frames'])} drawn" if len(old["frames"]) != len(rec["frames"]) else
+                   "timings differ" if old["durations"] != rec["durations"] else
+                   next((f"frame {i} drawn differently" for i, (a, b) in enumerate(zip(old["frames"], rec["frames"])) if a != b), None))
+            if why is None:
+                with Image.open(f) as g:
+                    if g.n_frames != len(frames):
+                        why = f"the file has {g.n_frames} frames, {len(frames)} drawn"
+            if why:
+                STALE.append(f"{f.relative_to(ROOT)} ({why})")
             continue
         f.write_bytes(data)
 
@@ -57,21 +115,21 @@ def save(name, frames, durations, dirs=None):
 MEDIA = ROOT / "docs/site/media"
 
 
-def video(name, frames, durations, captions, alt, poster=-1):
+def video(name, frames, durations, captions, alt, poster=-1, ops=None):
     """The same frames as a WebM with WebVTT captions and a poster, for the
     site's <video controls> (pausable and seekable, unlike a GIF). A small
     manifest records the hash of the frames, timings and captions; --check
     compares that, because encoders are not byte-reproducible across versions."""
     import hashlib, subprocess, tempfile
     h = hashlib.sha256()
-    for im, d, c in zip(frames, durations, captions):
-        h.update(im.convert("RGB").tobytes()); h.update(str(d).encode()); h.update(c.encode())
+    for fh, d, c in zip(frame_hashes(ops or []), durations, captions):
+        h.update(fh.encode()); h.update(str(d).encode()); h.update(c.encode())
     man = {"frames": len(frames), "sha256": h.hexdigest(), "alt": alt, "poster": poster}
     mf = MEDIA / f"{name}.json"
     if CHECK:
         if not mf.exists() or json.loads(mf.read_text()).get("sha256") != man["sha256"] or \
                 not (MEDIA / f"{name}.webm").exists():
-            STALE.append(str(mf.relative_to(ROOT)))
+            STALE.append(f"{mf.relative_to(ROOT)} (the film's drawing record differs)")
         return
     if mf.exists() and json.loads(mf.read_text()) == man and (MEDIA / f"{name}.webm").exists():
         return                          # same frames: keep the film as it is (encoders differ between runs)
@@ -103,6 +161,7 @@ def rgb(h):
 
 # ---------------------------------------------------------------------------
 def dispatch(mode):
+    ops = []                        # what this animation draws, frame by frame
     p = T.LIGHT if mode == "light" else T.DARK
     tr = json.loads((TR / "crossover.json").read_text())
     ev = tr["events"]
@@ -118,7 +177,7 @@ def dispatch(mode):
 
     def frame(step):
         im = Image.new("RGB", (W, H), rgb(p["surface"]))
-        d = ImageDraw.Draw(im)
+        d = Rec(im, ops)
         d.rounded_rectangle([1, 1, W - 2, H - 2], 14, outline=rgb(p["line"]), width=2)
         d.text((24, 18), "One decision on the Tiny Tapeout tile", font=f_t, fill=rgb(p["ink"]))
         d.text((24, 46), f"Recorded RTL trace · {tr['test'].split('::')[1]} · tile {tr['tile_commit'][:7]} · PASS",
@@ -165,11 +224,12 @@ def dispatch(mode):
         caps.append(f"{NAME.get(win['name'], win['name'])} wins: tag {tag['tag']}, margin {sel['margin']}.")
         caps.append(f"Completion: {cal['meas']} cycles measured against {cal['pred']} predicted; "
                     f"the factor moves {cal['k_cur']} to {cal['k_next']}.")
-        video("dispatch", frames, durs, caps, "One decision on the tile, replayed from test_roofline_crossover")
-    save(f"demo_dispatch{'.dark' if mode == 'dark' else ''}.gif", frames, durs, [OUT, ROOT / "tt/tile/docs/img"])
+        video("dispatch", frames, durs, caps, "One decision on the tile, replayed from test_roofline_crossover", ops=ops)
+    save(f"demo_dispatch{'.dark' if mode == 'dark' else ''}.gif", frames, durs, [OUT, ROOT / "tt/tile/docs/img"], ops=ops)
 
 
 def array(mode):
+    ops = []                        # what this animation draws, frame by frame
     p = T.LIGHT if mode == "light" else T.DARK
     tr = json.loads((TR / "tpu.json").read_text())
     S = tr["signals"]
@@ -192,7 +252,7 @@ def array(mode):
     frames = []
     for c in cyc:
         im = Image.new("RGB", (W, H), rgb(p["surface"]))
-        d = ImageDraw.Draw(im)
+        d = Rec(im, ops)
         d.rounded_rectangle([1, 1, W - 2, H - 2], 14, outline=rgb(p["line"]), width=2)
         st = states[at("dut.u_ctrl.st_q", c) or 0]
         d.text((22, 16), "The 4×4 INT8 systolic array, 4×4×64 multiply", font=f_t, fill=rgb(p["ink"]))
@@ -221,11 +281,12 @@ def array(mode):
     if mode == "light":
         caps = [f"Cycle {c}: controller {states[at('dut.u_ctrl.st_q', c) or 0][2:]}." for c in cyc]
         video("array", frames, durs, caps, "The 4x4 systolic array on a 4x4x64 job, replayed from make tpu",
-              poster=min(range(len(cyc)), key=lambda i: abs(cyc[i] - 72)))
-    save(f"demo_array{'.dark' if mode == 'dark' else ''}.gif", frames, durs)
+              poster=min(range(len(cyc)), key=lambda i: abs(cyc[i] - 72)), ops=ops)
+    save(f"demo_array{'.dark' if mode == 'dark' else ''}.gif", frames, durs, ops=ops)
 
 
 def fpga(mode):
+    ops = []                        # what this animation draws, frame by frame
     """The FPGA memory image in action, one frame per step of its recorded
     serial-port simulation (docs/atlas/fpga.json, make memboard). The board
     is a drawing; the bytes, writes, dispatch and completion are recorded."""
@@ -254,7 +315,7 @@ def fpga(mode):
     ev = [e for e in fp["events"] if e["k"] in ("in", "out")]
     for i, ph in enumerate(phases):
         im = Image.new("RGB", (W, H), rgb(p["bg"]))
-        d = ImageDraw.Draw(im)
+        d = Rec(im, ops)
         d.text((24, 18), "The FPGA memory image, in action", font=f_t, fill=rgb(p["ink"]))
         d.text((24, 50), f"Recorded RTL trace (simulation, not a board) · make memboard · {fp['plan']} · PASS · step {i + 1} of {len(phases)}",
                font=f_m, fill=rgb(p["dim"]))
@@ -311,7 +372,7 @@ def fpga(mode):
         frames.append(im.convert("P", palette=Image.ADAPTIVE, colors=96))
         caps.append(txt)
     durs = [1700] * (len(frames) - 1) + [3500]
-    save(f"demo_fpga{'.dark' if mode == 'dark' else ''}.gif", frames, durs)
+    save(f"demo_fpga{'.dark' if mode == 'dark' else ''}.gif", frames, durs, ops=ops)
 
 
 def main():
@@ -319,6 +380,8 @@ def main():
         dispatch(m)
         array(m)
         fpga(m)
+    if not CHECK:
+        GIFS.write_text(json.dumps(NEW_MAN, indent=1, sort_keys=True) + "\n")
     if CHECK:
         if STALE:
             print("\n".join(f"readme-gifs: {s} is out of date -- run: make readme-art" for s in STALE))
