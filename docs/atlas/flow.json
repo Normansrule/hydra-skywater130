@@ -1,10 +1,28 @@
 {
- "run": "ladder-previous-20261018-174736",
- "what": "tile v3.10, harden ladder run 20261018-174736, the run docs/timing.json quotes",
+ "run": "wokwi",
+ "what": "v3.12",
  "steps": [
   {
    "n": 1,
    "name": "verilator lint",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 2,
+   "name": "checker linttimingconstructs",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 3,
+   "name": "checker linterrors",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 4,
+   "name": "checker lintwarnings",
    "detail": "",
    "evidence": []
   },
@@ -17,10 +35,40 @@
   {
    "n": 6,
    "name": "yosys synthesis",
-   "detail": "cell area after synthesis 141643.347200 \u00b5m\u00b2",
+   "detail": "cell area after synthesis 142875.779200 \u00b5m\u00b2",
    "evidence": [
-    "Chip area for module '\\tt_um_hydra_mom': 141643.347200"
+    "Chip area for module '\\tt_um_hydra_mom': 142875.779200"
    ]
+  },
+  {
+   "n": 7,
+   "name": "checker yosysunmappedcells",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 8,
+   "name": "checker yosyssynthchecks",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 9,
+   "name": "checker netlistassignstatements",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 10,
+   "name": "openroad checksdcfiles",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 11,
+   "name": "openroad checkmacroinstances",
+   "detail": "",
+   "evidence": []
   },
   {
    "n": 12,
@@ -31,10 +79,10 @@
   {
    "n": 13,
    "name": "openroad floorplan",
-   "detail": "die 0.0 0.0 682.64 511.36 \u00b5m; 11813 cells, 141643.35 \u00b5m\u00b2",
+   "detail": "die 0.0 0.0 682.64 511.36 \u00b5m; 11800 cells, 142875.78 \u00b5m\u00b2",
    "evidence": [
     "Floorplanned on a die area of 0.0 0.0 682.64 511.36 (",
-    "Total                                 11813  141643.35"
+    "Total                                 11800  142875.78"
    ]
   },
   {
@@ -44,8 +92,20 @@
    "evidence": []
   },
   {
+   "n": 15,
+   "name": "odb checkmacroantennaproperties",
+   "detail": "",
+   "evidence": []
+  },
+  {
    "n": 16,
    "name": "odb setpowerconnections",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 17,
+   "name": "odb manualmacroplacement",
    "detail": "",
    "evidence": []
   },
@@ -62,8 +122,44 @@
    "evidence": []
   },
   {
+   "n": 20,
+   "name": "odb addpdnobstructions",
+   "detail": "",
+   "evidence": []
+  },
+  {
    "n": 21,
    "name": "openroad generatepdn",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 22,
+   "name": "odb removepdnobstructions",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 23,
+   "name": "odb addroutingobstructions",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 24,
+   "name": "openroad globalplacementskipio",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 25,
+   "name": "openroad ioplacement",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 26,
+   "name": "odb customioplacement",
    "detail": "",
    "evidence": []
   },
@@ -76,14 +172,20 @@
   {
    "n": 28,
    "name": "openroad globalplacement",
-   "detail": "17073 cells after placement, 149155.55 \u00b5m\u00b2",
+   "detail": "17060 cells after placement, 150387.98 \u00b5m\u00b2",
    "evidence": [
-    "Total                                 17073  149155.55"
+    "Total                                 17060  150387.98"
    ]
   },
   {
    "n": 29,
    "name": "odb writeverilogheader",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 30,
+   "name": "checker powergridviolations",
    "detail": "",
    "evidence": []
   },
@@ -100,6 +202,12 @@
    "evidence": []
   },
   {
+   "n": 33,
+   "name": "odb manualglobalplacement",
+   "detail": "",
+   "evidence": []
+  },
+  {
    "n": 34,
    "name": "openroad detailedplacement",
    "detail": "",
@@ -108,10 +216,10 @@
   {
    "n": 35,
    "name": "openroad cts",
-   "detail": "238 clock buffers; 1941 clock sinks",
+   "detail": "270 clock buffers; 1965 clock sinks",
    "evidence": [
-    "Total number of Buffers Inserted: 238",
-    "Total number of Sinks: 1941"
+    "Total number of Buffers Inserted: 270",
+    "Total number of Sinks: 1965"
    ]
   },
   {
@@ -135,18 +243,18 @@
   {
    "n": 39,
    "name": "openroad globalrouting",
-   "detail": "routing usage 40.76%, overflow 0; 843642 \u00b5m of wire",
+   "detail": "routing usage 41.48%, overflow 0; 868592 \u00b5m of wire",
    "evidence": [
-    "Total           205261         83662           40.76%             0 /  0 /  0",
-    "Total wirelength: 843642 um"
+    "Total           204789         84951           41.48%             0 /  0 /  0",
+    "Total wirelength: 868592 um"
    ]
   },
   {
    "n": 40,
    "name": "openroad checkantennas",
-   "detail": "82 antenna net violations",
+   "detail": "88 antenna net violations",
    "evidence": [
-    "Found 82 net violations"
+    "Found 88 net violations"
    ]
   },
   {
@@ -182,6 +290,12 @@
    ]
   },
   {
+   "n": 46,
+   "name": "odb removeroutingobstructions",
+   "detail": "",
+   "evidence": []
+  },
+  {
    "n": 47,
    "name": "openroad checkantennas 1",
    "detail": "0 antenna net violations",
@@ -190,8 +304,20 @@
    ]
   },
   {
+   "n": 48,
+   "name": "checker trdrc",
+   "detail": "",
+   "evidence": []
+  },
+  {
    "n": 49,
    "name": "odb reportdisconnectedpins",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 50,
+   "name": "checker disconnectedpins",
    "detail": "",
    "evidence": []
   },
@@ -202,11 +328,17 @@
    "evidence": []
   },
   {
+   "n": 52,
+   "name": "checker wirelength",
+   "detail": "",
+   "evidence": []
+  },
+  {
    "n": 53,
    "name": "openroad fillinsertion",
-   "detail": "70808 instances with fill, 342568.55 \u00b5m\u00b2",
+   "detail": "69949 instances with fill, 342568.55 \u00b5m\u00b2",
    "evidence": [
-    "Total                                 70808  342568.55"
+    "Total                                 69949  342568.55"
    ]
   },
   {
@@ -272,8 +404,20 @@
    ]
   },
   {
+   "n": 64,
+   "name": "checker magicdrc",
+   "detail": "",
+   "evidence": []
+  },
+  {
    "n": 65,
    "name": "magic spiceextraction",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 66,
+   "name": "checker illegaloverlap",
    "detail": "",
    "evidence": []
   },
@@ -284,6 +428,42 @@
    "evidence": [
     "Circuits match uniquely."
    ]
+  },
+  {
+   "n": 68,
+   "name": "checker lvs",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 69,
+   "name": "checker setupviolations",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 70,
+   "name": "checker holdviolations",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 71,
+   "name": "checker maxslewviolations",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 72,
+   "name": "checker maxcapviolations",
+   "detail": "",
+   "evidence": []
+  },
+  {
+   "n": 73,
+   "name": "misc reportmanufacturability",
+   "detail": "",
+   "evidence": []
   }
  ],
  "label": "Recorded Tool Output",

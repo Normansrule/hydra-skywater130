@@ -21,7 +21,8 @@ bad=0; n=0
 fresh() {   # a clean copy of the repository at $WORK/r
   rm -rf "$WORK/r"; mkdir -p "$WORK/r"
   (cd "$ROOT" && tar --exclude=.git --exclude='fpga/build/*/*.bit' --exclude='*_prove' \
-      --exclude='sim_build' --exclude='./build' --exclude='fpga/vendor_refs' -cf - .) | (cd "$WORK/r" && tar xf -)
+      --exclude='sim_build' --exclude='./build' --exclude='fpga/vendor_refs' \
+      --exclude='./sky130/harden/*/runs' -cf - .) | (cd "$WORK/r" && tar xf -)
 }
 
 # expect_fail LABEL TARGET [ENV=VALUE...] -- COMMAND THAT BREAKS SOMETHING

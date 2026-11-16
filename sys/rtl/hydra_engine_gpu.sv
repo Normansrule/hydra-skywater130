@@ -128,6 +128,8 @@ module hydra_engine_gpu #(
   logic [15:0] grid_q, block_q;
   wire         gpu_done, gpu_running;
   wire [31:0]  gpu_cycle;
+  localparam int LWB = $clog2(LW);                  // bits to name a word of a line
+  wire [31:0]  perf_instr, perf_lanes, perf_mem;   // Pixelstorm's counters; perf_cycles reports the cycle count
   wire         m_req_valid;
   wire [1:0]   m_req_op;
   wire [31:0]  m_req_addr;
@@ -145,7 +147,7 @@ module hydra_engine_gpu #(
     .host_cmem_we(cons_we && eng_ready), .host_cmem_addr(cons_addr), .host_cmem_wdata(cons_data),
     .launch(gpu_launch), .grid_dim(grid_q), .block_dim(block_q),
     .done(gpu_done), .running(gpu_running),
-    .perf_instr(), .perf_lanes(), .perf_mem(), .cycle(gpu_cycle),
+    .perf_instr(perf_instr), .perf_lanes(perf_lanes), .perf_mem(perf_mem), .cycle(gpu_cycle),
     .mem_req_valid(m_req_valid), .mem_req_op(m_req_op), .mem_req_addr(m_req_addr),
     .mem_req_wmask(m_req_wmask), .mem_req_wdata(m_req_wdata),
     .mem_resp_valid(m_resp_valid), .mem_resp_rdata(m_resp_rdata));
@@ -219,7 +221,7 @@ module hydra_engine_gpu #(
         end
         // reads: address word w this cycle, its data arrives next cycle
         M_RD: begin
-          if (w != 3'd0 && ok_q) m_resp_rdata[(w - 3'd1) * 32 +: 32] <= b_rdata;
+          if (w != 3'd0 && ok_q) m_resp_rdata[{LWB'(w - 3'd1), 5'd0} +: 32] <= b_rdata;
           if (w == 3'(LW - 1)) mst <= M_RD_LAST;
           w <= w + 3'd1;
         end
@@ -289,7 +291,7 @@ module hydra_engine_gpu #(
     end
   end
 
-  wire _unused = &{gpu_running, eng_wd, 1'b0};
+  wire _unused = &{gpu_running, eng_wd, perf_instr, perf_lanes, perf_mem, 1'b0};
 endmodule
 
 `default_nettype wire

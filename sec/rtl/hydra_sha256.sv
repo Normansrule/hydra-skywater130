@@ -92,16 +92,16 @@ module hydra_sha256 (
   logic [6:0]  round;
 
   // Schedule: the next word from the four the standard names.
-  wire [31:0] s0   = rotr(w[1], 7)  ^ rotr(w[1], 18) ^ (w[1] >> 3);
-  wire [31:0] s1   = rotr(w[14], 17) ^ rotr(w[14], 19) ^ (w[14] >> 10);
-  wire [31:0] w_nx = w[0] + s0 + w[9] + s1;
+  wire [31:0] sig0   = rotr(w[1], 7)  ^ rotr(w[1], 18) ^ (w[1] >> 3);
+  wire [31:0] sig1   = rotr(w[14], 17) ^ rotr(w[14], 19) ^ (w[14] >> 10);
+  wire [31:0] w_nx = w[0] + sig0 + w[9] + sig1;
 
-  wire [31:0] S1   = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+  wire [31:0] sum1   = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
   wire [31:0] ch   = (e & f) ^ (~e & g);
-  wire [31:0] t1   = hh + S1 + ch + K[round[5:0]] + w_cur;
-  wire [31:0] S0   = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+  wire [31:0] t1   = hh + sum1 + ch + K[round[5:0]] + w_cur;
+  wire [31:0] sum0   = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
   wire [31:0] maj  = (a & b) ^ (a & c) ^ (b & c);
-  wire [31:0] t2   = S0 + maj;
+  wire [31:0] t2   = sum0 + maj;
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin

@@ -24,8 +24,10 @@ module hydra_rst_sync #(
 );
   // The last stage is its own signal. It drives every asynchronous reset in
   // the design; the earlier stages are only ever data. Kept in one vector,
-  // Verilator 5.05x reports the vector as "flopped as both synchronous and
-  // async" (SYNCASYNCNET), because it judges the whole vector, not the bit.
+  // the 5.05x linter reports the vector as "flopped as both synchronous
+  // and async" (SYNCASYNCNET), because it judges the whole vector, not the
+  // bit. (A comment line may not start with the linter's name: it would be
+  // read as a pragma.)
   // Same flops, same behaviour; only the names differ.
   logic [STAGES-2:0] sync_q;   // stages 1 .. STAGES-1
   logic              rel_q;    // the released reset

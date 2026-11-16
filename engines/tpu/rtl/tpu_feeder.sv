@@ -41,6 +41,11 @@ module tpu_feeder
         // events". Simulation never noticed. Shifting a packed vector is
         // also literally what the hardware is.
         logic [i*AW-1:0] a_pipe, b_pipe;
+        // the shift written as "pipe and new value, keep the low i lanes":
+        // valid for lane 1 too, where a slice [(i-1)*AW-1:0] would be [-1:0]
+        wire [(i+1)*AW-1:0] a_next = {a_pipe, (in_valid ? a_slice[i] : {AW{1'b0}})};
+        wire [(i+1)*AW-1:0] b_next = {b_pipe, (in_valid ? b_slice[i] : {AW{1'b0}})};
+        wire _unused_top = &{1'b0, a_next[(i+1)*AW-1:i*AW], b_next[(i+1)*AW-1:i*AW]};
         // `flush` is SYNCHRONOUS and must not share the asynchronous reset
         // branch. Writing `if (!rst_n || flush)` simulates correctly in
         // Icarus and is rejected by yosys ("multiple edge sensitive events"),
@@ -54,8 +59,8 @@ module tpu_feeder
             a_pipe <= '0;
             b_pipe <= '0;
           end else if (step) begin
-            a_pipe <= {a_pipe[(i-1)*AW-1:0], (in_valid ? a_slice[i] : {AW{1'b0}})};
-            b_pipe <= {b_pipe[(i-1)*AW-1:0], (in_valid ? b_slice[i] : {AW{1'b0}})};
+            a_pipe <= a_next[i*AW-1:0];
+            b_pipe <= b_next[i*AW-1:0];
           end
         end
         assign a_skew[i] = a_pipe[i*AW-1 -: AW];

@@ -83,12 +83,12 @@ least significant bit = value 0.
 
 | engine | | op classes it accepts | data types it accepts |
 |---|---|---|---|
-| 0 `CPU` | scalar CPU slot: latency model only, no core integrated | SCALAR, ELEMENT, REDUCE, GEMM, CONV2D, FFT, NTT, CIPHER, HASH | INT8, INT16, INT32, FP16, FP32 |
+| 0 `CPU` | scalar CPU slot: the Sixfold RV64 core in the system tile (CPU_ENGINE = 1), a latency model elsewhere | SCALAR, ELEMENT, REDUCE, GEMM, CONV2D, FFT, NTT, CIPHER, HASH | INT8, INT16, INT32, FP16, FP32 |
 | 1 `SIMD` | 4-lane 32-bit integer vector unit | ELEMENT, REDUCE, GEMM, CONV2D, FFT | INT8, INT16, INT32, FP16, FP32 |
 | 2 `TPU` | INT8 output-stationary systolic array, built 4x4 | GEMM, CONV2D | INT8, INT16 |
 | 3 `NTT` | number-theoretic transform butterflies, built 4 lanes | FFT, NTT | INT32, POLY_Q |
 | 4 `CRYPTO` | cipher/hash slot: latency model only | CIPHER, HASH | INT32 |
-| 5 `GPU` | Pixelstorm SIMT GPU (sys/rtl/hydra_engine_gpu.sv): chip only, NENG = 6 | ELEMENT, REDUCE, GEMM | INT32 |
+| 5 `GPU` | Pixelstorm SIMT GPU (sys/rtl/hydra_engine_gpu.sv): six-slot system tile only (NENG = 6, GPU_ENGINE = 1); the OpenFrame builds use five slots | ELEMENT, REDUCE, GEMM | INT32 |
 
 ## Engine cost parameters
 

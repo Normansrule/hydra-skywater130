@@ -28,7 +28,7 @@ module tb_hydra_dma;
   logic [15:0]       tiles_done;
   logic [2:0]        job_status;
 
-  hydra_engine_tpu_dma #(.N(N), .AW(AW), .DEPTH(1024)) dut (
+  hydra_engine_tpu_dma #(.N(N), .MAW(AW), .DEPTH(1024)) dut (
     .clk(clk), .rst_n(rst_n),
     .eng_valid(eng_valid), .eng_ready(eng_ready), .eng_wd(eng_wd),
     .eng_tag(eng_tag), .eng_done(eng_done), .eng_done_tag(eng_done_tag),

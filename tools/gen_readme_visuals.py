@@ -42,6 +42,7 @@ TXT, TXT2, DIM = "@ink", "@ink2", "@dim"
 # graphite/ivory atlas palette (tools/atlas_theme.py): amber control, violet compute,
 # rose security, cyan signal (pads, pins), slate infrastructure, red failure
 BLUE, GREEN, PINK, GOLD, SLATE, RED = "@control", "@compute", "@secure", "@signal", "@dim", "@danger"
+I2C, GPIO = "@cat6", "@cat9"            # categorical: the chip's own I2C target and its GPIO bank
 FONT = "font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"
 MONO = "font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
 
@@ -90,8 +91,12 @@ def t(x, y, s, size=13, fill=TXT, anchor="start", weight=400, mono=False, cls=""
 # chip package: functions from the RTL
 def pad_plan():
     src = (ROOT / "sky130/rtl/hydra_openframe_top.sv").read_text()
-    lp = {k: int(v) for k, v in re.findall(r"localparam int (P_\w+|NMUX)\s*=\s*(\d+);", src)}
     npads = int(re.search(r"`define OPENFRAME_IO_PADS (\d+)", src).group(1))
+    # the pad localparams, in order; a value may be an expression of earlier ones (P_SDA = P_SCL + 1)
+    lp = {"NPADS": npads}
+    for k, v in re.findall(r"localparam int (P_\w+|NMUX|NGPIO)\s*=\s*([\w\s+\-*()]+?);", src):
+        if all(w in lp or w.isdigit() for w in re.findall(r"\w+", v)):
+            lp[k] = int(eval(v, {"__builtins__": {}}, dict(lp)))
     import yaml
     pins = yaml.safe_load((ROOT / "tt/tile/info.yaml").read_text())["pinout"]
     plan = {}
@@ -107,6 +112,12 @@ def pad_plan():
         desc = re.sub(r"^(LEGACY|REGISTER)\s+", "", desc.split(" / ")[-1])
         col = {"ui": BLUE, "uo": GREEN, "uio": PINK}[grp]
         plan[first + i] = (grp, name, desc, col)
+    # v3.11: the pads after the tile's 24 are the chip's own I2C target and GPIO bank
+    if "P_SCL" in lp:
+        plan[lp["P_SCL"]] = ("i2c", "scl", "I2C target clock, input", I2C)
+        plan[lp["P_SDA"]] = ("i2c", "sda", "I2C target data, open drain", I2C)
+        for k in range(npads - lp["P_GPIO"]):
+            plan[lp["P_GPIO"] + k] = ("gpio", f"gpio[{k}]", "GPIO, set and read over I2C", GPIO)
     for p in range(npads):
         plan.setdefault(p, ("unused", "—", "unused: input off, output off", SLATE))
     return npads, plan
@@ -180,23 +191,23 @@ def chip_package():
                  + t(x + 122, y, short(desc, 28), 12, TXT) + '</g>')
     unused = [p for p in range(npads) if plan[p][0] == "unused"]
     n = len(used)
-    x, y = tx0 + (n // 22) * 340, 182 + (n % 22) * rowh
-    b.append(f'<rect x="{x}" y="{y-15}" width="8" height="20" rx="2" fill="{SLATE}"/>'
-             + t(x + 16, y, f"{unused[0]}–{unused[-1]}", 12.5, TXT2, mono=True)
-             + t(x + 96, y, "unused: input and output off", 12, TXT))
-    for i, s in enumerate(["Reset leaves every pad an input.", "Pads 3–26 pass through the pad",
-                           "multiplexer and connect only when", "pad 2 (connect) is high at reset."]):
-        b.append(t(x, y + (2 + i) * 24, s, 12, TXT2))
-    leg = [("clock", GOLD), ("reset and strap", RED), ("ui: inputs (SPI in)", BLUE),
-           ("uo: outputs (SPI out, status)", GREEN), ("uio: bidirectional", PINK), ("unused, held off", SLATE)]
+    if unused:
+        x, y = tx0 + (n // 22) * 340, 182 + (n % 22) * rowh
+        b.append(f'<rect x="{x}" y="{y-15}" width="8" height="20" rx="2" fill="{SLATE}"/>'
+                 + t(x + 16, y, f"{unused[0]}–{unused[-1]}", 12.5, TXT2, mono=True)
+                 + t(x + 96, y, "unused: input and output off", 12, TXT))
+    leg = [("clock", GOLD), ("reset and strap", RED), ("ui: inputs (SPI in, GPI)", BLUE),
+           ("uo: outputs (SPI out, status)", GREEN), ("uio: bidirectional", PINK)]
+    leg += [("I2C target", I2C), ("GPIO over I2C", GPIO)] if not unused else [("unused, held off", SLATE)]
     for i, (nm, c) in enumerate(leg):
-        lx = 48 + (i % 3) * 300
-        ly = H - 52 + (i // 3) * 24
+        lx = 48 + (i % 4) * 300
+        ly = H - 52 + (i // 4) * 24
         b.append(f'<rect x="{lx}" y="{ly-11}" width="14" height="14" rx="3" fill="{c}"/>' + t(lx + 22, ly, nm, 13, TXT2))
     write("chip_package.svg", svg(W, H, "HYDRA-130 chip package projection",
           f"An illustrated package for the SkyWater 130 OpenFrame chip with all {npads} pads labelled from the RTL: "
           "pad 0 clock, 1 reset, 2 connect strap, 3 to 10 tile inputs, 11 to 18 tile outputs, 19 to 26 bidirectional, "
-          "the rest unused. Not a layout.", "".join(b)))
+          + ("27 I2C clock, 28 I2C data, 29 to 43 GPIO. " if "P_SCL" in open(ROOT / "sky130/rtl/hydra_openframe_top.sv").read()
+             else "the rest unused. ") + "Not a layout.", "".join(b)))
 
 
 # ---------------------------------------------------------------------------

@@ -140,6 +140,12 @@ module mom_param_rom
 
   logic [EPARAM_W-1:0] row [NENG];
 
+  // the GPU's row index, or 0 where there is no sixth slot (then unused)
+  localparam int GPU_ROW = (NENG > int'(ENG_GPU)) ? int'(ENG_GPU) : 0;
+  generate   // six slots at most: engine IDs past the GPU have no default row
+    if (NENG > int'(ENG_GPU) + 1) begin : g_too_many_slots mom_param_rom_supports_at_most_six_slots u_bad (); end
+  endgenerate
+
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
       row[ENG_CPU]    <= DEF_CPU;
@@ -147,8 +153,11 @@ module mom_param_rom
       row[ENG_TPU]    <= DEF_TPU;
       row[ENG_NTT]    <= DEF_NTT;
       row[ENG_CRYPTO] <= DEF_CRYPTO;
-      // empty at the tile's five slots; the GPU row on the chip
-      for (int e = int'(ENG_GPU); e < int'(NENG); e++) row[e] <= DEF_GPU;
+      // the GPU row, on the chip's sixth slot only. Not a loop from ENG_GPU to
+      // NENG: at the tile's five slots that loop runs zero times, and the
+      // linter in the Tiny Tapeout GDS action (5.018) cannot unroll it and
+      // stops with BLKLOOPINIT before synthesis (found 2026-10-27).
+      if (NENG > int'(ENG_GPU)) row[GPU_ROW] <= DEF_GPU;
     end else if (wr_en && wr_priv && ({29'd0, wr_engine} < NENG)) begin
       row[wr_engine] <= wr_data;
     end

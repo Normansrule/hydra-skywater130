@@ -37,3 +37,6 @@ __pycache__/
 # Per-checkout simulation scratch (Makefile SIMTMP)
 /build/
 fpga/build/*/pnr.log
+
+# LibreLane runs of the OpenFrame chip macros (gigabytes; results are recorded in docs)
+/sky130/harden/*/runs/

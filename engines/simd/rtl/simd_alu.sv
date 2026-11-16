@@ -22,6 +22,7 @@ module simd_alu
   output logic signed [EW-1:0]      y
 );
   wire signed [2*EW-1:0] prod = a * b;
+  wire _unused_hi = &{1'b0, prod[2*EW-1:EW]};   // MUL keeps the low half, as the model does
 
   always_comb begin
     unique case (op)

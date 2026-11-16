@@ -21,6 +21,7 @@
 `timescale 1ns/1ps
 `default_nettype none
 module tb_sys_tile_cpu;
+  parameter bit CACHED = 1'b1;     // -Ptb_sys_tile_cpu.CACHED=0: the flat, cache-bypassed reference build
   localparam int HALF = 5;
 
   logic clk = 0, rst_n = 0;
@@ -34,12 +35,13 @@ module tb_sys_tile_cpu;
   int errors = 0;
   always #27.5 clk = ~clk;
 
-  hydra_sys_tile #(.NENG(6), .TPU_ENGINE(2), .GPU_ENGINE(1), .CPU_ENGINE(1), .ABI_V2(1)) dut (
+  hydra_sys_tile #(.NENG(6), .TPU_ENGINE(2), .GPU_ENGINE(1), .CPU_ENGINE(1), .ABI_V2(1), .CPU_CACHED(CACHED)) dut (
     .ui_in(ui), .uo_out(uo), .uio_in(8'h00), .uio_out(uio), .uio_oe(uio_oe),
     .ena(1'b1), .clk(clk), .rst_n(rst_n),
     .dbg_checksum(), .dbg_tiles(), .dbg_simd_checksum(), .dbg_simd_jobs(),
     .mem_we(mem_we), .mem_bank(mem_bank), .mem_addr(mem_addr),
-    .mem_wdata(mem_wdata), .mem_raddr(mem_raddr), .mem_rdata(mem_rdata), .mem_refused());
+    .mem_wdata(mem_wdata), .mem_raddr(mem_raddr), .mem_rdata(mem_rdata), .mem_refused(),
+    .cpu_uart_tx(), .cpu_gpio_out(), .cpu_gpio_in(16'd0));
 
   logic [7:0] rbuf [24];
   logic [7:0] d [24];
@@ -80,7 +82,7 @@ module tb_sys_tile_cpu;
   reg [7:0]  img [0:65535];
   reg [63:0] want [0:31];
   reg [63:0] want_tohost;
-  integer    want_cycles, fd, r;
+  integer    want_cycles, want_cycles_cached, fd, r;
   reg [31:0] entry;
 
   int disp [6];
@@ -149,8 +151,13 @@ module tb_sys_tile_cpu;
     if (!$value$plusargs("dir=%s", dir)) begin $display("FAIL: +dir= not given"); $fatal(1); end
     for (int a = 0; a < 65536; a++) img[a] = 8'h00;
     $readmemh({dir, "/prog.hex"}, img);
-    $readmemh({dir, "/regs.txt"}, want);
-    fd = $fopen({dir, "/info.txt"}, "r"); r = $fscanf(fd, "%h %d %h", want_tohost, want_cycles, entry); $fclose(fd);
+    // the cached build is compared with the model run with caches on (its
+    // timing, and so any register that reads a cycle counter, differs)
+    if (CACHED) $readmemh({dir, "/regs_cached.txt"}, want);
+    else        $readmemh({dir, "/regs.txt"}, want);
+    fd = $fopen({dir, "/info.txt"}, "r");
+    r = $fscanf(fd, "%h %d %h %d", want_tohost, want_cycles, entry, want_cycles_cached); $fclose(fd);
+    if (CACHED) want_cycles = want_cycles_cached;
 
     repeat (5) @(posedge clk); rst_n = 1;
     repeat (20) @(posedge clk);

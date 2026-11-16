@@ -454,6 +454,13 @@ def emit_build(plan, board, module, sol, srcs):
                 + "".join(f"set_global_assignment -name SYSTEMVERILOG_FILE {s}\n" for s in srcs)
                 + f"source {module}.qsf.pins\n")
     if v == "gowin":
+        # nextpnr-himbaechel and gowin_pack name the chip by its apicula family; for the GW2A
+        # series the part number alone is refused ("you need to specify --vopt family=GW2A-18
+        # or GW2A-18C"). The Tang Nano 20K's GW2AR-18 C8/I7 is GW2A-18C, as in Pixelstorm's
+        # own Tang Nano build (ext/pixelstorm-gpu/fpga/boards/tangnano20k/build.sh)
+        fam = {"GW2AR-LV18QN88C8/I7": "GW2A-18C"}.get(board["device"])
+        if fam is None:
+            raise SystemExit(f"hydra_bind: no apicula family known for {board['device']!r}")
         head, tail, prov = _content_stamp(module, "fs", f"{module}.cst",
                                           "sv2v --version; yosys -V; nextpnr-himbaechel --version",
                                           plan["_name"])
@@ -464,9 +471,9 @@ def emit_build(plan, board, module, sol, srcs):
                 f"{module}.json: {module}.v\n\tyosys -p 'read_verilog $<; "
                 f"synth_gowin -top {module} -json $@'\n\n"
                 f"{module}_pnr.json: {module}.json $(CONS) .srchash\n\tnextpnr-himbaechel --device "
-                f"'{board['device']}' --seed 1 --json $< --write $@ --vopt cst={module}.cst\n\n"
+                f"'{board['device']}' --vopt family={fam} --seed 1 --json $< --write $@ --vopt cst={module}.cst\n\n"
                 f"{module}.fs: {module}_pnr.json\n\tgowin_pack -d "
-                f"'{board['device']}' -o $@ $<{tail}\n")
+                f"{fam} -o $@ $<{tail}\n")
     raise SystemExit(f"no build script for vendor {board['vendor']!r}")
 
 

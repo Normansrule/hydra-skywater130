@@ -42,7 +42,8 @@ module tb_sys_tile_abi;
     .ena(1'b1), .clk(clk), .rst_n(rst_n),
     .dbg_checksum(), .dbg_tiles(), .dbg_simd_checksum(), .dbg_simd_jobs(),
     .mem_we(mem_we), .mem_bank(mem_bank), .mem_addr(mem_addr),
-    .mem_wdata(mem_wdata), .mem_raddr(mem_raddr), .mem_rdata(mem_rdata), .mem_refused());
+    .mem_wdata(mem_wdata), .mem_raddr(mem_raddr), .mem_rdata(mem_rdata), .mem_refused(),
+    .cpu_uart_tx(), .cpu_gpio_out(), .cpu_gpio_in(16'd0));
 
   // ---- SPI host ---------------------------------------------------------------
   logic [7:0] rbuf [24];

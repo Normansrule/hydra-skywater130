@@ -73,6 +73,8 @@ module hydra_measure (
     , .f_core_fin(f_core_fin)
 `endif
   );
+  // the stream's bit count is for its own proofs; the extend needs none of it
+  wire _unused_bits = &{1'b0, s_bits};
 
   logic [3:0]   widx;                  // extend message word, 0..15
   logic [255:0] img_q;                 // the image digest, held for the extend

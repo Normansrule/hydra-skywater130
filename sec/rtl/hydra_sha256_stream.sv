@@ -219,6 +219,10 @@ module hydra_sha256_stream #(
     end
   end
 
+  // F_BLOCKS selects a bounded proof task (sec/formal/sha256_stream.sby); it has
+  // no effect on the hardware
+  wire _unused_fblocks = &{1'b0, F_BLOCKS};
+
 `ifdef FORMAL
   // ===========================================================================
   // What is proved, for every input sequence and every core latency:

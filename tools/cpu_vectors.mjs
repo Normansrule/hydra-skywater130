@@ -11,7 +11,8 @@
  *   regs.txt   x0..x31 after the program, 16 hex digits each, from Sixfold's
  *              cycle-exact model (model/core.js) -- the model Sixfold's own
  *              regression checks its RTL against
- *   info.txt   "<tohost> <cycles> <entry> <cycles with caches>": the model
+ *   console.txt, leds.txt   what it printed through PUTCHAR, its last LED value
+ *   info.txt   "<tohost> <cycles> <entry> <cycles with caches> <cycles, compact caches>": the model
  *              without caches (the wrapper's flat memory) and with
  *              Sixfold's caches, miss latency 10 (the CACHED build)
  * and <out dir>/programs.txt. Nothing here is computed by HYDRA code.
@@ -40,6 +41,10 @@ for (const d of dirs) for (const f of fs.readdirSync(d).filter((n) => n.endsWith
   const o = path.join(outDir, name);
   fs.mkdirSync(o, { recursive: true });
   fs.writeFileSync(path.join(o, 'prog.hex'), asm.toHex(img));
+  // what it printed through PUTCHAR and its last LED value: the wrapper's UART
+  // pin and LED outputs must carry the same (v67)
+  fs.writeFileSync(path.join(o, 'console.txt'), c.output);
+  fs.writeFileSync(path.join(o, 'leds.txt'), (c.leds >>> 0).toString(16) + '\n');
   fs.writeFileSync(path.join(o, 'regs.txt'), c.regs.map((r) => (BigInt.asUintN(64, BigInt(r))).toString(16).padStart(16, '0')).join('\n') + '\n');
   const tohost = c.csr.tohost;
   // the same program with Sixfold's caches on (the wrapper's CACHED build)
@@ -48,7 +53,11 @@ for (const d of dirs) for (const f of fs.readdirSync(d).filter((n) => n.endsWith
   // registers too: a program that reads the cycle counter (23_sha256 does)
   // ends with different values when the caches change its timing
   fs.writeFileSync(path.join(o, 'regs_cached.txt'), cc.regs.map((r) => (BigInt.asUintN(64, BigInt(r))).toString(16).padStart(16, '0')).join('\n') + '\n');
-  fs.writeFileSync(path.join(o, 'info.txt'), `${BigInt(tohost ?? 0).toString(16)} ${c.cycle} ${core.RESET_PC.toString(16)} ${cc.cycle}\n`);
+  // and with Sixfold's compact caches (16 sets: 1 KiB each), the chip's build
+  const ck = new core.Core(img, { ...core.CONFIGS.compact, missLatency: 10 });
+  while (!ck.halted && ck.cycle < 4e6) ck.step();
+  fs.writeFileSync(path.join(o, 'regs_compact.txt'), ck.regs.map((r) => (BigInt.asUintN(64, BigInt(r))).toString(16).padStart(16, '0')).join('\n') + '\n');
+  fs.writeFileSync(path.join(o, 'info.txt'), `${BigInt(tohost ?? 0).toString(16)} ${c.cycle} ${core.RESET_PC.toString(16)} ${cc.cycle} ${ck.cycle}\n`);
   console.log(`kept ${name}: ${c.cycle} cycles, a0 = 0x${BigInt.asUintN(64, BigInt(c.regs[10])).toString(16)}`);
   kept.push(name);
 }

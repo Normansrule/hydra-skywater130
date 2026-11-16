@@ -22,15 +22,15 @@ Owner: Aleksander J. Norman. Repositories:
 |---|---|
 | `Normansrule/hydra-skywater130` | parent: all RTL, models, testbenches, proofs, FPGA builds, SkyWater OpenFrame chip, docs, site |
 | `Normansrule/tinytapeout-hydra` | Tiny Tapeout tile, a **submodule** at `tt/tile`; scheduler only |
-| `Normansrule/sixfold-cpu` @ `a642bd6` | 6-stage RV64IM+Zba/Zbb/Zbs CPU; **not integrated** |
-| `Normansrule/pixelstorm-gpu` @ `4801c8c` | SIMT GPU, 2 SMs × 4 warps × 8 lanes, 40-instruction CUDA-style ISA; **not integrated** |
+| `Normansrule/sixfold-cpu` @ `a642bd6` (submodule `ext/sixfold-cpu`) | 6-stage RV64IM+Zba/Zbb/Zbs CPU; **integrated in simulation**: slot 0 of the system tile behind ABI version 2, on Sixfold's caches (`make cpu`, `make systile-cpu`, `make cpu-cached`), and on SkyWater 130 SRAM macros in the microcontroller build (`make cpu-sram`, `make sky130-mcu`). The chip build needs Sixfold's `cache-size` branch (`CACHE_SETS`), not yet pushed |
+| `Normansrule/pixelstorm-gpu` @ `4801c8c` (submodule `ext/pixelstorm-gpu`) | SIMT GPU, 2 SMs × 4 warps × 8 lanes, 40-instruction CUDA-style ISA; **integrated in simulation**: the system tile's sixth slot (`make gpu`, `make systile-gpu`); not in the microcontroller build |
 
 ## 2. The three deliverables (keep them apart)
 
 | target | what it must be | state today |
 |---|---|---|
-| **Tiny Tapeout tile** (`tt_um_hydra_mom`) | research tile, **scheduler only**, low cost and power: cost model, calibration, SPI register map, 4 tags. Never add engines to it | **v3.10 hardened clean at 4×4 on 2026-10-18** (v3.4 was the first clean one, 2026-10-17): DRC, LVS, antenna 0; setup +14.06 ns, hold +0.105 ns at 66 ns (15.15 MHz); 48.6%; 22/22 tests on the hardened netlist; 1,230 slew warnings left (`docs/timing.json`). v3.1 at 3×4 did not route |
-| **SkyWater 130 OpenFrame chip** (`sky130/rtl/hydra_openframe_top.sv`) | the full chip: CPU, GPU, TPU and the MUX switching between them, pads, bring-up, security | RTL with the scheduler, pad multiplexer and SPI only; simulated through its pads (`make sky130`); Verilator-clean; **never hardened**; no engines yet |
+| **Tiny Tapeout tile** (`tt_um_hydra_mom`) | research tile, **scheduler only**, low cost and power: cost model, calibration, SPI register map, 4 tags. Never add engines to it | **v3.12 hardened clean at 4×4 on 2026-11-04** (every pin used: PINS register for ui_in[7:3], uio_in and ena; GPO on uio[3:2]; fanout limit 6): route and Magic DRC 0, LVS 0, antenna 0; setup +7.23 ns, hold +0.096 ns at 66 ns; 51.7%; 24/24 tests on the hardened netlist; slew warnings 1,041 (v3.11) → 218 at the slowest corner, 0 at typical and fast except 12 at max_tt (`docs/timing.json`) |
+| **SkyWater 130 OpenFrame chip** (`sky130/rtl/hydra_openframe_top.sv`) | the full chip: CPU, GPU, TPU and the MUX switching between them, pads, bring-up, security | two builds of one top. `MCU = 0`: scheduler, pad multiplexer and SPI, simulated through its pads (`make sky130`). `MCU = 1`, the microcontroller: scheduler, Sixfold CPU on eight SRAM macros (16 KiB) with secure boot, TPU and vector unit, an I2C target and 15 GPIO pins (`make sky130-mcu`, [pins](pins.md)). Verilator-clean. **Never hardened**: the core macro (`sky130/harden/mcu_core`) synthesizes; the sixth place-and-route run (8 macros, 3.2 × 3.2 mm, 70 ns; 2026-11-11) is clean on every check but one: routing 0, LVS 0, XOR 0, illegal overlap 0, antenna 0, Magic DRC 0 with the SRAM macros read as the PDK's abstract views (their interiors are the PDK's layout, not checked here), and setup met at every corner (max_ss +3.24 ns). **Not signed off**: hold −0.048 ns at the three fast corners; run 7 adds post-route hold repair. Slew, capacitance and fanout warnings remain (36,639 slew at max_ss). Earlier: run 5 closed setup by excluding weak delay buffers (run 4 failed by 13.37 ns through 36 of them); run 6's first full-layout DRC died at 21 GiB and its empty report read as 0, so it was re-run with the macros as black boxes; runs 1 and 2 ended in global-routing congestion; run 3 (50 ns) failed setup by 14.85 ns. No GPU in the microcontroller |
 | **FPGA** (`plans/*.yaml`, `fpga/build/*`) | adaptable to current dev boards, for testing before silicon; serial UART and JTAG paths | images for ULX3S-85F, ECP5 evaluation (`-sys`, `-tpu`, `-two`, `-mem`), Arty A7-35, Tang Nano 20K, Basys 3 (self-test only, no HYDRA logic). **No image has run on a physical board.** ULX3S placed and routed in CI before the baud fix |
 
 The tile and the chip share nine dispatcher modules byte for byte
@@ -90,8 +90,8 @@ Next (specified in `docs/architecture/heterogeneous-system.md`, not built):
 - Formal proofs with SymbiYosys (`make verify` runs 22 proof tasks and 5
   covers; counted from the Makefile, not from `.sby` files).
 - **Mutation testing**: every named deliberate break must be caught —
-  `tt/tile/test/mutate_sim.py` (18/18), `mem/formal/mutate_dma.py` (26/26),
-  `tools/mutate_mom.py` (32/32: 8 dispatcher, 4 bridge host-path, 7 GPU, 3 six-slot, 5 ABI v2, 5 CPU), `common/formal/mutate_targets.py`, and
+  `tt/tile/test/mutate_sim.py` (21/21), `mem/formal/mutate_dma.py` (26/26),
+  `tools/mutate_mom.py` (56/56: 8 dispatcher, 4 bridge host-path, 7 GPU, 3 six-slot, 5 ABI v2, 5 CPU, 9 I2C and host bus, 2 pad, 9 secure boot, 4 dispatch port), `common/formal/mutate_targets.py`, and
   `scripts/ci_selftest.sh` (22 runs). When code changes, update the anchors;
   never delete a mutation to get green.
 - `make lint`: Verilator `-Wall` with LibreLane's settings, **0 warnings** on
@@ -234,5 +234,10 @@ Next (specified in `docs/architecture/heterogeneous-system.md`, not built):
   `sys/rtl/hydra_engine_cpu.sv`: load port, done on HALTED, cycle limit,
   refusals. All 24 programs match the model's registers, TOHOST and cycle
   count (`make cpu`, slow; `make cpu-quick` in verify). The chip's slot 0
-  (`CPU_ENGINE = 1`): `make systile-cpu`. Its 64 KiB same-cycle memory is a
-  simulation arrangement: SRAM and Sixfold's caches come before synthesis.
+  (`CPU_ENGINE = 1`): `make systile-cpu`. The slot now runs from Sixfold's
+  instruction and data caches over its line-wide block memory
+  (`CPU_CACHED = 1`, the default); before, it used the flat 64 KiB array with
+  both cache hits tied to 1, so neither cache was in the chip. The flat build
+  stays as a simulation reference (`CPU_CACHED = 0`, also run by
+  `make systile-cpu`). `make cpu-netlist` runs every program on the netlist
+  after yosys infers the caches' memories.

@@ -125,13 +125,15 @@ module hydra_abi_v2
 
   // ---- policy to mask ---------------------------------------------------------
   // policy number -> engine slot (mom_pkg engine_e)
+  // the GPU's slot, or 0 where there is none (never used then: guarded below)
+  localparam int GPU_SLOT = (NENG > int'(ENG_GPU)) ? int'(ENG_GPU) : 0;
   function automatic logic [NENG-1:0] policy_mask(input logic [2:0] p);
     logic [NENG-1:0] m;
     m = '0;
     unique case (p)
       3'd0: m = '1;                                         // AUTO
       3'd1: m[ENG_CPU]  = 1'b1;
-      3'd2: if (NENG > int'(ENG_GPU)) m[ENG_GPU] = 1'b1;    // no GPU slot: empty
+      3'd2: if (NENG > int'(ENG_GPU)) m[GPU_SLOT] = 1'b1;   // no GPU slot: empty
       3'd3: m[ENG_TPU]  = 1'b1;
       3'd4: m[ENG_SIMD] = 1'b1;
       3'd5: m[ENG_NTT]  = 1'b1;

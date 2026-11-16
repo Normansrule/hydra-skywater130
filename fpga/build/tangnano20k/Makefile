@@ -21,9 +21,9 @@ hydra_tangnano20k_tt.json: hydra_tangnano20k_tt.v
 	yosys -p 'read_verilog $<; synth_gowin -top hydra_tangnano20k_tt -json $@'
 
 hydra_tangnano20k_tt_pnr.json: hydra_tangnano20k_tt.json $(CONS) .srchash
-	nextpnr-himbaechel --device 'GW2AR-LV18QN88C8/I7' --seed 1 --json $< --write $@ --vopt cst=hydra_tangnano20k_tt.cst
+	nextpnr-himbaechel --device 'GW2AR-LV18QN88C8/I7' --vopt family=GW2A-18C --seed 1 --json $< --write $@ --vopt cst=hydra_tangnano20k_tt.cst
 
 hydra_tangnano20k_tt.fs: hydra_tangnano20k_tt_pnr.json
-	gowin_pack -d 'GW2AR-LV18QN88C8/I7' -o $@ $<
+	gowin_pack -d GW2A-18C -o $@ $<
 	cp .srchash hydra_tangnano20k_tt.fs.srchash
 	{ echo "image   $$(sha256sum hydra_tangnano20k_tt.fs)"; echo "srchash $(SRCHASH)"; echo "tools   $(TOOLS)"; echo "built   $$(date -u +%Y-%m-%dT%H:%M:%SZ)"; echo "seed    1"; sha256sum $(SRC) $(CONS) $(PLAN) Makefile; } > hydra_tangnano20k_tt.fs.manifest

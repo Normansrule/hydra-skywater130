@@ -147,6 +147,8 @@ module tpu_top
   assign eng_done     = ctrl_done;
   assign eng_done_tag = tag_q;
 
+  // the descriptor fields this engine does not decode
+  wire _unused_wd = &{1'b0, eng_wd};
 endmodule
 
 `default_nettype wire

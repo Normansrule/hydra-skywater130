@@ -148,12 +148,14 @@ module hydra_dma_gemm #(
   wire bank_ok = (st_q == S_STREAM) && (cur < k_q);
   wire capture = bank_ok && (!hold_valid_q || xfer);
 
+  wire [CNTW-1:0] wr_cnt;
   hydra_dma_agen #(.AW(AW), .CAW(CAW), .CNTW(CNTW)) u_agen (
     .clk(clk), .rst_n(rst_n), .load(go),
     .base_a(base_a), .base_b(base_b), .base_c(base_c),
     .step_rd(capture), .peek(capture), .step_wr(res_valid),
     .addr_a(a_addr), .addr_b(b_addr), .addr_c(c_addr),
-    .rd_count(cur), .wr_count());
+    .rd_count(cur), .wr_count(wr_cnt));
+  wire _unused_wr = &{1'b0, wr_cnt};   // results are counted by the caller
 
   assign w_addr = a_addr;          // one pointer, all operand banks
 

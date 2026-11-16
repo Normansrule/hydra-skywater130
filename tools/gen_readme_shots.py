@@ -33,7 +33,7 @@ SHOTS = [
     ("atlas-cells", "overview", 900, 4.0, ["docs/img", "tt/tile/docs/img"]),
     ("atlas-exploded", "overview", 900, 5.0, ["docs/img", "tt/tile/docs/img"]),
     ("atlas-switched", "overview", 900, 6.0, ["docs/img", "tt/tile/docs/img"]),
-    ("atlas-numbers", "overview", 900, ".bn-red", ["docs/img"]),
+    ("atlas-numbers", "overview", 900, ".numbers", ["docs/img"]),
     ("atlas-fpga", "overview", 900, "#fpga", ["docs/img"]),
     ("atlas-demo", "demos/crossover/4391", 1180, None, ["docs/img"]),
     ("atlas-array", "demos/tpu/60", 1050, None, ["docs/img"]),

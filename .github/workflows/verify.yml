@@ -19,7 +19,9 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    # 45 -> 90 (2026-11-04): verify now also runs the CPU, secure boot, dispatch and
+    # microcontroller simulations (about 20 min locally), then the ULX3S build and ci_selftest
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
         with:
@@ -30,6 +32,12 @@ jobs:
 
       - name: Fetch vendor pin files
         run: python3 tools/import_boards.py fetch
+
+      # The microcontroller build simulates the SkyWater 130 SRAM macro with the
+      # PDK's own model; the runner has no PDK, so fetch that one file, pinned to a
+      # commit and checked by hash (make sram-model, 2026-11-04).
+      - name: Fetch the SRAM macro model
+        run: make sram-model
 
       - name: Verify
         # -k: run every check even after one fails, so a red run lists ALL

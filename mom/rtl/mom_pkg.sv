@@ -51,12 +51,12 @@ package mom_pkg;
     // Dispatch slots. The comment says what is BUILT in the parent
     // repository today (docs/verification/capability-matrix.md); the cost
     // model's nominal sizes are in mom_param_rom.sv and are not the same.
-    ENG_CPU    = 3'd0,  // scalar CPU slot: latency model only, no core integrated
+    ENG_CPU    = 3'd0,  // scalar CPU slot: the Sixfold RV64 core in the system tile (CPU_ENGINE = 1), a latency model elsewhere
     ENG_SIMD   = 3'd1,  // 4-lane 32-bit integer vector unit
     ENG_TPU    = 3'd2,  // INT8 output-stationary systolic array, built 4x4
     ENG_NTT    = 3'd3,  // number-theoretic transform butterflies, built 4 lanes
     ENG_CRYPTO = 3'd4,  // cipher/hash slot: latency model only
-    ENG_GPU    = 3'd5   // Pixelstorm SIMT GPU (sys/rtl/hydra_engine_gpu.sv): chip only, NENG = 6
+    ENG_GPU    = 3'd5   // Pixelstorm SIMT GPU (sys/rtl/hydra_engine_gpu.sv): six-slot system tile only (NENG = 6, GPU_ENGINE = 1); the OpenFrame builds use five slots
   } engine_e;
 
   // -------------------------------------------------------------------------

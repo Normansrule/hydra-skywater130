@@ -170,7 +170,7 @@ module mom_xbar #(
     // Scanning downwards leaves the LOWEST offset from rr_ptr selected,
     // which is the oldest turn in round-robin order.
     for (scan_i = NENG - 1; scan_i >= 0; scan_i = scan_i - 1) begin
-      scan_e = scan_i + rr_ptr;
+      scan_e = scan_i + int'(rr_ptr);
       if (scan_e >= NENG) scan_e = scan_e - NENG;
       if (ready_set[scan_e]) begin
         take_any = 1'b1;
@@ -180,6 +180,8 @@ module mom_xbar #(
   end
 
   assign comp_valid = take_any;
+  // take_i only ever holds an engine index; NTAG sizes nothing in this block
+  wire _unused_take = &{1'b0, take_i[31:ENGW], NTAG[0]};
   assign comp_tag   = tag_q[take_e];
 
   always_ff @(posedge clk or negedge rst_n) begin

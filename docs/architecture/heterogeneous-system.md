@@ -1,6 +1,6 @@
 # Heterogeneous system: CPU, GPU and TPU behind one job interface (proposed)
 
-**Status: SPECIFICATION, with the GPU engine built and scheduled (2026-10-18).** The GPU runs real kernels over a HYDRA bank (`make gpu`) and is the chip's sixth dispatcher slot in simulation (`make systile-gpu`); ABI version 2 is built on the chip side (`sys/rtl/hydra_abi_v2.sv`): the header is checked, the engine policy and engine health become an eligibility mask, and the scheduler applies it before comparing costs; the CPU is not integrated. The
+**Status: SPECIFICATION, with the GPU engine built and scheduled (2026-10-18).** The GPU runs real kernels over a HYDRA bank (`make gpu`) and is the chip's sixth dispatcher slot in simulation (`make systile-gpu`); ABI version 2 is built on the chip side (`sys/rtl/hydra_abi_v2.sv`): the header is checked, the engine policy and engine health become an eligibility mask, and the scheduler applies it before comparing costs. The CPU is integrated in simulation as slot 0 (`make systile-cpu`), on Sixfold's caches, and on SkyWater 130 SRAM macros in the microcontroller build (`make cpu-sram`, `make sky130-mcu`); the plan for the chip's memories is under "SkyWater 130 memories" below. The
 capability matrix is the record of what runs.
 
 ## Candidates, as inspected on 2026-10-11
@@ -93,8 +93,27 @@ admits only (PUBLIC_DEBUG, AUTO) and refuses everything else.
    **Done in simulation, 2026-10-18** (`sys/rtl/hydra_engine_cpu.sv`, Sixfold
    unchanged): all 24 programs match the model's registers, TOHOST and cycle
    count (`make cpu`), and the CPU is the system tile's slot 0 behind ABI version 2
-   (`make systile-cpu`), not yet in the OpenFrame top. Its 64 KiB same-cycle memory is a simulation
-   arrangement; synthesis needs SRAM and Sixfold's caches.
+   (`make systile-cpu`). The slot runs from Sixfold's instruction and data caches
+   (`CPU_CACHED = 1`, the default since 2026-11-03); the flat 64 KiB same-cycle array is kept as a
+   simulation reference (`CPU_CACHED = 0`). In the OpenFrame top's microcontroller build
+   (`MCU = 1`) the CPU's memory is eight SkyWater 130 SRAM macros; see below.
 4. Synthesise CPU + GPU + TPU + scheduler + bridge for the target board
    before claiming fit. ECP5-85F LUT4 counts are not comparable with AMD
    LUT6 counts.
+
+## SkyWater 130 memories (plan, 2026-11-03)
+
+What is built and what is planned, per memory. "Simulated" means against the
+PDK's own Verilog model of the macro; nothing here has been placed, routed or
+measured on silicon.
+
+| memory | build today | SkyWater 130 plan | evidence so far |
+|---|---|---|---|
+| CPU main memory | 8 × `sky130_sram_2kbyte_1rw1r_32x512_8` (OpenRAM, 683 × 417 µm, 2 KiB each) = 16 KiB, one byte lane per macro (`sys/rtl/hydra_cpu_sram.sv`): port 1 serves instruction refills, port 0 stores and data refills; the 16 KiB repeats through the 64 KiB address space | keep; the macros are placed in the core macro (`sky130/harden/mcu_core/config.json`) | `make cpu-sram MEM=16384 CSETS=16`: 24 of 24 programs match Sixfold's model; `MEM=65536`: 24 of 24, cycle for cycle |
+| CPU instruction and data caches | Sixfold's caches, 16 sets × 2 ways (1 KiB each), flip-flops (`CACHE_SETS = 16`, Sixfold's `compact` build) | flip-flops for now. Moving the arrays into SRAM needs a read one cycle ahead: the instruction cache can take it from the next program counter; the data cache needs a pipeline change in Sixfold, because its hit is answered in the same cycle | Sixfold `cache-size` branch: 162 of 162 runs cycle-exact in three builds; the 4 KiB build could not be synthesized for the core (yosys/ABC out of memory at 23 GB) |
+| scheduler, TPU and vector scratchpad banks | flip-flop arrays in the system tile | macros only if a bank grows past what flip-flops fit; the bank interface is one read and one write port, which a 1rw1r macro matches | none |
+| GPU global memory | a HYDRA scratchpad bank (system tile only) | not in the microcontroller; a later chip revision | `make gpu`, `make systile-gpu` |
+
+Limits of the macro, from the PDK: one timing library (typical corner,
+1.8 V, 25 °C), so the slow and fast corners cannot be signed off for paths
+through the macros; its pins are on metal 3 and metal 4.

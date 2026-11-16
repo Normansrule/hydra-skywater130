@@ -572,7 +572,7 @@ def render(metrics):
                   "; ".join(esc(p) for p in problems[:6]) + "</div>")
 
     return PAGE.format(
-        css=CSS + atlas_boards.CSS, js=JS + DIE_JS + FPGA_JS + NUM_JS + REVEAL_JS + LAMP_JS + atlas_boards.JS, boards=atlas_boards.section(metrics), data=blob, light=T.css_vars(T.LIGHT) + ";--grain:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .08 0 0 0 0 .02 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E\")",
+        css=CSS + atlas_boards.CSS, js=JS + DIE_JS + FPGA_JS + NUM_JS + REVEAL_JS + LAMP_JS + atlas_boards.JS + MOTION_JS, boards=atlas_boards.section(metrics), data=blob, light=T.css_vars(T.LIGHT) + ";--grain:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .08 0 0 0 0 .02 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E\")",
         dark=T.css_vars(T.DARK) + ";--grain:none", fonts=fonts,
         story=story_html(facts, die_ver, str(tp["tiles"]).replace("x", "×")), die_text=die_text(facts, die),
         die_bin=b64(die["die.bin"]) if "die" in die else "", diegl_bin=b64(die["die-gl.bin"]) if "die-gl" in die else "",
@@ -1385,6 +1385,36 @@ footer p{max-width:90ch}
  .costs .bar{transition:none}.js section.panel.enter{animation:none}.scrollcue span{animation:none}
  .js .step.armed .stepcard{clip-path:none}.diestate .bar i{animation:none;width:100%}}
 @media print{.rv,.rvh{opacity:1!important;transform:none!important;clip-path:none!important}.top,.controls,.theme,.zoombtns{display:none}.js section.panel[hidden]{display:block}body{background:#fff}.diestage{position:static}}
+/* by the numbers, Apple-quiet: one screen, four tiles; the colour moves from the whole block to a rule under the figure */
+.numbers{padding-top:var(--sp-7);padding-bottom:var(--sp-6)}.numbers h2{max-width:24ch}
+.eyebrow{font:600 var(--fs-1)/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);margin:0 0 var(--sp-3)}
+.bignums{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sp-4);margin-top:var(--sp-5)}
+.bignums .bignum{min-height:0;padding:var(--sp-5) var(--sp-4);border-radius:var(--r);background:var(--surface);color:var(--ink);align-items:flex-start}
+.bignums .bignum .bn-in{width:auto}.bignums .bn-k{font-size:var(--fs-2);color:var(--ink2);font-stretch:100%;font-weight:600}
+.bignums .bn-n{font-size:clamp(36px,3.9vw,64px)!important;white-space:nowrap;line-height:1;margin:0;padding-bottom:var(--sp-3);border-bottom:3px solid var(--rule,var(--signal))}
+.bignums .bn-t{font-size:var(--fs-2);color:var(--ink2);margin-top:var(--sp-3)}
+.bignums .bn-n .o{-webkit-text-stroke:1.5px currentColor}
+/* in tiles the figure is whole as soon as it shows; the counter is the motion */
+.bignums .bignum{--p:1!important}
+.bignums .bn-amber{--rule:#ffc145}.bignums .bn-blue{--rule:#5b7cff}.bignums .bn-red{--rule:#ff6a5c}.bignums .bn-green{--rule:#3fcf7f}
+.decides{padding-top:var(--sp-6);padding-bottom:var(--sp-6)}.decides h3{margin-top:var(--sp-6)}
+@media (max-width:980px){.bignums{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.bignums{grid-template-columns:1fr}}
+/* motion system: one rhythm for the whole page */
+:root{--m-fast:180ms;--m-base:420ms;--m-slow:760ms;--m-spring:cubic-bezier(.2,.9,.25,1.05);--m-out:cubic-bezier(.4,0,1,1)}
+.js h2.words .w{display:inline-block;opacity:.25;filter:blur(6px);transform:translateY(.28em);
+  transition:opacity var(--m-slow) var(--m-spring),filter var(--m-slow) var(--m-spring),transform var(--m-slow) var(--m-spring);
+  transition-delay:calc(var(--i) * 40ms)}
+.js h2.words.in .w{opacity:1;filter:none;transform:none}
+.tilt{transform:perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) translateZ(0);
+  transition:transform var(--m-base) var(--m-spring),box-shadow var(--m-base) var(--m-spring);will-change:transform}
+.tilt:hover{box-shadow:0 18px 40px -22px rgba(0,0,0,.55)}
+.btn,.textlink,.bdpick button,.theme button,.tour li,.controls button{transition:transform var(--m-fast) var(--m-spring)}
+.btn:active,.bdpick button:active,.theme button:active,.tour li:active,.controls button:active{transform:scale(.97);transition-duration:90ms}
+@media (pointer:coarse){.theme button,.bdpick button,nav.tabs a,.controls button,.zoombtns button{min-height:44px;min-width:44px}}
+@media (prefers-reduced-motion:reduce){.js h2.words .w{opacity:1;filter:none;transform:none;transition:none}
+  .tilt{transform:none;transition:none}.btn:active,.bdpick button:active,.theme button:active,.tour li:active,.controls button:active{transform:none}}
+@media print{.js h2.words .w{opacity:1;filter:none;transform:none}.tilt{transform:none}}
 """
 
 PAGE = """<!DOCTYPE html>
@@ -1443,33 +1473,22 @@ PAGE = """<!DOCTYPE html>
     </div>
     <div class="steps">{story}</div>
   </div>
-  {marquee}
-  <div class="bignums">{bignums}</div>
-  {marquee}
+  <div class="wrap numbers"><p class="eyebrow">By the numbers</p>
+  <h2>One tile, one decision, read from the layout and the recording</h2>
+  <div class="bignums">{bignums}</div></div>
 
-  <div class="band mask"><div class="wrap">
-  <h2>Where things stand</h2>
-  <p class="callout"><b>Status by revision.</b> The Tiny Tapeout tile {tile_ver} is the scheduler alone and has a clean
-  sign-off record from one harden; it is not fabricated or tested silicon. The full OpenFrame chip is simulated and has never
-  been hardened. No FPGA image has run on a board. Security blocks are checked IP in no build.</p>
-  <div class="actions">
-    <a class="btn" href="#architecture">Explore the architecture</a>
-    <a class="textlink" href="#demos">Run a demo</a>
-    <a class="textlink" href="#build">Build it</a>
-    <a class="textlink" href="#evidence">See the evidence</a>
-  </div>
+  <div class="wrap decides"><p class="eyebrow">How it decides</p>
   <div class="split">
-  <div><h2>The decision, in numbers</h2>
+  <div><h2>The decision, scored</h2>
   <p class="muted">The second decision of the same recorded run, as the cost engine scored it.</p></div>
   {hero_fig}
   </div>
-  </div></div>
-  <div class="wrap">
-  <h2>A short tour of one decision</h2>
+  <h3>A short tour of one decision</h3>
   <p class="muted">Numbers from a recorded run of the tile's own test <code>test_roofline_crossover</code>. Select a step to replay it.</p>
   <ol class="tour">{tour}</ol>
   </div>
   <div class="band mask"><div class="wrap">
+  <p class="eyebrow">In simulation</p>
   <h2 id="fpga-h">The FPGA image, in action</h2>
   <p class="muted"><span class="kind">Recorded RTL Trace</span> No HYDRA image has run on a board yet, so this is a simulation:
   the RTL of the {fpga_plan} image, driven through its serial port by its own testbench (<code>make memboard</code>) and
@@ -1492,12 +1511,23 @@ PAGE = """<!DOCTYPE html>
   <p class="prov" id="fpga-prov"></p>
   {fpga_text}
   </div></div>
-  <div class="wrap">
-  <h2>Three targets, kept apart</h2>
+  <div class="band mask"><div class="wrap">
+  <p class="eyebrow">Where it stands</p>
+  <h2>Where things stand</h2>
+  <p class="callout"><b>Status by revision.</b> The Tiny Tapeout tile {tile_ver} is the scheduler alone and has a clean
+  sign-off record from one harden; it is not fabricated or tested silicon. The full OpenFrame chip is simulated and has never
+  been hardened. No FPGA image has run on a board. Security blocks are checked IP in no build.</p>
+  <div class="actions">
+    <a class="btn" href="#architecture">Explore the architecture</a>
+    <a class="textlink" href="#demos">Run a demo</a>
+    <a class="textlink" href="#build">Build it</a>
+    <a class="textlink" href="#evidence">See the evidence</a>
+  </div>
+  <h3>Three targets, kept apart</h3>
   <p class="muted">Each target has its own evidence. Nothing proved for one is claimed for another.</p>
   <div class="targets">{status}</div>
   <p class="muted">{n_blocks} blocks, {n_builds} builds read from the compiler, {n_traces} recorded traces.</p>
-  </div>
+  </div></div>
 </section>
 
 <section class="panel wrap" id="architecture" aria-labelledby="h-arch">
@@ -2002,16 +2032,17 @@ function prepare(L,G){
 const VS_RECT=`#version 300 es
 in vec2 corner;in vec4 rect;in uint net;
 uniform vec2 uC;uniform float uS;uniform vec2 uView;uniform mat2 uR;uniform float uLift;uniform sampler2D uState;uniform float uMinPx;uniform int uLitPass;uniform int uPick;uniform int uFocus;uniform uint uMask;
-out float vCov;out float vGlow;out float vFlash;out float vSel;out float vDim;
+out float vCov;out float vGlow;out float vFlash;out float vSel;out float vDim;out vec2 vUV;out vec2 vPx;
 void main(){vec2 sz=rect.zw*uS;float g=0.0,fl=0.0;uint m=0u;
  if(net!=65535u){vec4 st=texelFetch(uState,ivec2(int(net)%128,int(net)/128),0);g=st.r;fl=st.b;m=uint(st.g*255.0+0.5);}
  float mp=uLitPass==1?max(uMinPx,1.0+0.8*fl):uMinPx;vec2 s2=max(sz,vec2(mp));
  vCov=min(1.0,(sz.x/s2.x)*(sz.y/s2.y));vGlow=g;vFlash=fl;vSel=(uPick>=0&&int(net)==uPick)?1.0:0.0;
  vDim=(uFocus==1&&((uMask>>(m&31u))&1u)==0u)?0.28:1.0;
  if(uLitPass==1&&g<0.02&&fl<0.02&&vSel<0.5){gl_Position=vec4(2.0,2.0,0.0,1.0);return;}
+ vUV=corner;vPx=s2;
  vec2 w=rect.xy+rect.zw*0.5-uC+(corner-0.5)*s2/uS;vec2 c=(uR*w)*uS+vec2(0.0,uLift);gl_Position=vec4(c/(uView*0.5),0.0,1.0);}`;
 const FS_RECT=`#version 300 es
-precision highp float;precision highp int;in float vCov;in float vGlow;in float vFlash;in float vSel;in float vDim;
+precision highp float;precision highp int;in float vCov;in float vGlow;in float vFlash;in float vSel;in float vDim;in vec2 vUV;in vec2 vPx;
 uniform vec4 uColor;uniform vec3 uLit;uniform vec3 uCore;uniform int uLitPass;uniform float uExp;out vec4 o;
 uniform vec4 uLamp;uniform vec3 uFx;
 // lighting over the real geometry, never data: an inspection lamp (x, y, radius, amount in device pixels), the
@@ -2022,7 +2053,12 @@ vec3 fx(vec3 c){vec2 p=gl_FragCoord.xy;float r=max(uLamp.z,1.0),d=length(p-uLamp
  return c*(L+2.4*sl);}
 void main(){if(uLitPass==1){float a=vSel>0.5?1.0:clamp(vGlow*0.34*vDim+vFlash*0.95,0.0,1.0)*mix(0.45,1.0,vCov);
    vec3 c=vSel>0.5?vec3(1.0):fx(mix(uLit,uCore,vFlash));o=vec4(c*a,a)*uExp;return;}
- float a=uColor.a*vCov*vDim;vec3 c=fx(uColor.rgb*(1.0+0.25*vGlow));o=vec4(c*a,a)*uExp;}`;
+ float a=uColor.a*vCov*vDim;vec3 c=fx(uColor.rgb*(1.0+0.25*vGlow));
+ vec2 e=vUV*vPx,f=vPx-e;float big=smoothstep(6.0,14.0,min(vPx.x,vPx.y));
+ float lit=1.0-smoothstep(0.0,2.2,min(e.x,f.y)),shade=1.0-smoothstep(0.0,2.2,min(f.x,e.y));
+ vec2 q=abs(vUV*2.0-1.0);float pol=pow(1.0-(vPx.x>vPx.y?q.y:q.x),6.0);
+ c*=1.0+big*(0.75*lit-0.45*shade+0.18*pol);a=min(1.0,a*(1.0+0.25*big));
+ o=vec4(c*a,a)*uExp;}`;
 const VS_CELL=`#version 300 es
 in vec2 corner;in vec4 rect;in uvec2 cm;
 uniform vec2 uC;uniform float uS;uniform vec2 uView;uniform mat2 uR;uniform float uLift;uniform float uMinPx;uniform int uFocus;uniform uint uMask;uniform vec4 uClass[8];uniform vec4 uMod[16];
@@ -2068,6 +2104,26 @@ const FS_BLUR=`#version 300 es
 precision highp float;in vec2 uv;uniform sampler2D uTex;uniform vec2 uDir;out vec4 o;
 void main(){vec4 a=texture(uTex,uv)*0.2270;
  a+=(texture(uTex,uv+uDir*1.3846)+texture(uTex,uv-uDir*1.3846))*0.3162;a+=(texture(uTex,uv+uDir*3.2308)+texture(uTex,uv-uDir*3.2308))*0.0703;o=a;}`;
+const VS_QUAD=`#version 300 es
+in vec2 corner;uniform vec2 uC;uniform float uS;uniform vec2 uView;uniform vec2 uDie;out vec2 uv;
+void main(){uv=corner;vec2 w=corner*uDie-uC;gl_Position=vec4(w*uS/(uView*0.5),0.0,1.0);}`;
+const FS_QUAD=`#version 300 es
+precision highp float;in vec2 uv;uniform sampler2D uTex;uniform float uExp;out vec4 o;
+uniform vec4 uLamp;uniform vec3 uFx;
+vec3 fx(vec3 c){vec2 p=gl_FragCoord.xy;float r=max(uLamp.z,1.0),d=length(p-uLamp.xy)/r;float L=1.0+uLamp.w*exp(-d*d*2.6);
+ vec3 tf=0.55+0.45*cos(6.2832*(vec3(0.0,0.33,0.67)+(p.x*0.55+p.y)/(r*4.0)+uFx.y));c=mix(c,c*tf*1.5,uFx.x);
+ float sd=(p.x-uFx.z)/(r*0.16),sl=exp(-sd*sd);c=mix(c,vec3(0.80,0.74,1.0)*max(max(c.r,c.g),c.b)*1.4,0.65*sl);
+ return c*(L+2.4*sl);}
+void main(){vec4 c=texture(uTex,uv);o=vec4(fx(c.rgb),c.a)*uExp;}`;
+const FS_GRADE=`#version 300 es
+precision highp float;in vec2 uv;uniform sampler2D uTex;uniform vec2 uPx;uniform float uAmt;uniform float uSat;uniform vec3 uBg;out vec4 o;
+void main(){vec3 c=texture(uTex,uv).rgb;
+ vec3 b=(texture(uTex,uv+vec2(uPx.x,0.0)).rgb+texture(uTex,uv-vec2(uPx.x,0.0)).rgb+texture(uTex,uv+vec2(0.0,uPx.y)).rgb+texture(uTex,uv-vec2(0.0,uPx.y)).rgb)*0.25;
+ vec3 s=c+(c-b)*(0.55+0.5*uAmt);
+ float fl=0.055*uAmt;s=max(s-uBg-fl,0.0)/(1.0-fl);
+ float l=dot(s,vec3(0.2126,0.7152,0.0722));s=mix(vec3(l),s,1.0+uSat);
+ s=pow(max(s,0.0),vec3(1.0+0.3*uAmt))*(1.0+0.6*uAmt);
+ o=vec4(uBg+s,1.0);}`;
 const FS_COMP=`#version 300 es
 precision highp float;in vec2 uv;uniform sampler2D uTex;uniform float uAmt;out vec4 o;void main(){o=texture(uTex,uv)*uAmt;}`;
 
@@ -2111,11 +2167,11 @@ class DieView{
     this.tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,128,this.th,0,gl.RGBA,gl.UNSIGNED_BYTE,this.stbuf);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
     // sparks: a ring of (x, y, birth, layer); bloom: two half-size targets
-    this.ps=prog(gl,VS_SPARK,FS_SPARK);this.pb=prog(gl,VS_FULL,FS_BLUR);this.pq=prog(gl,VS_FULL,FS_COMP);
+    this.ps=prog(gl,VS_SPARK,FS_SPARK);this.pb=prog(gl,VS_FULL,FS_BLUR);this.pq=prog(gl,VS_FULL,FS_COMP);this.pg=prog(gl,VS_FULL,FS_GRADE);this.pqd=prog(gl,VS_QUAD,FS_QUAD);
     this.NSP=4096;this.sp=new Float32Array(this.NSP*4).fill(-1e9);this.spi=0;this.spDirty=true;this.spLast=-1e9;
     this.spv=gl.createVertexArray();gl.bindVertexArray(this.spv);this.spb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.spb);
     gl.bufferData(gl.ARRAY_BUFFER,this.sp,gl.DYNAMIC_DRAW);const sa=this.ps.a('sp');gl.enableVertexAttribArray(sa);gl.vertexAttribPointer(sa,4,gl.FLOAT,false,0,0);
-    gl.bindVertexArray(null);this.fvao=gl.createVertexArray();this.bloom=this.o.bloom!==false;this.slow=0;
+    gl.bindVertexArray(null);this.fvao=gl.createVertexArray();this.bloom=this.o.bloom!==false;this.grade=this.o.grade!==false;this.slow=0;
     this.cv.addEventListener('webglcontextlost',e=>{e.preventDefault();this.lost=true;this.o.onError&&this.o.onError('lost')});
     this.fit(true);this.resize();new ResizeObserver(()=>{this.resize();this.kick()}).observe(this.cv);
     if(this.o.interactive)this.bind();this.kick();return this}
@@ -2155,11 +2211,13 @@ class DieView{
     const f0=performance.now();this.draw();this.o.onFrame&&this.o.onFrame(this);
     // a device that cannot keep up loses the bloom first (the wires and sparks stay): a slow-frame average
     // over a few seconds, measured on the draw itself, never on a hidden tab
+    if(!this.bloom&&this.grade&&this.fms>34&&++this.slow>90){this.grade=false;this.o.onQuality&&this.o.onQuality('grade off')}
     if(this.bloom&&document.visibilityState==='visible'&&this.freezeT==null){const ms=performance.now()-f0;this.fms=this.fms==null?ms:this.fms*0.95+ms*0.05;
-      if(this.fms>34&&++this.slow>90){this.bloom=false;this.o.onQuality&&this.o.onQuality('bloom off')}else if(this.fms<=34)this.slow=0}
+      if(this.fms>34&&++this.slow>90){this.bloom=false;this.slow=0;this.o.onQuality&&this.o.onQuality('bloom off')}else if(this.fms<=34)this.slow=0}
     const sparking=(this.freezeT!=null?this.freezeT:performance.now()/1000)-this.spLast<(this.sparkLife||0.7)+0.2;
     if((moving||glowing||this.anim||sparking)&&this.visible)this.kick()}
   draw(){const gl=this.gl,P=this.P;if(!gl||this.lost)return;this.resize();const W=this.cv.width,H=this.cv.height,s=Math.exp(this.cam.l)*this.dpr;
+    const G=this.grade&&this.targetS(W,H);this._fbo=G?this.fS.ms:null;if(G)gl.bindFramebuffer(gl.FRAMEBUFFER,this.fS.ms);
     gl.viewport(0,0,W,H);const bg=rgb(PAL.substrate);gl.clearColor(bg[0],bg[1],bg[2],1);gl.clear(gl.COLOR_BUFFER_BIT);
     gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
     gl.bindTexture(gl.TEXTURE_2D,this.tex);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,128,this.th,gl.RGBA,gl.UNSIGNED_BYTE,this.stbuf);
@@ -2173,6 +2231,60 @@ class DieView{
       if(pp.u.uFx){const f=this._noFx?null:this.fx,d=this.dpr;
         if(f){gl.uniform4f(pp.u.uLamp,f.x*d,H-f.y*d,f.r*d,f.lamp||0);gl.uniform3f(pp.u.uFx,f.film||0,f.phase||0,f.slit==null?-1e6:f.slit*d)}
         else{gl.uniform4f(pp.u.uLamp,0,0,1,0);gl.uniform3f(pp.u.uFx,0,0,-1e6)}}};
+    const useCache=tl===0&&pxum<=1.5&&this.cacheOK!==false&&this.baseCache(s);
+    if(useCache){gl.viewport(0,0,W,H);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);const q=this.pqd;common(q);gl.uniform2f(q.u.uDie,P.W,P.H);gl.bindVertexArray(this.qvao);
+      gl.bindTexture(gl.TEXTURE_2D,this.bc.tex);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);gl.bindTexture(gl.TEXTURE_2D,this.tex)}
+    else this.drawBase(common,lift,s,pxum,W,H);
+    const pr=this.pr;common(pr);gl.uniform1i(pr.u.uPick,this.pick);
+    const lit=rgb(PAL.lit),core=rgb(PAL.lit_core);gl.uniform3f(pr.u.uLit,lit[0],lit[1],lit[2]);gl.uniform3f(pr.u.uCore,core[0],core[1],core[2]);
+    const drawSet=(v,col,a,k)=>{if(!v)return;lift(pr,k||0);const c=rgb(col);gl.uniform4f(pr.u.uColor,c[0],c[1],c[2],a);gl.bindVertexArray(v.vao);gl.drawArraysInstanced(gl.TRIANGLE_STRIP,0,4,v.k)};
+    // the lit pass: every net that is high, on top, so activity reads from afar
+    this.litSet();
+    gl.uniform1i(pr.u.uLitPass,1);gl.blendFunc(gl.ONE,gl.ONE);
+    ['met1','met2','met3','met4'].forEach((l,k)=>{if(this.show[l])drawSet(this.vL[l],'#000000',1,k+1)});
+    const now=(this.freezeT!=null?this.freezeT:performance.now()/1000);
+    const sparks=(scale)=>{if(RM.matches)return;const ps=this.ps;gl.useProgram(ps.p);gl.uniform2f(ps.u.uC,this.cam.x,this.cam.y);gl.uniform1f(ps.u.uS,s);
+      gl.uniform2f(ps.u.uView,W,H);gl.uniformMatrix2fv(ps.u.uR,false,R);gl.uniform1f(ps.u.uGap,gap);gl.uniform1f(ps.u.uNow,now);gl.uniform1f(ps.u.uLife,this.sparkLife||0.7);
+      gl.uniform1f(ps.u.uSz,this.dpr*scale);gl.uniform3f(ps.u.uLit,lit[0],lit[1],lit[2]);gl.uniform3f(ps.u.uCore,core[0],core[1],core[2]);
+      gl.bindVertexArray(this.spv);if(this.spDirty){gl.bindBuffer(gl.ARRAY_BUFFER,this.spb);gl.bufferSubData(gl.ARRAY_BUFFER,0,this.sp);this.spDirty=false}
+      gl.drawArrays(gl.POINTS,0,this.NSP)};
+    sparks(1);
+    // the grade: resolve the multisampled scene, then lift the haze, sharpen and add contrast on the way to the screen
+    if(G){gl.bindFramebuffer(gl.READ_FRAMEBUFFER,this.fS.ms);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,this.fS.fb);
+      gl.blitFramebuffer(0,0,W,H,0,0,W,H,gl.COLOR_BUFFER_BIT,gl.NEAREST);gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);
+      const whole=Math.max(0,Math.min(1,1-(pxum-1.5)/6)),pg=this.pg;gl.disable(gl.BLEND);gl.bindVertexArray(this.fvao);gl.useProgram(pg.p);
+      gl.bindTexture(gl.TEXTURE_2D,this.fS.tex);gl.uniform2f(pg.u.uPx,1/W,1/H);gl.uniform1f(pg.u.uAmt,0.35+0.65*whole);
+      gl.uniform1f(pg.u.uSat,0.12*whole);gl.uniform3f(pg.u.uBg,bg[0],bg[1],bg[2]);gl.drawArrays(gl.TRIANGLES,0,3);
+      gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.bindTexture(gl.TEXTURE_2D,this.tex)}
+    // bloom: what glows is drawn again at half size, blurred both ways and added back
+    if(this.bloom){const bw=Math.max(1,W>>1),bh=Math.max(1,H>>1);this.target2(bw,bh);
+      gl.bindFramebuffer(gl.FRAMEBUFFER,this.fA.fb);gl.viewport(0,0,bw,bh);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+      this._noFx=true;common(pr);this._noFx=false;gl.uniform1i(pr.u.uLitPass,1);gl.uniform1i(pr.u.uPick,this.pick);gl.uniform3f(pr.u.uLit,lit[0],lit[1],lit[2]);gl.uniform3f(pr.u.uCore,core[0],core[1],core[2]);
+      ['met1','met2','met3','met4'].forEach((l,k)=>{if(this.show[l])drawSet(this.vL[l],'#000000',1,k+1)});sparks(0.5);
+      gl.disable(gl.BLEND);gl.bindVertexArray(this.fvao);const pb=this.pb;gl.useProgram(pb.p);
+      for(const [src,dst,dx,dy] of [[this.fA,this.fB,1/bw,0],[this.fB,this.fA,0,1/bh],[this.fA,this.fB,2/bw,0],[this.fB,this.fA,0,2/bh]]){
+        gl.bindFramebuffer(gl.FRAMEBUFFER,dst.fb);gl.bindTexture(gl.TEXTURE_2D,src.tex);gl.uniform2f(pb.u.uDir,dx,dy);gl.drawArrays(gl.TRIANGLES,0,3)}
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
+      const pq=this.pq;gl.useProgram(pq.p);gl.bindTexture(gl.TEXTURE_2D,this.fA.tex);gl.uniform1f(pq.u.uAmt,1.1*this.exposure);gl.drawArrays(gl.TRIANGLES,0,3);
+      gl.bindTexture(gl.TEXTURE_2D,this.tex)}
+    gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.bindVertexArray(null)}
+  // the wires of the nets that are lit (glowing, flashing or picked), gathered per layer when that set changes
+  litSet(){const gl=this.gl,P=this.P,g=this.glow,f=this.flash;let c=0,h=0;
+    for(let i=0;i<this.nn;i++)if(g[i]>0.02||f[i]>0.02){c++;h=(Math.imul(h,31)+i)|0}
+    const sig=c+':'+h+':'+this.pick;if(this.vL&&sig===this._lsig)return;this._lsig=sig;
+    if(!this.vL){this.vL={};const pr=this.pr,cl=pr.a('corner'),rl=pr.a('rect'),nl=pr.a('net');
+      for(const l of Object.keys(P.wires)){const vao=gl.createVertexArray();gl.bindVertexArray(vao);
+        gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);gl.enableVertexAttribArray(cl);gl.vertexAttribPointer(cl,2,gl.FLOAT,false,0,0);
+        const rb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,rb);gl.enableVertexAttribArray(rl);gl.vertexAttribPointer(rl,4,gl.FLOAT,false,0,0);gl.vertexAttribDivisor(rl,1);
+        const nb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,nb);gl.enableVertexAttribArray(nl);gl.vertexAttribIPointer(nl,1,gl.UNSIGNED_SHORT,0,0);gl.vertexAttribDivisor(nl,1);
+        this.vL[l]={vao,rb,nb,k:0}}gl.bindVertexArray(null)}
+    const on=new Uint8Array(65536);for(let i=0;i<this.nn;i++)if(g[i]>0.02||f[i]>0.02)on[i]=1;if(this.pick>=0)on[this.pick]=1;
+    for(const [l,w] of Object.entries(P.wires)){const n=w.net,r=w.rect;let k=0;for(let i=0;i<n.length;i++)if(on[n[i]])k++;
+      const R=new Float32Array(k*4),N=new Uint16Array(k);let j=0;for(let i=0;i<n.length;i++)if(on[n[i]]){R.set(r.subarray(i*4,i*4+4),j*4);N[j++]=n[i]}
+      const v=this.vL[l];gl.bindBuffer(gl.ARRAY_BUFFER,v.rb);gl.bufferData(gl.ARRAY_BUFFER,R.length?R:new Float32Array(4),gl.DYNAMIC_DRAW);
+      gl.bindBuffer(gl.ARRAY_BUFFER,v.nb);gl.bufferData(gl.ARRAY_BUFFER,N.length?N:new Uint16Array(2),gl.DYNAMIC_DRAW);v.k=k}}
+  // the static layers: cells, their insides, power, vias and metal, bottom to top
+  drawBase(common,lift,s,pxum,W,H){const gl=this.gl,P=this.P;
     // cells
     if(this.show.cells){const pc=this.pc;common(pc);const cls=DM.classes.map(k=>{const c=rgb(k==='fill'?PAL.fill:PAL.cell);return [c[0],c[1],c[2],1]});
       const cl=new Float32Array(32);cls.forEach((c,i)=>cl.set(c,i*4));gl.uniform4fv(pc.u.uClass,cl);
@@ -2182,7 +2294,7 @@ class DieView{
     const tplFade=Math.max(0,Math.min(1,(pxum-10)/8));
     if(tplFade>0){const pt=this.pt;gl.useProgram(pt.p);gl.uniform2f(pt.u.uC,this.cam.x,this.cam.y);gl.uniform1f(pt.u.uS,s);gl.uniform2f(pt.u.uView,W,H);gl.uniform1f(pt.u.uCellH,DM.cell_h_um);gl.uniform1f(pt.u.uFade,tplFade);gl.uniform1f(pt.u.uExp,this.exposure);lift(pt,0);
       const lc=new Float32Array(32);let on=0;TPL_LAYERS.forEach((nm,i)=>{const key=nm==='tap'?'diff':(nm==='licon'||nm==='mcon')?'li1':nm==='nwell'?'diff':nm;
-        const col=rgb(PAL[nm]||'#888888');const al={nwell:.22,diff:.85,tap:.7,poly:.9,licon:.9,li1:.7,mcon:.9,met1:.75}[nm]||.8;lc.set([col[0],col[1],col[2],al],i*4);if(this.show[key])on|=1<<i});
+        const col=rgb(PAL[nm]||'#888888');const al={nwell:.16,diff:.62,tap:.5,poly:.62,licon:.8,li1:.42,mcon:.8,met1:.5}[nm]||.8;lc.set([col[0],col[1],col[2],al],i*4);if(this.show[key])on|=1<<i});
       gl.uniform4fv(pt.u.uLayer,lc);gl.uniform1i(pt.u.uOn,on);gl.bindVertexArray(this.vT);gl.bindBuffer(gl.ARRAY_BUFFER,this.instBuf);
       const hw=W/2/s,hh=H/2/s,x0=this.cam.x-hw-30,x1=this.cam.x+hw,y0=this.cam.y-hh-3,y1=this.cam.y+hh;
       const tx0=Math.max(0,Math.floor(x0/P.W*P.TX)),tx1=Math.min(P.TX-1,Math.floor(x1/P.W*P.TX)),ty0=Math.max(0,Math.floor(y0/P.H*P.TY)),ty1=Math.min(P.TY-1,Math.floor(y1/P.H*P.TY));
@@ -2190,7 +2302,6 @@ class DieView{
         gl.vertexAttribPointer(this.instLoc,4,gl.FLOAT,false,0,st*16);gl.drawArraysInstanced(gl.TRIANGLES,P.tplStart[m],P.tplCount[m],cnt)}}
     // wires, vias and power, bottom to top
     const pr=this.pr;common(pr);gl.uniform1i(pr.u.uPick,this.pick);gl.uniform1i(pr.u.uLitPass,0);
-    const lit=rgb(PAL.lit),core=rgb(PAL.lit_core);gl.uniform3f(pr.u.uLit,lit[0],lit[1],lit[2]);gl.uniform3f(pr.u.uCore,core[0],core[1],core[2]);
     const drawSet=(v,col,a,k)=>{if(!v)return;lift(pr,k||0);const c=rgb(col);gl.uniform4f(pr.u.uColor,c[0],c[1],c[2],a);gl.bindVertexArray(v.vao);gl.drawArraysInstanced(gl.TRIANGLE_STRIP,0,4,v.k)};
     const viaA=Math.max(0,Math.min(1,(pxum-1.5)/4));
     // close in, metal thins out so the cells' own layers show through
@@ -2204,28 +2315,45 @@ class DieView{
     if(this.show.vias&&viaA>0)drawSet(this.vV.via3,PAL.via3,.8*viaA,4);
     if(this.show.met4)drawSet(this.vW.met4,PAL.met4,.72*mA,4);
     if(this.show.power)drawSet(this.vP[4],PAL.power,.55,4);
-    // the lit pass: every net that is high, on top, so activity reads from afar
-    gl.uniform1i(pr.u.uLitPass,1);gl.blendFunc(gl.ONE,gl.ONE);
-    ['met1','met2','met3','met4'].forEach((l,k)=>{if(this.show[l])drawSet(this.vW[l],'#000000',1,k+1)});
-    const now=(this.freezeT!=null?this.freezeT:performance.now()/1000);
-    const sparks=(scale)=>{if(RM.matches)return;const ps=this.ps;gl.useProgram(ps.p);gl.uniform2f(ps.u.uC,this.cam.x,this.cam.y);gl.uniform1f(ps.u.uS,s);
-      gl.uniform2f(ps.u.uView,W,H);gl.uniformMatrix2fv(ps.u.uR,false,R);gl.uniform1f(ps.u.uGap,gap);gl.uniform1f(ps.u.uNow,now);gl.uniform1f(ps.u.uLife,this.sparkLife||0.7);
-      gl.uniform1f(ps.u.uSz,this.dpr*scale);gl.uniform3f(ps.u.uLit,lit[0],lit[1],lit[2]);gl.uniform3f(ps.u.uCore,core[0],core[1],core[2]);
-      gl.bindVertexArray(this.spv);if(this.spDirty){gl.bindBuffer(gl.ARRAY_BUFFER,this.spb);gl.bufferSubData(gl.ARRAY_BUFFER,0,this.sp);this.spDirty=false}
-      gl.drawArrays(gl.POINTS,0,this.NSP)};
-    sparks(1);
-    // bloom: what glows is drawn again at half size, blurred both ways and added back
-    if(this.bloom){const bw=Math.max(1,W>>1),bh=Math.max(1,H>>1);this.target2(bw,bh);
-      gl.bindFramebuffer(gl.FRAMEBUFFER,this.fA.fb);gl.viewport(0,0,bw,bh);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
-      this._noFx=true;common(pr);this._noFx=false;gl.uniform1i(pr.u.uLitPass,1);gl.uniform1i(pr.u.uPick,this.pick);gl.uniform3f(pr.u.uLit,lit[0],lit[1],lit[2]);gl.uniform3f(pr.u.uCore,core[0],core[1],core[2]);
-      ['met1','met2','met3','met4'].forEach((l,k)=>{if(this.show[l])drawSet(this.vW[l],'#000000',1,k+1)});sparks(0.5);
-      gl.disable(gl.BLEND);gl.bindVertexArray(this.fvao);const pb=this.pb;gl.useProgram(pb.p);
-      for(const [src,dst,dx,dy] of [[this.fA,this.fB,1/bw,0],[this.fB,this.fA,0,1/bh],[this.fA,this.fB,2/bw,0],[this.fB,this.fA,0,2/bh]]){
-        gl.bindFramebuffer(gl.FRAMEBUFFER,dst.fb);gl.bindTexture(gl.TEXTURE_2D,src.tex);gl.uniform2f(pb.u.uDir,dx,dy);gl.drawArrays(gl.TRIANGLES,0,3)}
-      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
-      const pq=this.pq;gl.useProgram(pq.p);gl.bindTexture(gl.TEXTURE_2D,this.fA.tex);gl.uniform1f(pq.u.uAmt,1.1*this.exposure);gl.drawArrays(gl.TRIANGLES,0,3);
-      gl.bindTexture(gl.TEXTURE_2D,this.tex)}
-    gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.bindVertexArray(null)}
+  }
+  // the whole-die cache: the static layers once, flat, at up to 4096 px across; rebuilt when what they show changes
+  baseCache(s){const gl=this.gl,P=this.P;if(!this.qvao){this.qvao=gl.createVertexArray();gl.bindVertexArray(this.qvao);const b=gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([0,0,1,0,0,1,1,1]),gl.STATIC_DRAW);const ca=gl.getAttribLocation(this.pqd.p,'corner');
+      gl.enableVertexAttribArray(ca);gl.vertexAttribPointer(ca,2,gl.FLOAT,false,0,0);gl.bindVertexArray(null)}
+    const mx=Math.min(4096,gl.getParameter(gl.MAX_TEXTURE_SIZE)||2048),cs=Math.min(mx/P.W,mx/P.H);if(s>cs*1.01)return false;
+    const key=[this.focus?1:0,this.mask>>>0,JSON.stringify(this.show)].join('|');if(this.bc&&this.bc.key===key)return true;
+    try{const w=Math.round(P.W*cs),h=Math.round(P.H*cs);let bc=this.bc;
+      if(!bc||bc.w!==w||bc.h!==h){if(bc){gl.deleteTexture(bc.tex);gl.deleteFramebuffer(bc.fb)}const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);
+        gl.texStorage2D(gl.TEXTURE_2D,Math.floor(Math.log2(Math.max(w,h)))+1,gl.RGBA8,w,h);
+        for(const [k,v] of [[gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR],[gl.TEXTURE_MAG_FILTER,gl.LINEAR],[gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE],[gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE]])gl.texParameteri(gl.TEXTURE_2D,k,v);
+        const fb=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
+        if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw new Error('cache fb');bc={tex,fb,w,h}}
+      // render flat, framed exactly on the die, with no lighting, no activity tint and full exposure
+      const keep={cam:{...this.cam},dpr:this.dpr,ex:this.exposure,fx:this._noFx};this.cam.x=P.W/2;this.cam.y=P.H/2;this.cam.tilt=0;this.exposure=1;this._noFx=true;
+      gl.bindFramebuffer(gl.FRAMEBUFFER,bc.fb);gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
+      const st=this.stbuf.slice();this.stbuf.fill(0);gl.bindTexture(gl.TEXTURE_2D,this.tex);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,128,this.th,gl.RGBA,gl.UNSIGNED_BYTE,this.stbuf);
+      const I=new Float32Array([1,0,0,1]),view=[w,h];
+      const lift=(pp,k)=>{gl.uniformMatrix2fv(pp.u.uR,false,I);gl.uniform1f(pp.u.uLift,0)};
+      const common=(pp)=>{gl.useProgram(pp.p);gl.uniform2f(pp.u.uC,this.cam.x,this.cam.y);gl.uniform1f(pp.u.uS,cs);gl.uniform2f(pp.u.uView,view[0],view[1]);
+        if(pp.u.uMinPx)gl.uniform1f(pp.u.uMinPx,0.75);if(pp.u.uFocus)gl.uniform1i(pp.u.uFocus,this.focus?1:0);if(pp.u.uMask)gl.uniform1ui(pp.u.uMask,this.mask>>>0);if(pp.u.uExp)gl.uniform1f(pp.u.uExp,1);
+        if(pp.u.uFx){gl.uniform4f(pp.u.uLamp,0,0,1,0);gl.uniform3f(pp.u.uFx,0,0,-1e6)}};
+      this.drawBase(common,lift,cs,1,w,h);
+      this.stbuf.set(st);Object.assign(this.cam,keep.cam);this.exposure=keep.ex;this._noFx=keep.fx;
+      gl.bindTexture(gl.TEXTURE_2D,bc.tex);gl.generateMipmap(gl.TEXTURE_2D);gl.bindTexture(gl.TEXTURE_2D,this.tex);
+      gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,128,this.th,gl.RGBA,gl.UNSIGNED_BYTE,this.stbuf);
+      gl.bindFramebuffer(gl.FRAMEBUFFER,this._fbo||null);bc.key=key;this.bc=bc;return true}
+    catch(e){this.cacheOK=false;gl.bindFramebuffer(gl.FRAMEBUFFER,this._fbo||null);return false}}
+  targetS(w,h){const gl=this.gl;if(this.fS&&this.fS.w===w&&this.fS.h===h)return true;
+    try{const n=Math.min(4,gl.getParameter(gl.MAX_SAMPLES)||0);if(n<1)return false;
+      if(this.fS){gl.deleteRenderbuffer(this.fS.rb);gl.deleteFramebuffer(this.fS.ms);gl.deleteTexture(this.fS.tex);gl.deleteFramebuffer(this.fS.fb)}
+      const rb=gl.createRenderbuffer();gl.bindRenderbuffer(gl.RENDERBUFFER,rb);gl.renderbufferStorageMultisample(gl.RENDERBUFFER,n,gl.RGBA8,w,h);
+      const ms=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,ms);gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.RENDERBUFFER,rb);
+      const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+      for(const [k,v] of [[gl.TEXTURE_MIN_FILTER,gl.NEAREST],[gl.TEXTURE_MAG_FILTER,gl.NEAREST],[gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE],[gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE]])gl.texParameteri(gl.TEXTURE_2D,k,v);
+      const fb=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
+      const ok=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE;gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindTexture(gl.TEXTURE_2D,this.tex);
+      this.fS={rb,ms,tex,fb,w,h};if(!ok)this.grade=false;return ok}catch(e){this.grade=false;return false}}
   target2(w,h){const gl=this.gl;if(this.fA&&this.fA.w===w&&this.fA.h===h)return;
     const mk=()=>{const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
       for(const [k,v] of [[gl.TEXTURE_MIN_FILTER,gl.LINEAR],[gl.TEXTURE_MAG_FILTER,gl.LINEAR],[gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE],[gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE]])gl.texParameteri(gl.TEXTURE_2D,k,v);
@@ -2331,7 +2459,9 @@ async function story(){const root=$('#story'),cv=$('#die-hero');if(!root||!cv)re
     const rg={x:mix2(rIntro.x,rStep.x,e0),y:mix2(rIntro.y,rStep.y,e0),w:mix2(rIntro.w,rStep.w,e0),h:mix2(rIntro.h,rStep.h,e0)};
     view.exposure=0.5+0.5*e0;view.frame(cx-w/2,cy-h/2,cx+w/2,cy+h/2,false,rg);
     // step 5 peels the mask apart: tilt rises and falls around it, and the stack turns as you scroll
-    const tb=Math.max(0,Math.min(1,1-Math.abs(f-4)/0.75));view.tgt.tilt=RM.matches?(Math.abs(f-4)<0.5?1:0):tb*tb*(3-2*tb);
+    // the stack lifts only once the camera has pulled back from the cells (f past 3.55), so the zoom-out and the
+    // tilt never fight in the same frames, and settles flat again over the next 0.6 of a step
+    const tb=f<4?Math.max(0,Math.min(1,(f-3.55)/0.45)):Math.max(0,Math.min(1,1-(f-4)/0.6));view.tgt.tilt=RM.matches?(Math.abs(f-4)<0.5?1:0):tb*tb*(3-2*tb);
     view.tgt.yaw=RM.matches?-0.5:-0.9+(f-3.3)*0.75;if(RM.matches)Object.assign(view.cam,view.tgt);
     // which cells are coloured: the dispatch unit from step 2 to step 4
     const foc=f>0.5&&f<2.55;view.focus=foc;view.mask=maskOf(D.dispatch);labMax=wide?card.left-cv.getBoundingClientRect().left-16:0;
@@ -2534,7 +2664,7 @@ const box=()=>{const v=V(),r=st.getBoundingClientRect();if(!v||!v.P||!r.width)re
   const a=v.toScreen(0,0,0),b=v.toScreen(v.P.W,v.P.H,0);
   return [Math.min(a[0],b[0])/r.width*100,Math.min(a[1],b[1])/r.height*100,Math.max(a[0],b[0])/r.width*100,Math.max(a[1],b[1])/r.height*100]};
 const push=()=>{const v=V();if(!v)return false;const r=st.getBoundingClientRect();
-  v.fx={x:lx/100*r.width,y:ly/100*r.height,r:Math.min(r.width,r.height)*0.34,lamp:1.3*(1-q),film:0.34*(1-q),phase:q*0.35,slit};v.kick();return true};
+  v.fx={x:lx/100*r.width,y:ly/100*r.height,r:Math.min(r.width,r.height)*0.34,lamp:1.3*(1-q),film:0.12*(1-q),phase:q*0.35,slit};v.kick();return true};
 const tick=now=>{raf=0;const idle=now-last>2600;
   if(idle&&!RM.matches){const t=(now-t0)/1000,b=box(),cx=(b[0]+b[2])/2,cy=(b[1]+b[3])/2;
     tx=cx+(b[2]-b[0])*0.34*Math.sin(t*0.23);ty=cy+(b[3]-b[1])*0.3*Math.sin(t*0.31+1.1)}
@@ -2554,5 +2684,26 @@ if(!RM.matches){let tries=0;const go=()=>{const v=V();if(!v){if(++tries<80)setTi
   const w=st.getBoundingClientRect().width,t1=performance.now()+350,dur=1900;
   const run=now=>{const k=(now-t1)/dur;if(k>=1){slit=null;kick();return}
     if(k>=0){const e=k<0.5?2*k*k:1-Math.pow(-2*k+2,2)/2;slit=-0.1*w+1.2*w*e;kick()}requestAnimationFrame(run)};requestAnimationFrame(run)};go()}
+})();
+"""
+
+MOTION_JS = r"""
+(()=>{
+// the motion system's script half: words for the headings, the lean for tiles and cards
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const heads=[...document.querySelectorAll('section.panel h2:not(#h-overview), .numbers h2, .decides h2')];
+heads.forEach(h=>{if(h.querySelector('*'))return;const words=h.textContent.trim().split(/\s+/);
+  h.setAttribute('aria-label',h.textContent.trim());h.textContent='';
+  words.forEach((w,i)=>{const s=document.createElement('span');s.className='w';s.setAttribute('aria-hidden','true');s.style.setProperty('--i',i);
+    s.textContent=w;h.appendChild(s);if(i<words.length-1)h.appendChild(document.createTextNode(' '))});h.classList.remove('rvh');h.classList.add('words')});
+let todo=heads.slice();const check=()=>{todo=todo.filter(h=>{const r=h.getBoundingClientRect();
+  if(RM||(r.height&&r.top<innerHeight*0.9&&r.bottom>0)){h.classList.add('in');return false}return true})};
+addEventListener('scroll',check,{passive:true});addEventListener('hashchange',()=>setTimeout(check,30));addEventListener('resize',check);check();
+addEventListener('beforeprint',()=>heads.forEach(h=>h.classList.add('in')));
+if(RM||matchMedia('(pointer:coarse)').matches)return;
+document.querySelectorAll('.bignums .bignum, .targets .target, .tour li, .cards .card').forEach(el=>{el.classList.add('tilt');
+  el.addEventListener('pointermove',e=>{const r=el.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-0.5,y=(e.clientY-r.top)/r.height-0.5;
+    el.style.setProperty('--ry',(x*5).toFixed(2)+'deg');el.style.setProperty('--rx',(-y*5).toFixed(2)+'deg')});
+  el.addEventListener('pointerleave',()=>{el.style.setProperty('--ry','0deg');el.style.setProperty('--rx','0deg')})});
 })();
 """

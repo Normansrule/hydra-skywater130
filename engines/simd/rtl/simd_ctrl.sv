@@ -148,5 +148,6 @@ module simd_ctrl
     if (lanes_out_valid && !reduce_q) assert (!serial_busy);
   end
 `endif
+  wire _unused_n = &{1'b0, N[0]};    // N documents the lane count; the controller counts groups
 endmodule
 `default_nettype wire

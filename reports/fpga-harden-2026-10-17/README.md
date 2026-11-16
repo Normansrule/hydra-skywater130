@@ -31,3 +31,7 @@ v3.8 (eligibility input tied off, ABI version 2 on the chip): `harden-ladder-202
 v3.9 (slew repair margin 35%, logic as v3.8): `harden-ladder-20261018-170542-v3.9.log.gz`, `harden-ladder-20261018-170542-v3.9-checks.out`.
 
 v3.10 (scheduler liveness fix, v3.6 settings): `harden-ladder-20261018-174736-v3.10.log.gz`, `harden-ladder-20261018-174736-v3.10-checks.out`; 22/22 on the netlist.
+
+v3.11 (every pin used: PINS and GPO registers, v3.6 settings): `harden-ladder-20261021-203337-v3.11.log.gz`, `harden-ladder-20261021-203337-v3.11-checks.out`; 24/24 on the netlist; disconnected pins 0 (v3.10: 14).
+
+Param ROM reset loop removed for the GDS action's Verilator 5.018 (2026-10-27): tile netlist proved equivalent to v3.11's, 7,182 of 7,182 (tile-netlist-equivalence-paramrom.log.gz); 24/24 tile tests.

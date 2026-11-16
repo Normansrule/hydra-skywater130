@@ -1,0 +1,24 @@
+image   254fa297f33fb6944b80cebeef2a6590fe2b83f3e1973d461fb9b5718699613a  hydra_tangnano20k_tt.fs
+srchash bb24724c1f643bf1
+tools   sv2v v0.0.13 Yosys 0.52 (git sha1 fee39a3284c90249e1d9684cf6944ffbbcbb8f90) nextpnr-himbaechel -- Next Generation Place and Route (Version nextpnr-0.11.1-18-gdec04b3b) 
+built   2026-11-15T23:53:57Z
+seed    1
+c54a2612329678387e0caa1eece8e5ba386c7ca6af15af059f91147d39305182  ../../../mom/rtl/mom_pkg.sv
+0aaef5206af26e1aef10c82394e743094cc490799a01b3000773403e69857ba3  ../../../mom/rtl/mom_features.sv
+f9683fe78c09896b07e57e6e2ac08ab427329e37def2672f7885c6583ece3a04  ../../../mom/rtl/mom_param_rom.sv
+d4f47dff91b5ab9aca911ecf7ebab9b12e5cd89233a2e63f4501dbd52eddc8a5  ../../../mom/rtl/mom_cost_engine.sv
+ef47c2df5291254347bfd34ffacfabd3893057c28a94ea3d3546cd55184e174a  ../../../mom/rtl/mom_calibrate.sv
+92aee41d8866f18fa48f980cda09f2727deba7e4560fc4a1458b5e5948034100  ../../../mom/rtl/mom_select.sv
+324419476dd01d20ee001958cd0bda05c6cf6707a8cd50d614f4aee6e0175a6b  ../../../mom/rtl/mom_scoreboard.sv
+6f768808e0f35ca651659e30ed9a84c7033a5a5f4a57b876582cec884f23b421  ../../../mom/rtl/mom_top.sv
+36be4ae86046106e09fec98207e1d4c9372fb9676d6b554ec451becf72f92860  ../../../mom/rtl/hydra_tt_spi.sv
+c7d8c2795e3c709528e5342086e84a28d4b5284d874bfe3dd0ed50c79cad6603  ../../../mom/rtl/hydra_tt_regs.sv
+d1e8e9db955ac07de47cdfea9e1eb3d400006f8d10b26de0b82e46867ebb896a  ../../../mom/hydra_mom_pins.sv
+603fda177eac7e7cbd4e4fe278b079e43235146d439554290b50abf8025bd4eb  ../../../fpga/rtl/hydra_fpga_uart.sv
+a6c47e7440da050800e21ce8463c66a87abbc1170b174b19ea1840d71dd4e471  ../../../fpga/rtl/hydra_fpga_bridge.sv
+6b7cbc18de7c5dcae71d8f7d633d524a7f3e4c1b98f7de0af0b2f2bfe3d6a477  ../../../fpga/rtl/hydra_fpga_tt_harness.sv
+2e3b4e701f9d238f2fd1f88a542ede86c50a3affe1eb70c54cf7f309da7aca43  ../../../common/rtl/hydra_rst_sync.sv
+ad46f8a137bd4db087b2bb002b69fc73c5298e2f58a9ba9d144d8a373b890398  hydra_tangnano20k_tt.sv
+cd05d96dbc4390caa7abb9c3acfc131f5c06428f9f031a6ed29d22bb9f61e062  hydra_tangnano20k_tt.cst
+06c58b4b3e1b555bc2003fc52973b6cc2fc519eb758782498732d855fd6d4a86  ../../../plans/tangnano20k.yaml
+7e1d0f45cf40938f5c8884f34cce61c6d169ddcf1f92158a253a159e203d7163  Makefile

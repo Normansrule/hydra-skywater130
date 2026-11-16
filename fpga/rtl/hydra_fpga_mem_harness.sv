@@ -59,7 +59,8 @@ module hydra_fpga_mem_harness #(
     .dbg_simd_checksum(simd_checksum), .dbg_simd_jobs(simd_jobs),
     .mem_we(mem_we), .mem_bank(mem_bank), .mem_addr(mem_addr),
     .mem_wdata(mem_wdata), .mem_raddr(mem_raddr), .mem_rdata(mem_rdata),
-    .mem_refused(mem_refused));
+    .mem_refused(mem_refused),
+    .cpu_uart_tx(), .cpu_gpio_out(), .cpu_gpio_in(16'd0));
 
   // Switches up: how many tiles the array has completed, on the lights.
   assign uo_mirror  = (profile == 2'b11) ? tiles[7:0] : uo_out;

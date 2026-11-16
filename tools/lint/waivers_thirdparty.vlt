@@ -1,0 +1,7 @@
+`verilator_config
+// Third-party designs used unchanged as submodules: the Sixfold RV64 CPU and
+// the Pixelstorm GPU. Their own repositories lint and test them; HYDRA does
+// not edit them, so their warnings are not HYDRA's to fix here. Everything
+// else in the microcontroller build is linted with no waivers.
+lint_off -file "*ext/sixfold-cpu/*"
+lint_off -file "*ext/pixelstorm-gpu/*"

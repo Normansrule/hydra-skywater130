@@ -118,6 +118,8 @@ def enums(pkg):
     src = pathlib.Path(pkg).read_text()
     out = {}
     for body, name in re.findall(r"typedef enum logic \[\d+:0\] \{(.*?)\}\s*(\w+);", src, re.S):
+        # comments go first: "CPU_ENGINE = 1" in a comment once named engine 1 (2026-11-04)
+        body = re.sub(r"//[^\n]*", "", body)
         out[name] = {int(v, 0) if not "'" in v else int(v.split("'d")[1]): k
                      for k, v in re.findall(r"(\w+)\s*=\s*([\d']+d?\d*)", body)}
     return out
@@ -380,7 +382,9 @@ def make_run(t, tmp):
     """Replay `make <target>`: every command, in order, as make would run it,
     with a dump module compiled in and formal steps left out (they do not
     simulate). The simulation must pass scripts/runsim.sh as usual."""
-    out = subprocess.run(["make", "-n", "-B", t["make"], f"SIMTMP={tmp}"], cwd=ROOT,
+    # --no-print-directory: run from make (make atlas), the dry run otherwise prints "make[1]: Entering
+    # directory" lines, and replaying them as commands failed the whole recording (2026-11-04)
+    out = subprocess.run(["make", "--no-print-directory", "-n", "-B", t["make"], f"SIMTMP={tmp}"], cwd=ROOT,
                          capture_output=True, text=True, check=True).stdout
     vcdf = f"{tmp}/atlas.vcd"
     dump = pathlib.Path(tmp) / "atlas_dump.v"

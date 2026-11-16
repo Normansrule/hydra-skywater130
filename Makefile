@@ -29,7 +29,7 @@ provenance:                   ## which board bitstreams were built from the curr
 	@for d in fpga/build/*/; do grep -q '^provenance:' $$d/Makefile 2>/dev/null || continue; \
 	  $(MAKE) -s --no-print-directory -C $$d provenance 2>/dev/null || true; done
 
-verify: check-deps site-check readme-check tt-ready rst-sync-copy tile-shared lint basys3-selftest check-tile cost-mux cost-cal keyvault mailbox sha256 sha256-stream measure pcr selftest xsec jtag jtag-bridge padmux xbar xbar-bound tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-mem systile-two tile diff harness jtag-harness gpu systile-gpu select-proof abi-v2 systile-abi cpu-quick systile-cpu sky130 tools boards bind uart-baud isa-check
+verify: check-deps site-check readme-check tt-ready rst-sync-copy tile-shared lint basys3-selftest check-tile cost-mux cost-cal keyvault mailbox sha256 sha256-stream measure pcr selftest xsec jtag jtag-bridge padmux xbar xbar-bound tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-mem systile-two tile diff harness jtag-harness gpu systile-gpu select-proof abi-v2 systile-abi cpu-quick systile-cpu cpu-uart systile-disp secure-boot systile-boot i2c-gpio sky130 sky130-mcu tools boards bind uart-baud isa-check
 	@echo "=== all checks passed ==="
 
 # All three targets from the one source, in one command. Each depends on the
@@ -360,9 +360,117 @@ cpu-cached:                   ## the synthesizable CPU build (Sixfold's caches +
 	  sys/rtl/hydra_engine_cpu.sv sys/tb/tb_hydra_engine_cpu.sv 2>&1 | { grep -v -e 'sorry: constant selects' || true; }
 	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_cpu_c +dir=$(SIMTMP)/cpuvec_c/05_fibonacci +neg
 	@n=0; while read -r p; do \
-	  $(SIM) --tail 1 --show '^PASS' -- vvp -n $(SIMTMP)/hydra_cpu_c +dir=$(SIMTMP)/cpuvec_c/$$p || exit 1; \
+	  RUNSIM_TIMEOUT=2400 $(SIM) --tail 1 --show '^PASS' -- vvp -n $(SIMTMP)/hydra_cpu_c +dir=$(SIMTMP)/cpuvec_c/$$p || exit 1; \
 	  n=$$((n+1)); done < $(SIMTMP)/cpuvec_c/programs.txt; \
 	  echo "PASS cpu-cached: $$n Sixfold programs on its caches and block memory give the cached model's registers, TOHOST and cycle count"
+
+# (The CPU loops allow 2,400 s a program: 22_multitasking took 859 s on the
+# cached build on a loaded machine, 2026-11-09, close to runsim's 900 s default.)
+# The chip's CPU memory: SkyWater 130 OpenRAM macros, simulated with the PDK's
+# own Verilog model of the macro. MEM=65536 (32 macros) must match Sixfold's
+# cached model cycle for cycle; MEM=16384 (8 macros, the chip's size) mirrors
+# the 64 KiB space and must give the same answers.
+# Without a PDK (the GitHub runner), make sram-model fetches the same file from the
+# macro's own repository at a pinned commit and checks its hash; it is byte for byte the
+# PDK's copy (sha256 checked against ciel's sky130A, 2026-11-04).
+SRAM_MODEL_URL = https://raw.githubusercontent.com/efabless/sky130_sram_macros/ebfbf5775c8cd433ad38a4d825e46c2275231511/sky130_sram_2kbyte_1rw1r_32x512_8/sky130_sram_2kbyte_1rw1r_32x512_8.v
+SRAM_MODEL_SHA = 2712357fbc3d1ee3343c4bcb7d630de92ca87d869fb5d50d1d3cea967f288208
+SRAM_V = $(firstword $(wildcard $(PDK_ROOT)/ciel/sky130/versions/*/sky130A/libs.ref/sky130_sram_macros/verilog/sky130_sram_2kbyte_1rw1r_32x512_8.v) \
+                     $(wildcard build/ext/sky130_sram_2kbyte_1rw1r_32x512_8.v))
+sram-model:                   ## fetch the SkyWater 130 SRAM macro's Verilog model when there is no PDK (CI)
+	@mkdir -p build/ext
+	curl -fsSL -o build/ext/sky130_sram_2kbyte_1rw1r_32x512_8.v $(SRAM_MODEL_URL)
+	@echo "$(SRAM_MODEL_SHA)  build/ext/sky130_sram_2kbyte_1rw1r_32x512_8.v" | sha256sum -c - || { rm -f build/ext/sky130_sram_2kbyte_1rw1r_32x512_8.v; exit 1; }
+
+MEM ?= 65536
+CSETS ?= 64
+cpu-sram:                     ## the CPU on SkyWater 130 SRAM macros (MEM=65536 or 16384): every program vs the cached model
+	@test -f $(SIXFOLD)/src/Riscv64.sv || { echo "FAIL cpu-sram: $(SIXFOLD) missing"; exit 1; }
+	@test -n "$(SRAM_V)" || { echo "FAIL cpu-sram: the sky130 SRAM macro model is not under PDK_ROOT=$(PDK_ROOT)"; exit 1; }
+	rm -rf $(SIMTMP)/cpuvec_s && node tools/cpu_vectors.mjs $(SIXFOLD) $(SIMTMP)/cpuvec_s > /dev/null
+	iverilog -g2012 -Ptb_hydra_engine_cpu.CACHED=1 -Ptb_hydra_engine_cpu.SRAM=1 -Ptb_hydra_engine_cpu.MEM_BYTES=$(MEM) -Ptb_hydra_engine_cpu.CACHE_SETS=$(CSETS) \
+	  -o $(SIMTMP)/hydra_cpu_s $(SIXFOLD_CACHED_RTL) sys/tb/timescale_1ns.v $(SRAM_V) sys/rtl/hydra_cpu_sram.sv \
+	  sys/rtl/hydra_engine_cpu.sv sys/tb/tb_hydra_engine_cpu.sv 2>&1 | { grep -v -e 'sorry: constant selects' || true; }
+	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_cpu_s +dir=$(SIMTMP)/cpuvec_s/05_fibonacci +neg
+	@n=0; while read -r p; do \
+	  RUNSIM_TIMEOUT=2400 $(SIM) --tail 1 --show '^PASS' -- vvp -n $(SIMTMP)/hydra_cpu_s +dir=$(SIMTMP)/cpuvec_s/$$p || exit 1; \
+	  n=$$((n+1)); done < $(SIMTMP)/cpuvec_s/programs.txt; \
+	  echo "PASS cpu-sram: $$n Sixfold programs on $$(($(MEM)/2048)) SkyWater 130 SRAM macros ($(MEM) bytes) and $(CSETS)-set caches give Sixfold's model's registers, TOHOST and cycle count"
+
+# Bare-metal C on the CPU slot, the flow of UC Berkeley EE290C's Baremetal-IDE
+# lab mapped onto this chip: a platform header (sw/baremetal/hydra_cpu.h, the
+# lab's chip_config.h), a linker script, crt0, and a C program built with the
+# RISC-V GCC. The image runs in Sixfold's model (its console must match
+# hello.expect, checked independently in Python) and then on three RTL builds,
+# each compared register for register and cycle for cycle with the model:
+# the flat memory, Sixfold's caches, and the chip's 8 SRAM macros (16 KiB)
+# with 1 KiB caches (the latter needs the SRAM model: make sram-model).
+RV_GCC ?= riscv64-unknown-elf-gcc
+RV_CFLAGS = -march=rv64im_zba_zbb_zbs_zicsr -mabi=lp64 -mcmodel=medlow -O2 -ffreestanding -fno-builtin \
+            -nostdlib -nostartfiles -Wall -Wextra -Werror
+BM := build/baremetal
+baremetal:                    ## bare-metal C (crt0, linker script, hello.c) on the CPU slot: model, then flat, cached and chip-SRAM RTL
+	@command -v $(RV_GCC) > /dev/null || { echo "FAIL baremetal: $(RV_GCC) not found (apt install gcc-riscv64-unknown-elf)"; exit 1; }
+	@test -n "$(SRAM_V)" || { echo "FAIL baremetal: the sky130 SRAM macro model is missing (make sram-model)"; exit 1; }
+	@mkdir -p $(BM)
+	$(RV_GCC) $(RV_CFLAGS) -T sw/baremetal/link.ld -o $(BM)/hello.elf sw/baremetal/crt0.S sw/baremetal/hello.c -lgcc
+	riscv64-unknown-elf-objcopy -O binary $(BM)/hello.elf $(BM)/hello.bin
+	@python3 -c "import zlib; a,b=0,1; exec('for _ in range(60): a,b=b,a+b'); \
+	  c=zlib.crc32(b'Hello from the HYDRA-130 CPU slot\n'); \
+	  want='Hello from the HYDRA-130 CPU slot\nfib(60) = 0x%016x\ncrc32   = 0x%016x\ndiv ok  = 0x%016x\n' % (a, c, 1); \
+	  assert open('sw/baremetal/hello.expect').read() == want, 'hello.expect is not what Python computes'"
+	rm -rf $(SIMTMP)/baremetal && node tools/baremetal_vectors.mjs $(SIXFOLD) $(BM)/hello.bin 2000 $(SIMTMP)/baremetal/hello sw/baremetal/hello.expect
+	iverilog -g2012 -o $(SIMTMP)/hydra_cpu_bm $(SIXFOLD_RTL) sys/rtl/hydra_engine_cpu.sv sys/tb/tb_hydra_engine_cpu.sv 2>&1 | \
+	  { grep -v -e 'sorry: constant selects' || true; }
+	iverilog -g2012 -Ptb_hydra_engine_cpu.CACHED=1 -o $(SIMTMP)/hydra_cpu_bm_c $(SIXFOLD_CACHED_RTL) \
+	  sys/rtl/hydra_engine_cpu.sv sys/tb/tb_hydra_engine_cpu.sv 2>&1 | { grep -v -e 'sorry: constant selects' || true; }
+	iverilog -g2012 -Ptb_hydra_engine_cpu.CACHED=1 -Ptb_hydra_engine_cpu.SRAM=1 -Ptb_hydra_engine_cpu.MEM_BYTES=16384 -Ptb_hydra_engine_cpu.CACHE_SETS=16 \
+	  -o $(SIMTMP)/hydra_cpu_bm_s $(SIXFOLD_CACHED_RTL) sys/tb/timescale_1ns.v $(SRAM_V) sys/rtl/hydra_cpu_sram.sv \
+	  sys/rtl/hydra_engine_cpu.sv sys/tb/tb_hydra_engine_cpu.sv 2>&1 | { grep -v -e 'sorry: constant selects' || true; }
+	$(SIM) --tail 1 --show '^PASS' -- vvp -n $(SIMTMP)/hydra_cpu_bm +dir=$(SIMTMP)/baremetal/hello
+	$(SIM) --tail 1 --show '^PASS' -- vvp -n $(SIMTMP)/hydra_cpu_bm_c +dir=$(SIMTMP)/baremetal/hello
+	$(SIM) --tail 1 --show '^PASS' -- vvp -n $(SIMTMP)/hydra_cpu_bm_s +dir=$(SIMTMP)/baremetal/hello
+	@# the whole chip: loaded over I2C, secure-booted, scheduled over SPI; its printout on pad 29
+	@# (the CPU's UART, given the pad by I2C OWNER) and its LEDs on pads 30-43
+	$(MAKE) -s sky130-mcu      # also writes $(SIMTMP)/hydra_of_mcu.v from the current RTL
+	@# boot (and load over I2C) only the words up to the image's end, whole 64-byte SHA-256 blocks
+	N=$$(( ( (0x2000 + $$(stat -c %s $(BM)/hello.bin) + 63) / 64 ) * 16 )) && \
+	G=$$(python3 sys/tb/boot_digest.py $(SIMTMP)/baremetal/hello/prog.hex $$N) && test -n "$$G" && \
+	iverilog -g2012 -Ptb_openframe_mcu.GOLDEN=256\'h$$G -Ptb_openframe_mcu.BOOT_WORDS=$$N -I $(PIXELSTORM)/rtl -o $(SIMTMP)/hydra_of_mcu_bm \
+	  $(SIMTMP)/hydra_of_mcu.v sky130/tb/tb_openframe_mcu.sv $(PIXELSTORM)/rtl/ps_*.v $(SIXFOLD_CACHED_RTL) \
+	  sys/tb/timescale_1ns.v $(SRAM_V) 2>&1 | { grep -v -e 'sorry: constant selects' -e 'verinum' || true; }
+	@# loading 2,256 words over a simulated I2C bus takes about half an hour (1,665 s, 2026-11-09)
+	RUNSIM_TIMEOUT=3600 $(SIM) --show '^(PASS|FAIL|[0-9] )' -- vvp -n $(SIMTMP)/hydra_of_mcu_bm +dir=$(SIMTMP)/baremetal/hello
+	@echo "PASS baremetal: hello.c (GCC, crt0, linker script) prints and returns what Python computes, in Sixfold's model and on the flat, cached and chip-SRAM CPU builds; on the whole chip its printout arrives on the UART pad and its LEDs on the GPIO pads"
+
+# (make cpu, cpu-cached and cpu-sram check the UART pin and the LEDs on all 24
+# of Sixfold's programs too; this is the quick subset, for verify and the mutations.
+# 22_multitasking, 81,709 cycles, is left to them.)
+cpu-uart:                     ## the CPU's console UART and LEDs: the printing programs' output arrives on the pin as the model printed it
+	@test -f $(SIXFOLD)/src/Riscv64.sv || { echo "FAIL cpu-uart: $(SIXFOLD) missing"; exit 1; }
+	node tools/cpu_vectors.mjs $(SIXFOLD) $(SIMTMP)/cpuvec_u sys/tb/programs > /dev/null
+	iverilog -g2012 -o $(SIMTMP)/hydra_cpu_u $(SIXFOLD_RTL) sys/rtl/hydra_engine_cpu.sv sys/tb/tb_hydra_engine_cpu.sv 2>&1 | \
+	  { grep -v -e 'sorry: constant selects' || true; }
+	@n=0; c=0; for p in 01_hello 10_print_numbers 15_system_calls 20_leds_and_buttons hydra_leds_uart; do \
+	  $(SIM) --tail 1 --show '^PASS' -- vvp -n $(SIMTMP)/hydra_cpu_u +dir=$(SIMTMP)/cpuvec_u/$$p || exit 1; \
+	  n=$$((n+1)); c=$$((c+$$(wc -c < $(SIMTMP)/cpuvec_u/$$p/console.txt))); done; \
+	  echo "PASS cpu-uart: $$n printing programs, $$c bytes, decoded from the UART pin equal to Sixfold's model's console"
+
+cpu-netlist:                  ## the cached CPU after yosys infers its memories (caches, block memory): every program vs the cached model
+	@mkdir -p build/cpu_synth $(SIMTMP)/cpu_netlist
+	@test -d $(SIMTMP)/cpuvec_c || node tools/cpu_vectors.mjs $(SIXFOLD) $(SIMTMP)/cpuvec_c > /dev/null
+	sv2v $(SIXFOLD_CACHED_RTL) sys/rtl/hydra_engine_cpu.sv > build/cpu_synth/cpu.v
+	yosys -q -p "read_verilog build/cpu_synth/cpu.v; chparam -set CACHED 1 -set UART_DIV 4 -set UART_FIFO 128 hydra_engine_cpu; hierarchy -top hydra_engine_cpu; \
+	  proc; flatten; opt -fast; memory -nomap; opt -fast; write_verilog -noattr build/cpu_synth/cpu_mem.v"
+	@# the netlist has its parameters fixed (CACHED 1, MEM_BYTES 65536, CACHE_SETS 64): drop the parameter list
+	sed -E 's/hydra_engine_cpu #\(.*\) dut \(/hydra_engine_cpu dut (/' sys/tb/tb_hydra_engine_cpu.sv > $(SIMTMP)/cpu_netlist/tb.sv
+	@grep -q 'hydra_engine_cpu dut (' $(SIMTMP)/cpu_netlist/tb.sv || { echo 'FAIL cpu-netlist: testbench instance not rewritten'; exit 1; }
+	verilator --binary --timing -Wno-fatal -Wno-lint -Wno-style -Wno-MULTIDRIVEN -GCACHED=1 --top-module tb_hydra_engine_cpu \
+	  build/cpu_synth/cpu_mem.v $(SIMTMP)/cpu_netlist/tb.sv -Mdir $(SIMTMP)/cpu_netlist/obj -o vtb -j 8 > $(SIMTMP)/cpu_netlist/build.log 2>&1
+	@n=0; while read -r p; do \
+	  $(SIM) --tail 1 --show '^PASS' -- $(SIMTMP)/cpu_netlist/obj/vtb +dir=$(SIMTMP)/cpuvec_c/$$p || exit 1; \
+	  n=$$((n+1)); done < $(SIMTMP)/cpuvec_c/programs.txt; \
+	  echo "PASS cpu-netlist: $$n programs on the netlist with both caches' memories inferred by yosys give the cached model's results"
 
 cpu-synth:                    ## synthesize the cached CPU build for ECP5 (yosys); prints the resource count
 	@mkdir -p build/cpu_synth
@@ -378,7 +486,7 @@ cpu:                          ## the Sixfold CPU in its HYDRA wrapper: every pro
 	  { grep -v -e 'sorry: constant selects' || true; }
 	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_cpu +dir=$(SIMTMP)/cpuvec/05_fibonacci +neg
 	@n=0; while read -r p; do \
-	  $(SIM) --tail 1 --show '^PASS' -- vvp -n $(SIMTMP)/hydra_cpu +dir=$(SIMTMP)/cpuvec/$$p || exit 1; \
+	  RUNSIM_TIMEOUT=2400 $(SIM) --tail 1 --show '^PASS' -- vvp -n $(SIMTMP)/hydra_cpu +dir=$(SIMTMP)/cpuvec/$$p || exit 1; \
 	  n=$$((n+1)); done < $(SIMTMP)/cpuvec/programs.txt; \
 	  echo "PASS cpu: $$n Sixfold programs give the model's registers, TOHOST and cycle count; refusals, limit and ownership checked"
 
@@ -390,8 +498,52 @@ systile-cpu:                  ## CPU, GPU and TPU slots on one chip: a real Sixf
 	  sys/rtl/hydra_engine_tpu_dma.sv sys/rtl/hydra_engine_gpu.sv sys/rtl/hydra_engine_cpu.sv \
 	  sys/rtl/hydra_abi_v2.sv sys/rtl/hydra_sys_tile.sv sys/tb/tb_sys_tile_cpu.sv > $(SIMTMP)/hydra_systile_cpu.v
 	iverilog -g2012 -I $(PIXELSTORM)/rtl -o $(SIMTMP)/hydra_systile_cpu $(SIMTMP)/hydra_systile_cpu.v \
-	  $(PIXELSTORM)/rtl/ps_*.v $(SIXFOLD_RTL) 2>&1 | { grep -v -e 'sorry: constant selects' -e 'verinum' || true; }
+	  $(PIXELSTORM)/rtl/ps_*.v $(SIXFOLD_CACHED_RTL) 2>&1 | { grep -v -e 'sorry: constant selects' -e 'verinum' || true; }
 	$(SIM) --show '^(PASS|FAIL|[0-9] )' -- vvp -n $(SIMTMP)/hydra_systile_cpu +dir=$(SIMTMP)/cpuvec_sys/05_fibonacci
+	iverilog -g2012 -Ptb_sys_tile_cpu.CACHED=0 -I $(PIXELSTORM)/rtl -o $(SIMTMP)/hydra_systile_cpu_flat $(SIMTMP)/hydra_systile_cpu.v \
+	  $(PIXELSTORM)/rtl/ps_*.v $(SIXFOLD_CACHED_RTL) 2>&1 | { grep -v -e 'sorry: constant selects' -e 'verinum' || true; }
+	$(SIM) --show '^(PASS|FAIL|[0-9] )' -- vvp -n $(SIMTMP)/hydra_systile_cpu_flat +dir=$(SIMTMP)/cpuvec_sys/05_fibonacci
+
+systile-boot:                 ## secure boot on the six-slot chip: the CPU runs only the image whose SHA-256 is in the mask
+	@test -f $(SIXFOLD)/src/Riscv64.sv || { echo "FAIL systile-boot: $(SIXFOLD) missing"; exit 1; }
+	@test -f $(PIXELSTORM)/rtl/ps_gpu_top.v || { echo "FAIL systile-boot: $(PIXELSTORM) missing"; exit 1; }
+	rm -rf $(SIMTMP)/cpuvec_boot && node tools/cpu_vectors.mjs $(SIXFOLD) $(SIMTMP)/cpuvec_boot > /dev/null
+	sv2v mom/rtl/*.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv mem/rtl/*.sv \
+	  sec/rtl/hydra_sha256.sv sec/rtl/hydra_sha256_stream.sv sec/rtl/hydra_measure.sv sec/rtl/hydra_secure_boot.sv \
+	  sys/rtl/hydra_engine_tpu_dma.sv sys/rtl/hydra_engine_gpu.sv sys/rtl/hydra_engine_cpu.sv \
+	  sys/rtl/hydra_abi_v2.sv sys/rtl/hydra_sys_tile.sv sys/tb/tb_sys_tile_boot.sv > $(SIMTMP)/hydra_systile_boot.v
+	G=$$(python3 sys/tb/boot_digest.py $(SIMTMP)/cpuvec_boot/05_fibonacci/prog.hex) && test -n "$$G" && \
+	iverilog -g2012 -Ptb_sys_tile_boot.GOLDEN=256\'h$$G -I $(PIXELSTORM)/rtl -o $(SIMTMP)/hydra_systile_boot \
+	  $(SIMTMP)/hydra_systile_boot.v $(PIXELSTORM)/rtl/ps_*.v $(SIXFOLD_CACHED_RTL) 2>&1 | { grep -v -e 'sorry: constant selects' -e 'verinum' || true; }
+	$(SIM) --show '^(PASS|FAIL|[0-9] )' -- vvp -n $(SIMTMP)/hydra_systile_boot +dir=$(SIMTMP)/cpuvec_boot/05_fibonacci
+
+sky130-mcu:                   ## the microcontroller build of the chip through its pads: I2C load, secure boot, SPI job on the CPU
+	@test -f $(SIXFOLD)/src/Riscv64.sv || { echo "FAIL sky130-mcu: $(SIXFOLD) missing"; exit 1; }
+	@test -n "$(SRAM_V)" || { echo "FAIL sky130-mcu: the sky130 SRAM macro model is not under PDK_ROOT=$(PDK_ROOT)"; exit 1; }
+	rm -rf $(SIMTMP)/cpuvec_mcu && node tools/cpu_vectors.mjs $(SIXFOLD) $(SIMTMP)/cpuvec_mcu sys/tb/programs > /dev/null
+	sv2v -DSYNTHESIS_OFF mom/rtl/*.sv mom/hydra_mom_pins.sv common/rtl/hydra_rst_sync.sv common/rtl/hydra_padmux.sv \
+	  common/rtl/hydra_i2c_gpio.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv engines/simd/rtl/*.sv mem/rtl/*.sv \
+	  sec/rtl/hydra_sha256.sv sec/rtl/hydra_sha256_stream.sv sec/rtl/hydra_measure.sv sec/rtl/hydra_secure_boot.sv \
+	  sys/rtl/hydra_engine_tpu.sv sys/rtl/hydra_engine_simd.sv sys/rtl/hydra_engine_tpu_dma.sv sys/rtl/hydra_engine_gpu.sv \
+	  sys/rtl/hydra_cpu_sram.sv sys/rtl/hydra_engine_cpu.sv \
+	  sys/rtl/hydra_abi_v2.sv sys/rtl/hydra_sys_tile.sv sky130/rtl/hydra_openframe_top.sv > $(SIMTMP)/hydra_of_mcu.v
+	G=$$(python3 sys/tb/boot_digest.py $(SIMTMP)/cpuvec_mcu/hydra_leds_uart/prog.hex 2112) && test -n "$$G" && \
+	iverilog -g2012 -Ptb_openframe_mcu.GOLDEN=256\'h$$G -I $(PIXELSTORM)/rtl -o $(SIMTMP)/hydra_of_mcu \
+	  $(SIMTMP)/hydra_of_mcu.v sky130/tb/tb_openframe_mcu.sv $(PIXELSTORM)/rtl/ps_*.v $(SIXFOLD_CACHED_RTL) \
+	  sys/tb/timescale_1ns.v $(SRAM_V) 2>&1 | { grep -v -e 'sorry: constant selects' -e 'verinum' || true; }
+	@# about 270 s on an idle machine; it passed 900 s on a loaded one (2026-11-09)
+	RUNSIM_TIMEOUT=2400 $(SIM) --show '^(PASS|FAIL|[0-9] )' -- vvp -n $(SIMTMP)/hydra_of_mcu +dir=$(SIMTMP)/cpuvec_mcu/hydra_leds_uart
+
+systile-disp:                 ## the CPU hands work to the scheduler through its dispatch port
+	@test -f $(SIXFOLD)/src/Riscv64.sv || { echo "FAIL systile-disp: $(SIXFOLD) missing"; exit 1; }
+	@test -f $(PIXELSTORM)/rtl/ps_gpu_top.v || { echo "FAIL systile-disp: $(PIXELSTORM) missing"; exit 1; }
+	node tools/cpu_disp_prog.mjs $(SIXFOLD) $(SIMTMP)/cpudisp > /dev/null
+	sv2v mom/rtl/*.sv common/rtl/mom_xbar.sv engines/tpu/rtl/*.sv mem/rtl/*.sv \
+	  sys/rtl/hydra_engine_tpu_dma.sv sys/rtl/hydra_engine_gpu.sv sys/rtl/hydra_engine_cpu.sv \
+	  sys/rtl/hydra_abi_v2.sv sys/rtl/hydra_sys_tile.sv sys/tb/tb_sys_tile_disp.sv > $(SIMTMP)/hydra_systile_disp.v
+	iverilog -g2012 -I $(PIXELSTORM)/rtl -o $(SIMTMP)/hydra_systile_disp $(SIMTMP)/hydra_systile_disp.v \
+	  $(PIXELSTORM)/rtl/ps_*.v $(SIXFOLD_CACHED_RTL) 2>&1 | { grep -v -e 'sorry: constant selects' -e 'verinum' || true; }
+	$(SIM) --show '^(PASS|FAIL|[0-9] )' -- vvp -n $(SIMTMP)/hydra_systile_disp +dir=$(SIMTMP)/cpudisp
 
 harness:                      ## the PC protocol, end to end
 	cd fpga && sv2v ../mom/rtl/*.sv ../mom/hydra_mom_pins.sv ../common/rtl/hydra_rst_sync.sv \
@@ -571,9 +723,23 @@ systile-tpu:                  ## the dispatcher scheduling the REAL array
 lint:                         ## Verilator -Wall: the tile netlist and the OpenFrame chip, zero warnings
 	SIMTMP=$(SIMTMP) ./tools/lint/lint.sh
 
-sky130:                       ## the chip through its pads: pad mux, bring-up, SPI
+secure-boot:                  ## the CPU's secure boot: tampered image refused, real image verified, digests vs hashlib
+	@mkdir -p $(SIMTMP)/sboot
+	sv2v sec/rtl/hydra_sha256.sv sec/rtl/hydra_sha256_stream.sv sec/rtl/hydra_measure.sv \
+	  sec/rtl/hydra_secure_boot.sv > $(SIMTMP)/hydra_sboot.v
+	G=$$(python3 sec/tb/secure_boot_model.py $(SIMTMP)/sboot) && test -n "$$G" && \
+	iverilog -g2012 -Ptb_secure_boot.GOLDEN=256\'h$$G -o $(SIMTMP)/hydra_sboot \
+	  $(SIMTMP)/hydra_sboot.v sec/tb/tb_secure_boot.sv
+	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_sboot +dir=$(SIMTMP)/sboot
+
+i2c-gpio:                     ## the chip's I2C target and 15 GPIO against an independent model
+	python3 common/tb/i2c_gpio_model.py $(SIMTMP)/i2c_gpio_vectors.txt 400
+	iverilog -g2012 -o $(SIMTMP)/i2c_gpio common/rtl/hydra_i2c_gpio.sv common/tb/tb_i2c_gpio.sv
+	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/i2c_gpio +vec=$(SIMTMP)/i2c_gpio_vectors.txt
+
+sky130:                       ## the chip through its pads: pad mux, bring-up, SPI, I2C and GPIO
 	sv2v mom/rtl/*.sv mom/hydra_mom_pins.sv common/rtl/hydra_rst_sync.sv \
-	  common/rtl/hydra_padmux.sv \
+	  common/rtl/hydra_padmux.sv common/rtl/hydra_i2c_gpio.sv \
 	  sky130/rtl/hydra_openframe_top.sv > $(SIMTMP)/hydra_of.v
 	iverilog -g2012 -o $(SIMTMP)/hydra_of $(SIMTMP)/hydra_of.v sky130/tb/tb_openframe.sv
 	$(SIM) --tail 2 -- vvp -n $(SIMTMP)/hydra_of

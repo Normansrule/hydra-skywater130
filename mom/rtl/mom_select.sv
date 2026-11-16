@@ -148,7 +148,7 @@ module mom_select
   wire [PW-1:0] l1_a = pick(lane[0], lane[1]);
   wire [PW-1:0] l1_b = pick(lane[2], lane[3]);
   wire [PW-1:0] l2   = pick(l1_a, l1_b);
-  wire [PW-1:0] best_chain [NENG-4];
+  wire [PW-1:0] best_chain [NENG-4] /*verilator split_var*/;   // a chain, not a loop
   assign best_chain[0] = pick(l2, lane[4]);
   for (genvar e = 5; e < NENG; e++) begin : g_more
     assign best_chain[e-4] = pick(best_chain[e-5], lane[e]);
@@ -174,7 +174,7 @@ module mom_select
     wire [PW-1:0] m1_a = pick(lane2[0], lane2[1]);
     wire [PW-1:0] m1_b = pick(lane2[2], lane2[3]);
     wire [PW-1:0] m2   = pick(m1_a, m1_b);
-    wire [PW-1:0] snd_chain [NENG-4];
+    wire [PW-1:0] snd_chain [NENG-4] /*verilator split_var*/;
     assign snd_chain[0] = pick(m2, lane2[4]);
     for (genvar e = 5; e < NENG; e++) begin : g_more2
       assign snd_chain[e-4] = pick(snd_chain[e-5], lane2[e]);

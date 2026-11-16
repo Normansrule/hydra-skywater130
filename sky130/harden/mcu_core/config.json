@@ -1,0 +1,145 @@
+{
+  "//": "The microcontroller core (sky130/rtl/hydra_mcu_core.sv), first harden. Generated sources: ./regen.sh > src/hydra_mcu_core.v",
+  "DESIGN_NAME": "hydra_mcu_core",
+  "VERILOG_FILES": [
+    "dir::src/hydra_mcu_core.v"
+  ],
+  "VERILOG_POWER_DEFINE": "USE_POWER_PINS",
+  "CLOCK_PORT": "clk",
+  "CLOCK_PERIOD": 70,
+  "FP_SIZING": "absolute",
+  "DIE_AREA": [
+    0,
+    0,
+    3200,
+    3200
+  ],
+  "VDD_NETS": [
+    "vccd1"
+  ],
+  "GND_NETS": [
+    "vssd1"
+  ],
+  "PL_TARGET_DENSITY_PCT": 35,
+  "MACROS": {
+    "sky130_sram_2kbyte_1rw1r_32x512_8": {
+      "gds": [
+        "pdk_dir::libs.ref/sky130_sram_macros/gds/sky130_sram_2kbyte_1rw1r_32x512_8.gds"
+      ],
+      "lef": [
+        "pdk_dir::libs.ref/sky130_sram_macros/lef/sky130_sram_2kbyte_1rw1r_32x512_8.lef"
+      ],
+      "lib": {
+        "*": [
+          "pdk_dir::libs.ref/sky130_sram_macros/lib/sky130_sram_2kbyte_1rw1r_32x512_8_TT_1p8V_25C.lib"
+        ]
+      },
+      "nl": [
+        "dir::src/sram_bb.v"
+      ],
+      "instances": {
+        "u_sys.g_real_cpu.u_cpu.g_cached.g_sram.u_mem.g_lane[0].g_bank[0].g_macro.u_ram": {
+          "location": [
+            120,
+            120
+          ],
+          "orientation": "N"
+        },
+        "u_sys.g_real_cpu.u_cpu.g_cached.g_sram.u_mem.g_lane[1].g_bank[0].g_macro.u_ram": {
+          "location": [
+            120,
+            760
+          ],
+          "orientation": "N"
+        },
+        "u_sys.g_real_cpu.u_cpu.g_cached.g_sram.u_mem.g_lane[2].g_bank[0].g_macro.u_ram": {
+          "location": [
+            120,
+            1400
+          ],
+          "orientation": "N"
+        },
+        "u_sys.g_real_cpu.u_cpu.g_cached.g_sram.u_mem.g_lane[3].g_bank[0].g_macro.u_ram": {
+          "location": [
+            120,
+            2040
+          ],
+          "orientation": "N"
+        },
+        "u_sys.g_real_cpu.u_cpu.g_cached.g_sram.u_mem.g_lane[4].g_bank[0].g_macro.u_ram": {
+          "location": [
+            1120,
+            120
+          ],
+          "orientation": "N"
+        },
+        "u_sys.g_real_cpu.u_cpu.g_cached.g_sram.u_mem.g_lane[5].g_bank[0].g_macro.u_ram": {
+          "location": [
+            1120,
+            760
+          ],
+          "orientation": "N"
+        },
+        "u_sys.g_real_cpu.u_cpu.g_cached.g_sram.u_mem.g_lane[6].g_bank[0].g_macro.u_ram": {
+          "location": [
+            1120,
+            1400
+          ],
+          "orientation": "N"
+        },
+        "u_sys.g_real_cpu.u_cpu.g_cached.g_sram.u_mem.g_lane[7].g_bank[0].g_macro.u_ram": {
+          "location": [
+            1120,
+            2040
+          ],
+          "orientation": "N"
+        }
+      }
+    }
+  },
+  "PDN_MACRO_CONNECTIONS": [
+    ".*u_ram vccd1 vssd1 vccd1 vssd1"
+  ],
+  "SYNTH_HIERARCHY_MODE": "deferred_flatten",
+  "//synth": "Synthesis per module, flattened afterwards: one flat ABC run over 180,000 cells ran the 11 GB WSL machine out of memory (ABC killed, code 137, 2026-10-27).",
+  "//die": "3.2 x 3.2 mm, density 35%, routing up to met5, 8 macros of 683 x 417 um in two columns with 317 um and 223 um channels and 40 um halos. History: pnr1 (2.6 mm, 45%, met4) 34.5% of global-routing tiles overflowed; pnr2 (3.2 mm, 35%, met5, 77 um and 53 um channels, 10 um halos) still overflowed (19,406 total, worst on met1/met2), 2026-11-02. Synthesis: 1.76 mm2 of standard cells (yosys, 2026-11-02).",
+  "FP_MACRO_HORIZONTAL_HALO": 40,
+  "FP_MACRO_VERTICAL_HALO": 40,
+  "MAGIC_DRC_USE_GDS": true,
+  "RUN_KLAYOUT_DRC": false,
+  "//drc": "Magic DRC reads the final GDS with the SRAM macros loaded first as the PDK's abstract views (MAGIC_DRC_MAGLEFS), so the macros' interiors are black boxes and everything this flow drew is checked on real layout. History: pnr3 on the full GDS, 43,487,293 findings, all inside the macros (tools/drc_outside_macros.py); pnr4-5 with every cell abstract, 5,023 nwell.4 markers the real layout does not have; pnr6 on the full GDS, Magic died at 21 GiB after 5 h 56 min and left an empty report that the flow counted as 0, so that 0 is not a result.",
+  "//pnr3": "pnr3 result (2026-11-04, LibreLane 3.0.3): routed, DRT 0; LVS 0; XOR 0; Magic DRC on GDS 0 outside the macros; with abstract macros 5,023 nwell.4 markers that the GDS check does not show; setup max_ss -14.854 ns (TNS -14,954), typical +5.010 ns, max_ff +7.801 ns; hold max_ff -0.013 ns; antenna 4 nets; slew 54,818 / 7,201 / 3,719 (max_ss / nom_tt / max_ff), cap 1,507 / 1,017 / 1,104, fanout 457. Not signed off.",
+  "//clock": "pnr4 (2026-11-04): CLOCK_PERIOD 50 -> 70 ns, one change; pnr3 failed setup by 14.854 ns at max_ss_100C_1v60.",
+  "GRT_ANTENNA_REPAIR_MARGIN": 15,
+  "//antenna": "OpenROAD's antenna repair stops on 'GRT-0183 heap underflow during 3D maze routing' for one net, run to run: pnr4 at margin 10 (resumed at 15, passed), pnr5 at 15 and at 20, so pnr5 resumes with that step skipped and leaves antennas to detailed routing's own repair (DRT_ANTENNA_REPAIR_ITERS) and the final check. A tool workaround, not a design change.",
+  "EXTRA_EXCLUDED_CELLS": [
+    "sky130_fd_sc_hd__clkdlybuf4s*",
+    "sky130_fd_sc_hd__dlygate4sd*",
+    "sky130_fd_sc_hd__dlymetal6s*",
+    "sky130_fd_sc_hd__buf_1",
+    "sky130_fd_sc_hd__clkbuf_1"
+  ],
+  "//buffers": "pnr5 (2026-11-09): one change, the tile's realbuf2 exclusions. pnr4's slowest path at max_ss_100C_1v60 (-13.372 ns at 70 ns) ran through 36 delay cells (35 clkdlybuf4s25_1 built as fanout buffers), 41.77 ns of it.",
+  "//pnr4": "pnr4 result (70 ns, 2026-11-09): routed, DRT 0; LVS 0; XOR 0; illegal overlap 0; setup max_ss -13.372 ns (TNS -8,321), typical +11.223 ns, max_ff +13.911 ns; hold max_ff -0.055 ns; antenna 6 nets; Magic DRC with abstract macros 5,023 (nwell.4); slew 55,801 at max_ss, cap 1,524, fanout 500. Slowest path: 36 delay cells, 41.77 ns of it. Not signed off.",
+  "//pnr5": "pnr5 result (70 ns, realbuf2 exclusions, 2026-11-10): routed, DRT 0; LVS 0; XOR 0; illegal overlap 0; setup met at every corner (max_ss +3.253 ns, typical +11.485 ns, max_ff +14.048 ns; pnr4 max_ss -13.372 ns); hold max_ff -0.049 ns; antenna 9 nets (global-route antenna repair skipped after OpenROAD's GRT-0183 crash); Magic DRC with abstract macros 5,023 (nwell.4); slew 36,626 at max_ss, cap 1,257, fanout 1,029.",
+  "GRT_RESIZER_HOLD_SLACK_MARGIN": 0.1,
+  "DRT_ANTENNA_REPAIR_ITERS": 6,
+  "DRT_ANTENNA_REPAIR_MARGIN": 20,
+  "//pnr6": "pnr6 (2026-11-10): the tile's hold and antenna settings (GRT_RESIZER_HOLD_SLACK_MARGIN 0.05 -> 0.1 for pnr5's -0.049 ns hold at max_ff; DRT antenna repair 3 -> 6 passes, margin 10 -> 20 for its 9 antenna nets), and Magic DRC back on the full GDS so the design outside the SRAM macros is checked on real layout (the macros' own findings are filtered out by position, as for pnr3). RESULT (2026-11-11): routed, DRT 0; LVS 0; XOR 0; illegal overlap 0; antenna 0; Magic DRC 0 with the SRAM macros as the PDK's abstract views (report COUNT 0, 1 h 05 min; tools/drc_outside_macros.py passes); setup met at every corner (max_ss +3.239 ns); hold -0.048 ns at max_ff, failing at the three fast corners. Not signed off on hold alone.",
+  "MAGIC_DRC_MAGLEFS": [
+    "pdk_dir::libs.ref/sky130_sram_macros/maglef/sky130_sram_2kbyte_1rw1r_32x512_8.mag"
+  ],
+  "RUN_POST_GRT_RESIZER_TIMING": true,
+  "//pnr7": "pnr7 (2026-11-11): one change, RUN_POST_GRT_RESIZER_TIMING on (the tile runs it): hold repair with global-route parasitics, for pnr6's -0.048 ns at the fast corners. RESULT (2026-11-11): the whole flow passed (exit 0): routing 0, LVS 0, XOR 0, antenna 0, Magic DRC 0 with the SRAM as abstract views; setup +3.732 ns and hold +0.040 ns worst over every corner; slew 36,436, cap 1,253, fanout 1,035 warnings at max_ss; 33 unconnected core inputs (mem_addr/mem_raddr[13:4], ui_in[7:3], uio_in), all used from v68 on.",
+  "//pnr8": "pnr8 (2026-11-15): run 7's settings on the v67/v68 RTL (CPU UART, LEDS, BUTTONS ports; PINS readback; full control-space decode).",
+  "MAX_FANOUT_CONSTRAINT": 6,
+  "RSZ_CORNERS": [
+    "max_ss_100C_1v60",
+    "nom_tt_025C_1v80",
+    "max_ff_n40C_1v95"
+  ],
+  "DESIGN_REPAIR_MAX_WIRE_LENGTH": 500,
+  "GRT_DESIGN_REPAIR_MAX_WIRE_LENGTH": 500,
+  "RUN_POST_GRT_DESIGN_REPAIR": true,
+  "//pnr9": "pnr9 (2026-11-15): the slew, capacitance and fanout warnings, all at once because each run takes 6 hours: pnr7 left 36,436 slew, 1,253 capacitance and 1,035 fanout warnings at max_ss on 4,561 nets, the worst driving 24-28 loads through buf_12 wire buffers across the die (tools/slew_report.py). Changes: MAX_FANOUT_CONSTRAINT 10 -> 6; repair at the slow, typical and fast corners (RSZ_CORNERS), not the typical alone; buffering of wires longer than 500 um before and after global routing (DESIGN_REPAIR_MAX_WIRE_LENGTH, GRT_DESIGN_REPAIR_MAX_WIRE_LENGTH, RUN_POST_GRT_DESIGN_REPAIR). Same RTL as pnr8 (v67/v68)."
+}

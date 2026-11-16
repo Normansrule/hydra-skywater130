@@ -107,11 +107,22 @@ def pins():
         for b in range(lo, hi + 1):
             drive[f"uo[{b}]"] = name if hi == lo else f"{name}[{b - lo}]"
     for name, hi, lo in fio:
+        sl = re.fullmatch(r"(\w+)\[(\d+):(\d+)\]", name)      # a part-select: r_last_tag[1:0]
         for b in range(lo, hi + 1):
-            drive[f"uio[{b}]"] = name if hi == lo else f"{name}[{b - lo}]"
+            if sl:
+                drive[f"uio[{b}]"] = f"{sl.group(1)}[{int(sl.group(3)) + b - lo}]"
+            else:
+                drive[f"uio[{b}]"] = name if hi == lo else f"{name}[{b - lo}]"
     spi = re.search(r"\.sck_i\((ui_in\[\d\])\),\s*\.copi_i\((ui_in\[\d\])\),\s*\.csn_i\((ui_in\[\d\])\)", src)
     used_in = {spi.group(1).replace("ui_in", "ui"): "sck_i", spi.group(2).replace("ui_in", "ui"): "copi_i",
                spi.group(3).replace("ui_in", "ui"): "csn_i"}
+    # any other input that a register samples (v3.11: pins_meta <= {ena, ui_in[7:3], uio_in}),
+    # named after the register it lands in
+    for lhs, rhs in re.findall(r"(\w+)\s*<?=\s*\{([^;{}]*\bui_in\b[^;{}]*)\}\s*;", src):
+        for m in re.finditer(r"\bui_in\s*\[\s*(\d+)\s*(?::\s*(\d+)\s*)?\]", rhs):
+            hi = int(m.group(1)); lo = int(m.group(2)) if m.group(2) else hi
+            for b in range(lo, hi + 1):
+                used_in.setdefault(f"ui[{b}]", lhs if hi == lo else f"{lhs} (ui_in[{hi}:{lo}])")
     for group, n, direction in (("ui", 8, "input"), ("uo", 8, "output"), ("uio", 8, "output" if oe == "8'hFF" else "?")):
         for b in range(n):
             key = f"{group}[{b}]"

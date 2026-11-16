@@ -1,0 +1,4 @@
+Hello from the HYDRA-130 CPU slot
+fib(60) = 0x000001686c8312d0
+crc32   = 0x00000000b10cd40f
+div ok  = 0x0000000000000001
