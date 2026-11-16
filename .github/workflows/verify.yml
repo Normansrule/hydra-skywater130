@@ -82,14 +82,22 @@ jobs:
       - name: An impossible clock must fail the build
         run: |
           cd fpga/build/ulx3s-85f
-          sed 's/--freq 12.5/--freq 400/' Makefile > Makefile.impossible
+          # The core clock is derived from the board's 25 MHz pin, which the LPF
+          # constrains; nextpnr times derived clocks from that and ignores --freq
+          # for them, so --freq 400 alone placed and routed "PASS at 12.50 MHz"
+          # (2026-11-16, the first run to reach this step in weeks). Raise the pin
+          # constraint too: 800 MHz in, 400 MHz on the core clock.
+          sed 's/FREQUENCY PORT "clk_25mhz" 25 MHZ;/FREQUENCY PORT "clk_25mhz" 800 MHZ;/' hydra_ulx3s_tt.lpf > hydra_ulx3s_tt.impossible.lpf
+          grep -q '800 MHZ' hydra_ulx3s_tt.impossible.lpf || { echo "::error title=timing gate::the LPF clock line changed; update this step"; exit 1; }
+          sed -e 's/--freq 12.5/--freq 400/' -e 's/--lpf hydra_ulx3s_tt.lpf/--lpf hydra_ulx3s_tt.impossible.lpf/' Makefile > Makefile.impossible
+          grep -q 'impossible.lpf' Makefile.impossible || { echo "::error title=timing gate::the nextpnr line changed; update this step"; exit 1; }
           rm -f hydra_ulx3s_tt.config
           if make -f Makefile.impossible hydra_ulx3s_tt.config > impossible.log 2>&1; then
             echo "::error title=timing gate::a 400 MHz target placed and routed -- the timing gate does not work"
             exit 1
           fi
           grep -E "Max frequency|FAIL|ERROR" impossible.log | tail -3
-          rm -f hydra_ulx3s_tt.config Makefile.impossible
+          rm -f hydra_ulx3s_tt.config Makefile.impossible hydra_ulx3s_tt.impossible.lpf
 
       # A missing bitstream is a failed build, not an upload warning.
       - uses: actions/upload-artifact@v5

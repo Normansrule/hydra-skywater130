@@ -301,6 +301,12 @@ def copy_repo(dst):
     # written to while a harden is going, and no mutation reads them
     shutil.copytree(ROOT, dst, ignore=shutil.ignore_patterns(
         ".git", "build", "sim_build", "__pycache__", "*.vcd", "vendor_refs", "*_prove", "*_cover", "runs"))
+    # build/ext holds fetched inputs, not outputs: the SRAM macro's model that
+    # make sram-model downloads where there is no PDK (the CI runner). Without it
+    # the copy's sky130-mcu baseline fails and no mutation counts (CI, 2026-11-16).
+    ext = ROOT / "build/ext"
+    if ext.is_dir():
+        shutil.copytree(ext, pathlib.Path(dst) / "build/ext")
 
 
 def passes(tree, target):
