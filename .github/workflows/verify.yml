@@ -111,10 +111,14 @@ jobs:
     # demand and on the default branch rather than on every pull request.
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    # 180 -> 360 (GitHub's limit for a hosted job), 2026-11-16: the suite now
+    # includes the CPU, secure-boot, UART and chip mutations (about 2 hours here)
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v5
         with:
           submodules: recursive
       - run: ./scripts/bootstrap-ubuntu.sh --system
+      # the chip mutations simulate the SRAM macro with the PDK's model (no PDK on the runner)
+      - run: make sram-model
       - run: make mutate
