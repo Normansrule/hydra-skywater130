@@ -1,6 +1,6 @@
 {
- "run": "wokwi",
- "what": "v3.12",
+ "run": "keep-margin30",
+ "what": "v3.16",
  "steps": [
   {
    "n": 1,
@@ -35,9 +35,9 @@
   {
    "n": 6,
    "name": "yosys synthesis",
-   "detail": "cell area after synthesis 142875.779200 \u00b5m\u00b2",
+   "detail": "cell area after synthesis 142850.755200 \u00b5m\u00b2",
    "evidence": [
-    "Chip area for module '\\tt_um_hydra_mom': 142875.779200"
+    "Chip area for module '\\tt_um_hydra_mom': 142850.755200"
    ]
   },
   {
@@ -216,9 +216,9 @@
   {
    "n": 35,
    "name": "openroad cts",
-   "detail": "270 clock buffers; 1965 clock sinks",
+   "detail": "335 clock buffers; 1965 clock sinks",
    "evidence": [
-    "Total number of Buffers Inserted: 270",
+    "Total number of Buffers Inserted: 335",
     "Total number of Sinks: 1965"
    ]
   },
@@ -243,18 +243,18 @@
   {
    "n": 39,
    "name": "openroad globalrouting",
-   "detail": "routing usage 41.48%, overflow 0; 868592 \u00b5m of wire",
+   "detail": "routing usage 44.97%, overflow 0; 947204 \u00b5m of wire",
    "evidence": [
-    "Total           204789         84951           41.48%             0 /  0 /  0",
-    "Total wirelength: 868592 um"
+    "Total           204764         92085           44.97%             0 /  0 /  0",
+    "Total wirelength: 947204 um"
    ]
   },
   {
    "n": 40,
    "name": "openroad checkantennas",
-   "detail": "88 antenna net violations",
+   "detail": "102 antenna net violations",
    "evidence": [
-    "Found 88 net violations"
+    "Found 102 net violations"
    ]
   },
   {
@@ -336,9 +336,9 @@
   {
    "n": 53,
    "name": "openroad fillinsertion",
-   "detail": "69949 instances with fill, 342568.55 \u00b5m\u00b2",
+   "detail": "65032 instances with fill, 342568.55 \u00b5m\u00b2",
    "evidence": [
-    "Total                                 69949  342568.55"
+    "Total                                 65032  342568.55"
    ]
   },
   {

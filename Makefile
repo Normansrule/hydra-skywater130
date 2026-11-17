@@ -267,6 +267,7 @@ readme-check:                 ## lead figures current; every README number match
 	@python3 tools/gen_readme_gifs.py --check
 	@python3 tools/check_readme_facts.py
 	@python3 tools/atlas_boards.py --check
+	@python3 tools/atlas_mfg.py --check
 
 site:                         ## regenerate the project page and the architecture diagram
 	python3 tools/gen_site.py

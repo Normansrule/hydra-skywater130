@@ -1032,6 +1032,101 @@
      0
     ]
    ]
+  },
+  {
+   "label": "2026-11-16, tile v3.16, CLOCK_PERIOD 66 ns",
+   "version": "v3.16",
+   "source": "build/harden-ladder/20261116-224814/checks.out",
+   "settings": "fanout limit 4; buf_1, buf_2, clkbuf_1, clkbuf_2 and every delay buffer excluded; slew repair margin 30%; RTL as v3.12",
+   "period_ns": 66,
+   "critical_path_ns": 57.853,
+   "fmax_slow_MHz": 17.29,
+   "utilisation": 0.599692,
+   "slew_violations": 59,
+   "cap_violations": 0,
+   "drc": 0,
+   "lvs": 0,
+   "antenna": 0,
+   "gate_level_tests": "24/24 (make tile-gl, 2026-11-16)",
+   "slew_report": {
+    "max_ss_100C_1v60": {
+     "slew": [
+      59,
+      -0.377
+     ],
+     "cap": [
+      0,
+      null
+     ]
+    }
+   },
+   "slew_by_corner": {
+    "max_ss_100C_1v60": 59,
+    "nom_ss_100C_1v60": 46,
+    "min_ss_100C_1v60": 29,
+    "max_tt_025C_1v80": 0,
+    "nom_tt_025C_1v80": 0,
+    "min_tt_025C_1v80": 0,
+    "max_ff_n40C_1v95": 0,
+    "nom_ff_n40C_1v95": 0,
+    "min_ff_n40C_1v95": 0
+   },
+   "corners": [
+    [
+     "max_ss_100C_1v60",
+     8.147,
+     0.881,
+     0
+    ],
+    [
+     "nom_ss_100C_1v60",
+     8.769,
+     0.878,
+     0
+    ],
+    [
+     "min_ss_100C_1v60",
+     9.4,
+     0.874,
+     0
+    ],
+    [
+     "max_tt_025C_1v80",
+     38.529,
+     0.317,
+     0
+    ],
+    [
+     "nom_tt_025C_1v80",
+     38.893,
+     0.317,
+     0
+    ],
+    [
+     "min_tt_025C_1v80",
+     39.246,
+     0.314,
+     0
+    ],
+    [
+     "max_ff_n40C_1v95",
+     49.255,
+     0.099,
+     0
+    ],
+    [
+     "nom_ff_n40C_1v95",
+     49.486,
+     0.102,
+     0
+    ],
+    [
+     "min_ff_n40C_1v95",
+     49.706,
+     0.104,
+     0
+    ]
+   ]
   }
  ]
 }

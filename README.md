@@ -24,7 +24,7 @@ hardware, and how far each claim here has actually been checked.
 [The Tiny Tapeout tile](https://github.com/Normansrule/tinytapeout-hydra) ·
 Maintained by [@Normansrule](https://github.com/Normansrule)
 
-> **Where things stand, by revision.** The **Tiny Tapeout tile** is the scheduler alone; its v3.12 harden has a
+> **Where things stand, by revision.** The **Tiny Tapeout tile** is the scheduler alone; its v3.16 harden has a
 > clean sign-off record from one LibreLane run, which is not fabricated or tested silicon. Tiny Tapeout's own
 > GitHub GDS flow, which builds the submission, does not yet finish: its Verilator 5.018 lint stops on one reset
 > loop in `src/project.v` that the local Verilator 5.032 accepts. The **SkyWater 130
@@ -37,7 +37,7 @@ Maintained by [@Normansrule](https://github.com/Normansrule)
 <p align="center">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/hero.dark.svg">
-  <img src="docs/img/hero.svg" width="100%" alt="HYDRA-130 lead figure. Left: the Tiny Tapeout tile's sign-off facts from its v3.12 harden (timing met at all nine corners, design rules, LVS and antenna clean, 218 slew warnings at the slowest corner), the gate-level result, the proof tasks, the GPU engine's kernel count and a note that the security blocks are checked IP in no build. Right: an area chart, not a floorplan, with each separately synthesized block drawn to its standard-cell area and an illustrative dispatch to the systolic array.">
+  <img src="docs/img/hero.svg" width="100%" alt="HYDRA-130 lead figure. Left: the Tiny Tapeout tile's sign-off facts from its v3.16 harden (timing met at all nine corners, design rules, LVS and antenna clean, 59 slew warnings at the slowest corner), the gate-level result, the proof tasks, the GPU engine's kernel count and a note that the security blocks are checked IP in no build. Right: an area chart, not a floorplan, with each separately synthesized block drawn to its standard-cell area and an illustrative dispatch to the systolic array.">
 </picture>
 </p>
 
@@ -56,7 +56,7 @@ Maintained by [@Normansrule](https://github.com/Normansrule)
 - **Three targets, kept apart.** The scheduler-only Tiny Tapeout tile, the SkyWater 130 OpenFrame chip, and ten
   FPGA build plans. Nothing proved for one is claimed for another.
 - **The Silicon Atlas.** A self-contained project page built from the repository itself. It opens on the tile's
-  real routed layout (69,949 cells and 16,338 nets from the v3.12 harden, each cell drawn from the process design
+  real routed layout (65,032 cells and 18,773 nets from the v3.16 harden, each cell drawn from the process design
   kit's own layout of its type) and zooms in as you scroll while one dispatch decision plays on it: every wire
   glows while its net is high in a gate-level simulation of the hardened netlist, in the manner of
   [Visual 6502](http://www.visual6502.org/). Behind that: what each of 18 builds actually instantiates (read from
@@ -72,7 +72,7 @@ The atlas in motion, filmed from the page itself in a headless browser (every fr
 and the gate-level recording):
 
 <p align="center">
-  <img src="docs/img/story.webp" width="100%" alt="The atlas's opening story filmed from the page: the hardened tile's whole routed layout, the dispatch unit's cells coloured by block, one decision lighting the wires cycle by cycle, single standard cells, the cells and four metal layers pulled apart into a turning 3D stack, and the whole tile again with the 2,125 nets that switched.">
+  <img src="docs/img/story.webp" width="100%" alt="The atlas's opening story filmed from the page: the hardened tile's whole routed layout, the dispatch unit's cells coloured by block, one decision lighting the wires cycle by cycle, single standard cells, the cells and four metal layers pulled apart into a turning 3D stack, and the whole tile again with the 2,669 nets that switched.">
 </p>
 
 The atlas opens on the hardened tile and zooms in as you scroll. These are its six steps, shot from the page
@@ -80,7 +80,7 @@ itself (the die is always drawn dark, like a mask; the rest of the page follows 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/atlas-story.dark.png">
-  <img src="docs/img/atlas-story.png" width="100%" alt="The atlas opening: the title HYDRA-130 and one sentence on what it does, beside the whole routed layout of the Tiny Tapeout tile drawn from its v3.12 harden, with a scale bar and the gate-level cycle counter.">
+  <img src="docs/img/atlas-story.png" width="100%" alt="The atlas opening: the title HYDRA-130 and one sentence on what it does, beside the whole routed layout of the Tiny Tapeout tile drawn from its v3.16 harden, with a scale bar and the gate-level cycle counter.">
 </picture>
 
 <picture>
@@ -100,12 +100,12 @@ itself (the die is always drawn dark, like a mask; the rest of the page follows 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/atlas-exploded.dark.png">
-  <img src="docs/img/atlas-exploded.png" width="100%" alt="Step 5: the mask pulled apart. The tile's cells and its four metal layers drawn as a turning 3D stack, each layer labelled with its count: 69,949 cells, 69,348 metal-1, 43,454 metal-2, 3,738 metal-3 and 497 metal-4 rectangles, with the nets high at the select glowing on every layer.">
+  <img src="docs/img/atlas-exploded.png" width="100%" alt="Step 5: the mask pulled apart. The tile's cells and its four metal layers drawn as a turning 3D stack, each layer labelled with its count: 65,032 cells, 76,448 metal-1, 47,971 metal-2, 4,521 metal-3 and 682 metal-4 rectangles, with the nets high at the select glowing on every layer.">
 </picture>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/atlas-switched.dark.png">
-  <img src="docs/img/atlas-switched.png" width="100%" alt="Step 6: the whole tile again with every net that is high at the select glowing amber, and the card: 2,125 nets switched to make one decision, 13% of the tile's nets, changing value 4,687 times in 28 cycles.">
+  <img src="docs/img/atlas-switched.png" width="100%" alt="Step 6: the whole tile again with every net that is high at the select glowing amber, and the card: 2,669 nets switched to make one decision, 14% of the tile's nets, changing value 5,938 times in 28 cycles.">
 </picture>
 
 After the story, one number per screen, each on a block of colour, its fill exposed as you scroll to it; every
@@ -182,6 +182,35 @@ The ULX3S image, the next one to bring up, drawn from its plan and from the boar
 uses. The site's [Boards tab](https://normansrule.github.io/hydra-skywater130/#boards) draws all ten images the
 same way.
 
+## Manufacturing
+
+What each target needs to be made, read from its hardened run and the process design kit.
+
+<!-- manufacturing:start -->
+
+| | Tiny Tapeout tile | OpenFrame core (hardened block) |
+|---|---|---|
+| die width x height | 682.64 × 511.36 µm | 3200.00 × 3200.00 µm |
+| die area | 0.3491 mm² | 10.24 mm² |
+| process / PDK | SkyWater SKY130 (sky130A), 130 nm | SkyWater SKY130 (sky130A), 130 nm |
+| tile pins | 45 pins | — |
+| chip I/O (OpenFrame) | — | 44 GPIO pads |
+| package | 64-pin QFN | — |
+| signal routing layers used | met1, met2, met3, met4 | met1, met2, met3, met4, met5 |
+| I/O pad pitch | pending (padframe DEF not fetched) | pending (padframe DEF not fetched) |
+| core supply (standard cells VPWR) | 1.8 V | 1.8 V |
+| I/O pad supply (VDDIO) | 3.3 V | 3.3 V |
+| ground (VGND) | 0 V | 0 V |
+| Magic DRC | 0 | 0 |
+| LVS errors | 0 | 0 |
+| antenna violating nets | 0 | 0 |
+| max slew violations, all corners | 59 | 12,397 |
+| max fanout violations, all corners | 248 | 4,529 |
+
+Every value is generated by `tools/tapeout_facts.py` into `docs/tapeout/facts.json`, with the command and source file that reproduce it; the site's [Manufacturing tab](https://normansrule.github.io/hydra-skywater130/#manufacturing) shows each one.
+
+<!-- manufacturing:end -->
+
 ## Setup and usage
 
 You'll want WSL2 Ubuntu or a Linux machine. Read `scripts/bootstrap-ubuntu.sh` first: it installs packages with
@@ -237,7 +266,7 @@ revision, clock, constraints and jumpers first.
 
 | part | what it is | evidence reached | how to check |
 |---|---|---|---|
-| Scheduler (Mathematical Operation MUX, MOM) | cost model over five engine slots, tags, self-calibration | simulated against models; proofs on its interfaces; the tile version has been hardened (v3.12, 2026-11-04) | `make systile`, `make cost-cal`, `make tile` |
+| Scheduler (Mathematical Operation MUX, MOM) | cost model over five engine slots, tags, self-calibration | simulated against models; proofs on its interfaces; the tile version has been hardened (v3.16, 2026-11-16) | `make systile`, `make cost-cal`, `make tile` |
 | TPU | 4×4 INT8 systolic array, also fed from scratchpad memory | simulated against an independent model; mutation-tested | `make tpu`, `make dma` |
 | Vector unit | 4 lanes × 32-bit integer. **Not a GPU** | simulated; mutation-tested | `make simd`, `make dma-simd` |
 | NTT butterflies | 4 Barrett butterflies at q = 3329, 8380417, 12289. **Not a transform, not FHE**; in no scheduler slot (the NTT slot is a latency model) | simulated at all three moduli, core and memory path | `make ntt-moduli` |
@@ -333,7 +362,7 @@ Edit those, never the generated files.
 | recorded trace (atlas) | what one passing run did, cycle by cycle, on hashed sources | anything that run didn't exercise |
 | FPGA place and route | mapping and timing for that device and those constraints | that a board works |
 | board test | measured behaviour of one image on one board (none yet) | other configurations |
-| ASIC reports | the named checks on one exact layout (the tile, v3.12) | fabricated silicon, or the full chip |
+| ASIC reports | the named checks on one exact layout (the tile, v3.16) | fabricated silicon, or the full chip |
 
 `scripts/ci_selftest.sh` breaks the design on purpose and requires each break to fail the build. Every atlas trace
 records the test, command, commits, tool versions and the hash of each source it ran. Places where the documents
@@ -363,8 +392,8 @@ parent system.
 
 1. Run the ULX3S scheduler image on a real board and record the result
    ([procedure](docs/bringup/ulx3s-85f.md)).
-2. Bring the tile's slew warnings to 0. The v3.12 harden signed off clean with 24 / 24 gate-level tests but left
-   218 slew warnings at the slowest corner (v3.11 had 1,041); the count moves with placement, not only with settings.
+2. Bring the tile's slew warnings to 0. The v3.16 harden signed off clean with 24 / 24 gate-level tests but left
+   59 slew warnings at the slowest corner (v3.12 had 218); the count moves with placement, not only with settings.
 3. Move the CPU, GPU and TPU from the system tile into the OpenFrame chip top, then harden the chip.
 4. FHE, then SE, each against its written contract.
 

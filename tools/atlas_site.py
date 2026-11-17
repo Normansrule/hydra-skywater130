@@ -24,6 +24,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 import atlas_theme as T          # noqa: E402
 import atlas_tile                # noqa: E402
 import atlas_boards              # noqa: E402
+import atlas_mfg                 # noqa: E402
 
 ATLAS = ROOT / "docs/atlas"
 REPO = "Normansrule/hydra-skywater130"
@@ -572,7 +573,9 @@ def render(metrics):
                   "; ".join(esc(p) for p in problems[:6]) + "</div>")
 
     return PAGE.format(
-        css=CSS + atlas_boards.CSS, js=JS + DIE_JS + FPGA_JS + NUM_JS + REVEAL_JS + LAMP_JS + atlas_boards.JS + MOTION_JS, boards=atlas_boards.section(metrics), data=blob, light=T.css_vars(T.LIGHT) + ";--grain:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .08 0 0 0 0 .02 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E\")",
+        css=CSS + atlas_boards.CSS + atlas_mfg.CSS, js=JS + DIE_JS + FPGA_JS + NUM_JS + REVEAL_JS + LAMP_JS + atlas_boards.JS + MOTION_JS, boards=atlas_boards.section(metrics), mfg=atlas_mfg.section(), mfg_intro=atlas_mfg.INTRO,
+        apps=atlas_mfg.applications((facts['sel']['c'] - facts['go']) if facts and facts.get('sel') else None,
+                                    t_last.get('period_ns')), data=blob, light=T.css_vars(T.LIGHT) + ";--grain:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .08 0 0 0 0 .02 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E\")",
         dark=T.css_vars(T.DARK) + ";--grain:none", fonts=fonts,
         story=story_html(facts, die_ver, str(tp["tiles"]).replace("x", "×")), die_text=die_text(facts, die),
         die_bin=b64(die["die.bin"]) if "die" in die else "", diegl_bin=b64(die["die-gl.bin"]) if "die-gl" in die else "",
@@ -1036,6 +1039,7 @@ nav.tabs{display:flex;gap:2px;flex-wrap:wrap;flex:1}
 nav.tabs a{padding:7px 10px;border-radius:var(--r-s);color:var(--ink2);text-decoration:none;font-size:14.5px;white-space:nowrap;
  transition:background-color 150ms ease,color 150ms ease}
 @media (hover:hover) and (pointer:fine){nav.tabs a:hover{background:var(--bg);color:var(--ink)}}
+@media (min-width:761px) and (max-width:1500px){.brand small{display:none}nav.tabs a{padding:7px 8px}}
 nav.tabs a[aria-current="page"]{background:var(--bg);color:var(--ink);font-weight:600}
 .theme{display:flex;gap:2px;background:var(--bg);border-radius:var(--r-s);padding:3px}
 .theme button{font:var(--fs-1) var(--sans);background:none;border:0;color:var(--ink2);padding:5px 10px;border-radius:6px;cursor:pointer;min-height:34px}
@@ -1441,7 +1445,7 @@ PAGE = """<!DOCTYPE html>
   <nav class="tabs" aria-label="Sections">
     <a href="#overview">Overview</a><a href="#architecture">Architecture</a><a href="#layout">Physical layout</a>
     <a href="#blocks">Blocks</a><a href="#demos">Demos</a><a href="#tile">Tiny Tapeout</a>
-    <a href="#boards">Boards</a><a href="#build">Build</a><a href="#evidence">Evidence</a>
+    <a href="#boards">Boards</a><a href="#manufacturing">Manufacturing</a><a href="#build">Build</a><a href="#evidence">Evidence</a>
   </nav>
   <div class="theme" role="group" aria-label="Colour theme">
     <button type="button" data-theme="system" aria-pressed="true">Auto</button>
@@ -1511,6 +1515,7 @@ PAGE = """<!DOCTYPE html>
   <p class="prov" id="fpga-prov"></p>
   {fpga_text}
   </div></div>
+  {apps}
   <div class="band mask"><div class="wrap">
   <p class="eyebrow">Where it stands</p>
   <h2>Where things stand</h2>
@@ -1668,6 +1673,12 @@ PAGE = """<!DOCTYPE html>
   <h2 id="h-boards">On the boards</h2>
   <p>Each FPGA image as its plan wires it: the host on a USB serial link, the blocks the image compiles in, and every board net it drives, with the FPGA ball each one lands on. The wiring is read from the image's plan and from the board file built from the vendor's own constraint file. <b>No image has run on a board yet</b>; the bring-up procedure is <code>docs/bringup/ulx3s-85f.md</code>.</p>
   {boards}
+</section>
+
+<section class="panel wrap" id="manufacturing" aria-labelledby="h-mfg">
+  <h2 id="h-mfg">Manufacturing</h2>
+  {mfg_intro}
+  {mfg}
 </section>
 
 <section class="panel wrap" id="build" aria-labelledby="h-build">

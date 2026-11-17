@@ -267,15 +267,27 @@ def build(tile_run, core_run):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--tile", default=str(TT / "runs/wokwi"))
-    ap.add_argument("--core", default=None)
+    ap.add_argument("--tile", default=None, help="tile run (default: ~/src/tinytapeout-hydra/runs/wokwi; with --check, the recorded one)")
+    ap.add_argument("--core", default=None, help="core run (default: the latest complete; with --check, the recorded one)")
     ap.add_argument("--out", default=str(ROOT / "docs/tapeout/facts.json"))
     ap.add_argument("--check", action="store_true")
     a = ap.parse_args()
-    core = pathlib.Path(a.core) if a.core else latest_core_run()
-    data = build(pathlib.Path(a.tile), core)
-    text = json.dumps(data, indent=1) + "\n"
     out = pathlib.Path(a.out)
+    recorded = json.loads(out.read_text())["targets"] if out.exists() else {}
+
+    def recorded_run(target):
+        r = recorded.get(target, {}).get("run")
+        return pathlib.Path(os.path.expanduser(r)) if r and r.startswith("~") else (ROOT / r if r else None)
+
+    # --check re-reads the runs the file was written from (the live tile run may
+    # be mid-harden or hold another candidate); writing takes the arguments
+    tile = pathlib.Path(a.tile) if a.tile else (recorded_run("tt_tile") if a.check else None) or TT / "runs/wokwi"
+    core = pathlib.Path(a.core) if a.core else (recorded_run("openframe_core") if a.check else None) or latest_core_run()
+    for name, run in (("tile", tile), ("core", core)):
+        if run and not (run / "final/def").is_dir():
+            sys.exit(f"tapeout_facts: {name} run {rel(run)} has no final/def (a harden in progress, or removed); pass --{name}")
+    data = build(tile, core)
+    text = json.dumps(data, indent=1) + "\n"
     if a.check:
         if not out.exists() or out.read_text() != text:
             sys.exit(f"tapeout_facts: {rel(out)} is out of date: run python3 tools/tapeout_facts.py")
