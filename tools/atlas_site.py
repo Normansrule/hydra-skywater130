@@ -25,6 +25,7 @@ import atlas_theme as T          # noqa: E402
 import atlas_tile                # noqa: E402
 import atlas_boards              # noqa: E402
 import atlas_mfg                 # noqa: E402
+import atlas_ttfit               # noqa: E402
 
 ATLAS = ROOT / "docs/atlas"
 REPO = "Normansrule/hydra-skywater130"
@@ -573,7 +574,7 @@ def render(metrics):
                   "; ".join(esc(p) for p in problems[:6]) + "</div>")
 
     return PAGE.format(
-        css=CSS + atlas_boards.CSS + atlas_mfg.CSS, js=JS + DIE_JS + FPGA_JS + NUM_JS + REVEAL_JS + LAMP_JS + atlas_boards.JS + MOTION_JS, boards=atlas_boards.section(metrics), mfg=atlas_mfg.section(), mfg_intro=atlas_mfg.INTRO,
+        css=CSS + PERF_CSS + atlas_boards.CSS + atlas_mfg.CSS + '.ttfit-fig{margin:var(--sp-3) 0 0}.ttfit{display:block;width:100%;height:auto;max-width:1200px}@media (max-width:760px){.ttfit-fig{overflow-x:auto}.ttfit{min-width:720px}}', js=JS + DIE_JS + FPGA_JS + NUM_JS + REVEAL_JS + LAMP_JS + atlas_boards.JS + MOTION_JS + PERF_JS, boards=atlas_boards.section(metrics), mfg=atlas_mfg.section(), mfg_intro=atlas_mfg.INTRO, ttfit=atlas_ttfit.site_svg(), tt_slot='4×4',
         apps=atlas_mfg.applications((facts['sel']['c'] - facts['go']) if facts and facts.get('sel') else None,
                                     t_last.get('period_ns')), data=blob, light=T.css_vars(T.LIGHT) + ";--grain:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .08 0 0 0 0 .02 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E\")",
         dark=T.css_vars(T.DARK) + ";--grain:none", fonts=fonts,
@@ -1427,6 +1428,7 @@ PAGE = """<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>HYDRA-130 Silicon Atlas</title>
+<script>document.documentElement.classList.add('jsl')</script>
 <meta name="description" content="HYDRA-130: a hardware scheduler that costs compute engines, dispatches to the cheapest eligible one and calibrates itself. Blocks, builds, recorded traces and evidence, generated from the repository.">
 <style>
 {fonts}
@@ -1440,6 +1442,8 @@ PAGE = """<!DOCTYPE html>
 <body>
 {icons}
 <a class="skip" href="#main">Skip to content</a>
+<div class="loader" aria-hidden="true"><svg viewBox="0 0 64 64"><rect class="lo-die" x="14" y="14" width="36" height="36" rx="3"/><path class="lo-pin" d="M22 6v8M32 6v8M42 6v8M22 50v8M32 50v8M42 50v8M6 22h8M6 32h8M6 42h8M50 22h8M50 32h8M50 42h8"/><rect class="lo-scan" x="14" y="14" width="36" height="3"/></svg><p>HYDRA-130<span>reading the layout</span></p></div>
+<div class="progress" aria-hidden="true"></div>
 <header class="top mask"><div class="wrap">
   <a class="brand" href="#overview"><svg aria-hidden="true"><use href="#i-mark"/></svg>HYDRA-130 <small>Silicon Atlas</small></a>
   <nav class="tabs" aria-label="Sections">
@@ -1650,6 +1654,9 @@ PAGE = """<!DOCTYPE html>
   <b>outside</b> it: the host sends a descriptor, reads the decision, and reports when the job finished with COMP. The
   pins below are read from <code>info.yaml</code> and checked against the wrapper's own assignments.</p>
   <div class="scroll">{pin_svg}</div>
+  <h3 style="margin-top:20px">On the chip, to scale</h3>
+  <p>The tile is one {tt_slot} slot on Tiny Tapeout's shared chip, inside Caravel's padframe. Every length below is read from a file: the die and pads from Caravel's public <code>chip_io.def</code>, each pad's size from the PDK, the slot from Tiny Tapeout's <code>tile_sizes.yaml</code>, and the layout in the slot is this tile's own hardened layout. Where the slot sits on a shuttle is assigned by Tiny Tapeout, so its place on the chip is illustrative. The lengths are kept in <code>docs/tapeout/ttfit.json</code>.</p>
+  <figure class="ttfit-fig" tabindex="0" aria-label="Chip-fit drawing; scroll sideways on a narrow screen">{ttfit}</figure>
   <div class="grid2">
     <div><h4>Clock, reset, enable</h4><ul>
       <li><b>Clock</b>: {clock_mhz} MHz declared (<code>clock_hz</code>), {period} ns, the sign-off period of {tile_ver}.</li>
@@ -2206,7 +2213,7 @@ class DieView{
       this.target[i]=v}
     if(spawned){this.spDirty=true;this.spLast=now}
     if(RM.matches||first)this.glow.set(this.target);this.kick();this.o.onCycle&&this.o.onCycle(c)}
-  kick(){if(!this.raf&&this.gl&&!this.lost)this.raf=requestAnimationFrame(t=>this.tick(t))}
+  kick(){if(!this.raf&&this.gl&&!this.lost&&this.visible!==false)this.raf=requestAnimationFrame(t=>this.tick(t))}
   tick(t){this.raf=0;const dt=this.last?Math.min(0.25,(t-this.last)/1000):0.016;this.last=t;let moving=false;
     // camera: a critically damped spring on centre and log-scale
     // (in steps of at most 1/60 s, so a slow frame does not slow the camera or make it unstable)
@@ -2280,16 +2287,19 @@ class DieView{
       gl.bindTexture(gl.TEXTURE_2D,this.tex)}
     gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.bindVertexArray(null)}
   // the wires of the nets that are lit (glowing, flashing or picked), gathered per layer when that set changes
-  litSet(){const gl=this.gl,P=this.P,g=this.glow,f=this.flash;let c=0,h=0;
-    for(let i=0;i<this.nn;i++)if(g[i]>0.02||f[i]>0.02){c++;h=(Math.imul(h,31)+i)|0}
-    const sig=c+':'+h+':'+this.pick;if(this.vL&&sig===this._lsig)return;this._lsig=sig;
+  litSet(){const gl=this.gl,P=this.P,g=this.glow,f=this.flash;
+    // one superset of nets that can light (every net the recording switches, plus any seen lit), rebuilt only when it
+    // grows or the selection changes; the vertex shader drops instances below 0.02 glow and flash
+    if(!this._sup){this._sup=new Uint8Array(65536);if(P.activity)for(let i=0;i<this.nn;i++)if(P.activity[i]>0)this._sup[i]=1}
+    const sup=this._sup;let grew=false;for(let i=0;i<this.nn;i++)if(!sup[i]&&(g[i]>0.02||f[i]>0.02)){sup[i]=1;grew=true}
+    if(this.vL&&!grew&&this.pick===this._lsig)return;this._lsig=this.pick;
     if(!this.vL){this.vL={};const pr=this.pr,cl=pr.a('corner'),rl=pr.a('rect'),nl=pr.a('net');
       for(const l of Object.keys(P.wires)){const vao=gl.createVertexArray();gl.bindVertexArray(vao);
         gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);gl.enableVertexAttribArray(cl);gl.vertexAttribPointer(cl,2,gl.FLOAT,false,0,0);
         const rb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,rb);gl.enableVertexAttribArray(rl);gl.vertexAttribPointer(rl,4,gl.FLOAT,false,0,0);gl.vertexAttribDivisor(rl,1);
         const nb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,nb);gl.enableVertexAttribArray(nl);gl.vertexAttribIPointer(nl,1,gl.UNSIGNED_SHORT,0,0);gl.vertexAttribDivisor(nl,1);
         this.vL[l]={vao,rb,nb,k:0}}gl.bindVertexArray(null)}
-    const on=new Uint8Array(65536);for(let i=0;i<this.nn;i++)if(g[i]>0.02||f[i]>0.02)on[i]=1;if(this.pick>=0)on[this.pick]=1;
+    const on=this._sup.slice();if(this.pick>=0)on[this.pick]=1;
     for(const [l,w] of Object.entries(P.wires)){const n=w.net,r=w.rect;let k=0;for(let i=0;i<n.length;i++)if(on[n[i]])k++;
       const R=new Float32Array(k*4),N=new Uint16Array(k);let j=0;for(let i=0;i<n.length;i++)if(on[n[i]]){R.set(r.subarray(i*4,i*4+4),j*4);N[j++]=n[i]}
       const v=this.vL[l];gl.bindBuffer(gl.ARRAY_BUFFER,v.rb);gl.bufferData(gl.ARRAY_BUFFER,R.length?R:new Float32Array(4),gl.DYNAMIC_DRAW);
@@ -2493,6 +2503,7 @@ if(v.anim&&P.snap){const now=performance.now();if(now-loopT>420){loopT=now;const
   addEventListener('scroll',place,{passive:true});addEventListener('resize',place);
   new IntersectionObserver(es=>{view.visible=es[0].isIntersecting;if(view.visible)view.kick()}).observe(root);
   place();Object.assign(view.cam,view.tgt);view.kick();
+  requestAnimationFrame(()=>document.dispatchEvent(new Event('atlas:ready')));
   // name the register the story lands on
   if(sc)sc.textContent=`The cell in the middle is a ${DM.macros[P.cellmac[flop]].replace('sky130_fd_sc_hd__','')}, a flip-flop that holds one bit of the cost engine.`;
 }
@@ -2695,6 +2706,44 @@ if(!RM.matches){let tries=0;const go=()=>{const v=V();if(!v){if(++tries<80)setTi
   const w=st.getBoundingClientRect().width,t1=performance.now()+350,dur=1900;
   const run=now=>{const k=(now-t1)/dur;if(k>=1){slit=null;kick();return}
     if(k>=0){const e=k<0.5?2*k*k:1-Math.pow(-2*k+2,2)/2;slit=-0.1*w+1.2*w*e;kick()}requestAnimationFrame(run)};requestAnimationFrame(run)};go()}
+})();
+"""
+
+PERF_CSS = r"""
+/* loading screen: only with JavaScript, gone when the die is ready */
+.loader{display:none}
+.jsl .loader{display:grid;place-items:center;align-content:center;gap:14px;position:fixed;inset:0;z-index:60;background:var(--bg);
+ transition:opacity .45s ease,visibility 0s linear .45s;animation:lohide .45s ease 5s forwards}
+.jsl .loader.done{opacity:0;visibility:hidden}
+@keyframes lohide{to{opacity:0;visibility:hidden}}
+.loader svg{width:72px;height:72px}.loader p{margin:0;text-align:center;font-weight:700;letter-spacing:.04em;color:var(--ink)}
+.loader p span{display:block;font-weight:400;font-size:var(--fs-1);color:var(--ink2);letter-spacing:0}
+.lo-die{fill:var(--surface);stroke:var(--control);stroke-width:1.5}.lo-pin{stroke:var(--line);stroke-width:2;stroke-linecap:round}
+.lo-scan{fill:var(--control);opacity:.8;animation:loscan 1.1s cubic-bezier(.6,0,.4,1) infinite alternate}
+@keyframes loscan{from{transform:translateY(0)}to{transform:translateY(33px)}}
+/* the scroll hairline under the tab bar */
+.progress{position:fixed;left:0;right:0;top:0;height:2px;z-index:25;transform-origin:0 50%;transform:scaleX(var(--sp,0));
+ background:linear-gradient(90deg,var(--control),var(--signal));pointer-events:none;opacity:.9}
+/* off-screen motion waits */
+.paused,.paused *{animation-play-state:paused!important}
+p code,li code,td code,th code,figcaption code,summary code{overflow-wrap:anywhere;word-break:break-word}
+@media (prefers-reduced-motion:reduce){.jsl .loader{display:none}.progress{display:none}}
+@media print{.loader,.progress{display:none!important}}
+"""
+
+PERF_JS = r"""
+(()=>{
+// the loading screen leaves as soon as the die is ready, after at most 4 s, or at once with reduced motion
+const L=document.querySelector('.loader');const done=()=>{if(L&&!L.classList.contains('done')){L.classList.add('done');setTimeout(()=>L.remove(),600)}};
+if(!L||matchMedia('(prefers-reduced-motion: reduce)').matches||!document.getElementById('die-hero'))done();
+document.addEventListener('atlas:ready',done);setTimeout(done,4000);
+// the scroll hairline: one transform per frame, only while scrolling
+const bar=document.querySelector('.progress');let q=0;
+const upd=()=>{q=0;const h=document.documentElement.scrollHeight-innerHeight;bar.style.setProperty('--sp',h>0?(scrollY/h).toFixed(4):0)};
+if(bar){addEventListener('scroll',()=>{if(!q)q=requestAnimationFrame(upd)},{passive:true});upd()}
+// CSS and SVG animations wait while off screen
+const io=new IntersectionObserver(es=>es.forEach(e=>e.target.classList.toggle('paused',!e.isIntersecting)),{rootMargin:'200px'});
+document.querySelectorAll('section.panel svg, .band svg, .bd, .ttfit').forEach(e=>io.observe(e));
 })();
 """
 

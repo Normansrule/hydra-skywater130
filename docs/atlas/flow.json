@@ -1,6 +1,6 @@
 {
- "run": "keep-margin30",
- "what": "v3.16",
+ "run": "keep-m30wire",
+ "what": "v3.17",
  "steps": [
   {
    "n": 1,
@@ -216,9 +216,9 @@
   {
    "n": 35,
    "name": "openroad cts",
-   "detail": "335 clock buffers; 1965 clock sinks",
+   "detail": "336 clock buffers; 1965 clock sinks",
    "evidence": [
-    "Total number of Buffers Inserted: 335",
+    "Total number of Buffers Inserted: 336",
     "Total number of Sinks: 1965"
    ]
   },
@@ -243,18 +243,18 @@
   {
    "n": 39,
    "name": "openroad globalrouting",
-   "detail": "routing usage 44.97%, overflow 0; 947204 \u00b5m of wire",
+   "detail": "routing usage 45.26%, overflow 0; 960376 \u00b5m of wire",
    "evidence": [
-    "Total           204764         92085           44.97%             0 /  0 /  0",
-    "Total wirelength: 947204 um"
+    "Total           204793         92695           45.26%             0 /  0 /  0",
+    "Total wirelength: 960376 um"
    ]
   },
   {
    "n": 40,
    "name": "openroad checkantennas",
-   "detail": "102 antenna net violations",
+   "detail": "61 antenna net violations",
    "evidence": [
-    "Found 102 net violations"
+    "Found 61 net violations"
    ]
   },
   {
@@ -336,9 +336,9 @@
   {
    "n": 53,
    "name": "openroad fillinsertion",
-   "detail": "65032 instances with fill, 342568.55 \u00b5m\u00b2",
+   "detail": "64429 instances with fill, 342568.55 \u00b5m\u00b2",
    "evidence": [
-    "Total                                 65032  342568.55"
+    "Total                                 64429  342568.55"
    ]
   },
   {

@@ -2,7 +2,7 @@
 /*
  * cpu_vectors.mjs -- test vectors for hydra_engine_cpu from Sixfold's OWN model
  *
- *   node tools/cpu_vectors.mjs <sixfold checkout> <out dir> [program dir...]
+ *   node tools/cpu_vectors.mjs <sixfold checkout> <out dir> [program dir or .s file...]
  *
  * For every program in <sixfold>/programs that halts on its own in the
  * model, writes <out dir>/<program>/:
@@ -31,7 +31,10 @@ const core = await import(url.pathToFileURL(path.resolve(root, 'model/core.js'))
 fs.mkdirSync(outDir, { recursive: true });
 const kept = [];
 const dirs = [path.join(root, 'programs'), ...extra];
-for (const d of dirs) for (const f of fs.readdirSync(d).filter((n) => n.endsWith('.s')).sort()) {
+// an extra argument may also be one .s file (make cpu-fence runs Sixfold's tests/fence_i.s on its own)
+const sources = dirs.flatMap((d) => d.endsWith('.s') ? [[path.dirname(d), path.basename(d)]]
+  : fs.readdirSync(d).filter((n) => n.endsWith('.s')).sort().map((f) => [d, f]));
+for (const [d, f] of sources) {
   const name = f.replace(/\.s$/, '');
   const img = asm.assemble(fs.readFileSync(path.join(d, f), 'utf8'));
   const cfg = { ...core.CONFIGS.performance, caches: false };

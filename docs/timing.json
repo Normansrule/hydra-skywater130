@@ -1127,6 +1127,101 @@
      0
     ]
    ]
+  },
+  {
+   "label": "2026-11-18, tile v3.17, CLOCK_PERIOD 66 ns",
+   "version": "v3.17",
+   "source": "build/harden-ladder/20261118-010932/checks.out",
+   "settings": "v3.16 plus wires longer than 150 um buffered before and after global routing; RTL as v3.12",
+   "period_ns": 66,
+   "critical_path_ns": 57.803,
+   "fmax_slow_MHz": 17.3,
+   "utilisation": 0.612662,
+   "slew_violations": 12,
+   "cap_violations": 0,
+   "drc": 0,
+   "lvs": 0,
+   "antenna": 0,
+   "gate_level_tests": "24/24 (harden_ladder, 2026-11-18)",
+   "slew_report": {
+    "max_ss_100C_1v60": {
+     "slew": [
+      12,
+      -0.166
+     ],
+     "cap": [
+      0,
+      null
+     ]
+    }
+   },
+   "slew_by_corner": {
+    "max_ss_100C_1v60": 12,
+    "nom_ss_100C_1v60": 3,
+    "min_ss_100C_1v60": 3,
+    "max_tt_025C_1v80": 0,
+    "nom_tt_025C_1v80": 0,
+    "min_tt_025C_1v80": 0,
+    "max_ff_n40C_1v95": 0,
+    "nom_ff_n40C_1v95": 0,
+    "min_ff_n40C_1v95": 0
+   },
+   "corners": [
+    [
+     "max_ss_100C_1v60",
+     8.197,
+     0.878,
+     0
+    ],
+    [
+     "nom_ss_100C_1v60",
+     8.798,
+     0.876,
+     0
+    ],
+    [
+     "min_ss_100C_1v60",
+     9.406,
+     0.874,
+     0
+    ],
+    [
+     "max_tt_025C_1v80",
+     38.524,
+     0.319,
+     0
+    ],
+    [
+     "nom_tt_025C_1v80",
+     38.873,
+     0.317,
+     0
+    ],
+    [
+     "min_tt_025C_1v80",
+     39.204,
+     0.314,
+     0
+    ],
+    [
+     "max_ff_n40C_1v95",
+     49.254,
+     0.095,
+     0
+    ],
+    [
+     "nom_ff_n40C_1v95",
+     49.491,
+     0.101,
+     0
+    ],
+    [
+     "min_ff_n40C_1v95",
+     49.711,
+     0.104,
+     0
+    ]
+   ]
   }
  ]
 }

@@ -2203,12 +2203,36 @@
      "path": "hydra_sys_tile.g_real_cpu.u_cpu.u_core.control_status_register_file.performance_counter[6].counter.low_incrementer"
     },
     {
+     "module": "EventCounter",
+     "path": "hydra_sys_tile.g_real_cpu.u_cpu.u_core.control_status_register_file.performance_counter[7].counter"
+    },
+    {
+     "module": "ParallelPrefixAdder",
+     "path": "hydra_sys_tile.g_real_cpu.u_cpu.u_core.control_status_register_file.performance_counter[7].counter.high_incrementer"
+    },
+    {
+     "module": "ParallelPrefixAdder",
+     "path": "hydra_sys_tile.g_real_cpu.u_cpu.u_core.control_status_register_file.performance_counter[7].counter.low_incrementer"
+    },
+    {
      "module": "ControlUnit",
      "path": "hydra_sys_tile.g_real_cpu.u_cpu.u_core.control_unit"
     },
     {
      "module": "ALUdec",
      "path": "hydra_sys_tile.g_real_cpu.u_cpu.u_core.control_unit.alu_decode"
+    },
+    {
+     "module": "CustomDecode",
+     "path": "hydra_sys_tile.g_real_cpu.u_cpu.u_core.custom_decode"
+    },
+    {
+     "module": "CustomPrepare",
+     "path": "hydra_sys_tile.g_real_cpu.u_cpu.u_core.custom_prepare"
+    },
+    {
+     "module": "CustomUnit",
+     "path": "hydra_sys_tile.g_real_cpu.u_cpu.u_core.custom_unit"
     },
     {
      "module": "ParallelPrefixAdder",
@@ -2264,7 +2288,11 @@
     },
     {
      "module": "LoadControl",
-     "path": "hydra_sys_tile.g_real_cpu.u_cpu.u_core.load_control"
+     "path": "hydra_sys_tile.g_real_cpu.u_cpu.u_core.load_align.load_control"
+    },
+    {
+     "module": "LoadLanes",
+     "path": "hydra_sys_tile.g_real_cpu.u_cpu.u_core.load_lanes"
     },
     {
      "module": "PopulationCountFinish",
@@ -2442,12 +2470,16 @@
     "CSRFile",
     "CarrySaveMultiplyStep",
     "ControlUnit",
+    "CustomDecode",
+    "CustomPrepare",
+    "CustomUnit",
     "EventCounter",
     "GSharePredictor",
     "ImmediateGenerator",
     "IterativeMultiplyDivideUnit",
     "LeadingZeroCounter",
     "LoadControl",
+    "LoadLanes",
     "ParallelPrefixAdder",
     "PopulationCount",
     "PopulationCountFinish",
@@ -2507,36 +2539,37 @@
     "ext/pixelstorm-gpu/rtl/ps_mem_arbiter.v": "a7cd0410f779cf42973d07dbed027f8175bcc691720257de915a57f28896c81f",
     "ext/pixelstorm-gpu/rtl/ps_sm.v": "8264b5bf638c2c7273a3f52593af481f702d2a061597d0b8c48eeb91a2e44da8",
     "ext/sixfold-cpu/fpga/rtl/Main_Memory.sv": "65dc11345222c06046eb647cf7bf901890ef823e6bfa243ec4cad1b8625d5d8e",
-    "ext/sixfold-cpu/src/ALU.sv": "760b3a30871f419d645f1dab8c576cd0e8eea1411d59f31b330d36b499507257",
-    "ext/sixfold-cpu/src/ALUdec.sv": "67ea492ca5dcaf5687589682f7c32ead2c6ede59b1708686ac919dd7c07285d8",
-    "ext/sixfold-cpu/src/ALUop_pkg.sv": "ebdb97a90d755ae2f40011e1b9d07aa73f7c6229aa1ed45a479c32a1fdb1de8b",
+    "ext/sixfold-cpu/src/ALU.sv": "b44c2bcb9d83a185d73ed61ca9bdb35dfcb0771b9b26a21b495d0d442445ea39",
+    "ext/sixfold-cpu/src/ALUdec.sv": "f5a49bf9d4032654af033a099da4844d525dba382e6770da832d96389bd2abe8",
+    "ext/sixfold-cpu/src/ALUop_pkg.sv": "0d0960b0e9f6811821ba4808325616c9a311df6b8d476ca4cfc6d1cdb0e40f3f",
     "ext/sixfold-cpu/src/Branch_Comparator.sv": "a8bb876a06a4e9205244e73e62fbfeced106b206b1cc6830c08a780f5f6bed4f",
     "ext/sixfold-cpu/src/Branch_Control_Unit.sv": "7a8b1e0206b267b209709b1a1c05eb3bc26b6ba117d8b36108151da8b4fdee5d",
     "ext/sixfold-cpu/src/Branch_Target_Buffer.sv": "e493fc0265f7ae630f0983293f6319cb3f88ec6dbba83b17742b1ff375a16431",
     "ext/sixfold-cpu/src/Carry_Save_Multiplier.sv": "d626489e979e2e0b1eaaa826b9a822a568ac640e3fa25e72f148e09eaca74133",
-    "ext/sixfold-cpu/src/Control_Status_Register_File.sv": "ce09d1abcb42da92853b48309b7143a95f2e7ff7c38796a035d6b11a89c969b0",
-    "ext/sixfold-cpu/src/Control_Unit.sv": "fb8eaa8d5f4d755667f7ffc8c26b56848547b20c229c18eaca3de57392e21698",
-    "ext/sixfold-cpu/src/Data_Cache.sv": "42e9dc64955419d5be82d28708e9e409aef96a40f44ebb019cfe8cbb0fe7eb79",
+    "ext/sixfold-cpu/src/Control_Status_Register_File.sv": "4ee5bf34f60fd7fb21c09bb0be73ec740208d4932e1618d76a210ec73a45bc0b",
+    "ext/sixfold-cpu/src/Control_Unit.sv": "6be1b2d2e2022cfcb76beab6f500962ae440bc12ad3d4179ecf5f1c99c878736",
+    "ext/sixfold-cpu/src/Custom_Unit.sv": "f7552a1adb88be514e8df75d7f2998f51b065cdde4e869b000c25d4d46f02263",
+    "ext/sixfold-cpu/src/Data_Cache.sv": "43e84bf10b85010827a217a94851a871d98f4405e3c493795b372c079a55db5f",
     "ext/sixfold-cpu/src/GShare_Branch_Predictor.sv": "2aa0c1a81ec28bc2b9e32e3a27d164fe171224218ec1b7e2393fad7a4d634f6f",
     "ext/sixfold-cpu/src/IMMEDIATEop_pkg.sv": "32cb28ab04fd0e2b63721099d38b0e5442e3cff635f679da65a4854435ebd4bf",
     "ext/sixfold-cpu/src/Immediate_Generator.sv": "5e2ed91c3ebe908ebfe756fd011b305d5890d1992a2048e9ed11ab577863b43d",
-    "ext/sixfold-cpu/src/Instruction_Cache.sv": "f7ff0c0963cf1cf75157d11c50dfb44a1fd9452c88072c1f4ed1b965c260c912",
-    "ext/sixfold-cpu/src/Iterative_Multiply_Divide_Unit.sv": "6f01cffdfae0b68ce4de9eb18b45c029543fb8ce0e272e4c05bcc8b68897f323",
+    "ext/sixfold-cpu/src/Instruction_Cache.sv": "a81c539d757832ddb6c00bc6656eb02c21e17182e3c5f24fc78cea3d35e9fbf3",
+    "ext/sixfold-cpu/src/Iterative_Multiply_Divide_Unit.sv": "5f87a17f3d540c51dcec2f17fc6af2dc0199ca0c863e65c627ebfd52df5d174d",
     "ext/sixfold-cpu/src/Leading_Zero_Counter.sv": "0164430e61f17698e3f6cca08686696b18aa80f864d0480ebb473304624cf505",
-    "ext/sixfold-cpu/src/Load_Control_Unit.sv": "6c03162ba1e633bfc7fa5cfd0af73da8235e2159e1cf3523f81951266681a88e",
+    "ext/sixfold-cpu/src/Load_Control_Unit.sv": "ff8c2b0f7cae4fa8dec4850157da5b8776340856807da15be60b9183df370874",
     "ext/sixfold-cpu/src/Multiply_Divide_Unit.sv": "212703e06c9a6322a3962939636f0c625bf78a8e31744903850385b0e849c498",
-    "ext/sixfold-cpu/src/Opcode_pkg.sv": "be461ad8b066dba4e8ef0891bf3581fd09f0540db8459ed27a3cfa9c26bf92ce",
+    "ext/sixfold-cpu/src/Opcode_pkg.sv": "06d61e803e0a704d84df99a02b380aace0f50f62370cf94cc9cb5ade7c5f2009",
     "ext/sixfold-cpu/src/Parallel_Prefix_Adder.sv": "66c3baa5c8726d3d458024209051f3db98b5320fdd4043dc5243dd55f8e4be9c",
     "ext/sixfold-cpu/src/Population_Count.sv": "85cb0931f5ab1b97574ec0f5b87ba03c924db936e427eb0904d1a3275a3b7aaa",
     "ext/sixfold-cpu/src/Prefix_Negate.sv": "4e7ac6d24f97b24c542c5f6619c639fbfe75109b432b9e08cbc7d4356cf37290",
     "ext/sixfold-cpu/src/Register_File.sv": "7e5f1975a0c9a7c6bd364de385a25ae90bd538309c2feff8802e52e714d50f7d",
     "ext/sixfold-cpu/src/Return_Address_Stack.sv": "da56cabe708aef11765878fc2210b5fb778b336138f8f5e04cd8d3060626ba68",
-    "ext/sixfold-cpu/src/Riscv64.sv": "577b2e18d3c90ae52822b9ab32184cbeca6c45722e39da4e774c42a9334fb593",
+    "ext/sixfold-cpu/src/Riscv64.sv": "2a22979c94fcddeb11c63a5b778b66d378e093301f6d96611bedf2fcb0636d44",
     "ext/sixfold-cpu/src/Store_Control_Unit.sv": "da1fc5733b01391f4b511df16c6f4e0fe6f3df86061c5f95a71a7f4fcd27f88c",
     "ext/sixfold-cpu/src/Tournament_Chooser.sv": "dd3e7df8cb739ff5e57bac098a194bbcf25f7f480659bb8c2e6dac445f1e1259",
     "ext/sixfold-cpu/src/WRITEBACK_op_pkg.sv": "1d3b94a99fa0d896b1c733ff3a7635069b2e27aeab231b641f2dc03afbde1b9a",
     "ext/sixfold-cpu/src/Write_Control_Unit.sv": "34295fa51d43a75fcbaba57ec9cb024759c6b4fd54545c37acc431e4f131320a",
-    "ext/sixfold-cpu/src/const_pkg.sv": "c95ea21642c4cac773db3cf5c84a19037f7e2dc3114ebb3c966710b5cdf6f59c",
+    "ext/sixfold-cpu/src/const_pkg.sv": "764e55ef85264a2d00c416f33533ee81e2b43b088a678a461e12be5e701464e3",
     "mem/rtl/hydra_dma_agen.sv": "c968d823a517a5fe3ebf295f66715ed1c315490a8c4c0286baa774fb5086854b",
     "mem/rtl/hydra_dma_gemm.sv": "e59bf9c407b0982aea9cf74483fc88dc5fe2fba8c4109155fe9a0bc6de6c1ec9",
     "mem/rtl/hydra_spram.sv": "444de662f2494da760bcd2a81d7eff0ec3702a155ba38160ed1fe368cf51bc16",
@@ -2551,7 +2584,7 @@
     "mom/rtl/mom_select.sv": "92aee41d8866f18fa48f980cda09f2727deba7e4560fc4a1458b5e5948034100",
     "mom/rtl/mom_top.sv": "6f768808e0f35ca651659e30ed9a84c7033a5a5f4a57b876582cec884f23b421",
     "sys/rtl/hydra_abi_v2.sv": "0e4ccf10f53e5cdf49b01f12d4689d039acb9b2be903d83b6ed4a44f00d118ef",
-    "sys/rtl/hydra_engine_cpu.sv": "bc17616faa9dc155f53a4b81b2ba1ef2b26cdb1aaac2aac15f217b6be43c55e9",
+    "sys/rtl/hydra_engine_cpu.sv": "497a44af355200f8ff96fe6e3ee3bcbc6f8a5be61312f830d2dde969e5b84f5f",
     "sys/rtl/hydra_engine_gpu.sv": "2ead19288e17cda14d51ce2e8a2d915a76650a4251403c11e71d0ca2cd248e98",
     "sys/rtl/hydra_engine_tpu_dma.sv": "66cd32db68e04c24bf2d4dbe452e927064b2258d9257d5042d923ac84906b00a",
     "sys/rtl/hydra_sys_tile.sv": "bb9679baf35b7693b3fc87130f00f554ccd7b06871d460e60e11339b9402dead",
@@ -3440,8 +3473,8 @@
    "sha256": "2e3b4e701f9d238f2fd1f88a542ede86c50a3affe1eb70c54cf7f309da7aca43"
   },
   "common/rtl/mom_xbar.sv": {
-   "commit": "521c8c14fc18bccb821427376f6471ee48f91187",
-   "dirty": true,
+   "commit": "1118e8047ae2d62033971784bcfa34dc0f130986",
+   "dirty": false,
    "path": "common/rtl/mom_xbar.sv",
    "repo": "Normansrule/hydra-skywater130",
    "sha256": "6e5b27ddeb14ee791dc61782d6de9dcdfd449b6a656ff6c9bf97d36a669f47a1"
@@ -3622,25 +3655,25 @@
    "sha256": "65dc11345222c06046eb647cf7bf901890ef823e6bfa243ec4cad1b8625d5d8e"
   },
   "ext/sixfold-cpu/src/ALU.sv": {
-   "commit": "a642bd6e3276dc9c2de8708ae09908bff9c94255",
+   "commit": "6e28a76dcc38d91f45d29c766fa66507ae95bacf",
    "dirty": false,
    "path": "src/ALU.sv",
    "repo": "Normansrule/sixfold-cpu",
-   "sha256": "760b3a30871f419d645f1dab8c576cd0e8eea1411d59f31b330d36b499507257"
+   "sha256": "b44c2bcb9d83a185d73ed61ca9bdb35dfcb0771b9b26a21b495d0d442445ea39"
   },
   "ext/sixfold-cpu/src/ALUdec.sv": {
-   "commit": "a642bd6e3276dc9c2de8708ae09908bff9c94255",
+   "commit": "59d0dd000ba3cd5717d3753ed1bc1bfa5771b5f6",
    "dirty": false,
    "path": "src/ALUdec.sv",
    "repo": "Normansrule/sixfold-cpu",
-   "sha256": "67ea492ca5dcaf5687589682f7c32ead2c6ede59b1708686ac919dd7c07285d8"
+   "sha256": "f5a49bf9d4032654af033a099da4844d525dba382e6770da832d96389bd2abe8"
   },
   "ext/sixfold-cpu/src/ALUop_pkg.sv": {
-   "commit": "a642bd6e3276dc9c2de8708ae09908bff9c94255",
+   "commit": "59d0dd000ba3cd5717d3753ed1bc1bfa5771b5f6",
    "dirty": false,
    "path": "src/ALUop_pkg.sv",
    "repo": "Normansrule/sixfold-cpu",
-   "sha256": "ebdb97a90d755ae2f40011e1b9d07aa73f7c6229aa1ed45a479c32a1fdb1de8b"
+   "sha256": "0d0960b0e9f6811821ba4808325616c9a311df6b8d476ca4cfc6d1cdb0e40f3f"
   },
   "ext/sixfold-cpu/src/Branch_Comparator.sv": {
    "commit": "e88d347199e88f634fddf3b2daad6544b7123316",
@@ -3671,25 +3704,32 @@
    "sha256": "d626489e979e2e0b1eaaa826b9a822a568ac640e3fa25e72f148e09eaca74133"
   },
   "ext/sixfold-cpu/src/Control_Status_Register_File.sv": {
-   "commit": "a29ee9de24b0f8cbc3e9a80cbed8739fe1284179",
+   "commit": "6e28a76dcc38d91f45d29c766fa66507ae95bacf",
    "dirty": false,
    "path": "src/Control_Status_Register_File.sv",
    "repo": "Normansrule/sixfold-cpu",
-   "sha256": "ce09d1abcb42da92853b48309b7143a95f2e7ff7c38796a035d6b11a89c969b0"
+   "sha256": "4ee5bf34f60fd7fb21c09bb0be73ec740208d4932e1618d76a210ec73a45bc0b"
   },
   "ext/sixfold-cpu/src/Control_Unit.sv": {
-   "commit": "a642bd6e3276dc9c2de8708ae09908bff9c94255",
+   "commit": "09acc412f2aec7aa161e054f29585aac28a8412f",
    "dirty": false,
    "path": "src/Control_Unit.sv",
    "repo": "Normansrule/sixfold-cpu",
-   "sha256": "fb8eaa8d5f4d755667f7ffc8c26b56848547b20c229c18eaca3de57392e21698"
+   "sha256": "6be1b2d2e2022cfcb76beab6f500962ae440bc12ad3d4179ecf5f1c99c878736"
+  },
+  "ext/sixfold-cpu/src/Custom_Unit.sv": {
+   "commit": "6e28a76dcc38d91f45d29c766fa66507ae95bacf",
+   "dirty": false,
+   "path": "src/Custom_Unit.sv",
+   "repo": "Normansrule/sixfold-cpu",
+   "sha256": "f7552a1adb88be514e8df75d7f2998f51b065cdde4e869b000c25d4d46f02263"
   },
   "ext/sixfold-cpu/src/Data_Cache.sv": {
-   "commit": "0453a48b1cf25b590e2201cddfd700406a3d4cbe",
+   "commit": "6e28a76dcc38d91f45d29c766fa66507ae95bacf",
    "dirty": false,
    "path": "src/Data_Cache.sv",
    "repo": "Normansrule/sixfold-cpu",
-   "sha256": "42e9dc64955419d5be82d28708e9e409aef96a40f44ebb019cfe8cbb0fe7eb79"
+   "sha256": "43e84bf10b85010827a217a94851a871d98f4405e3c493795b372c079a55db5f"
   },
   "ext/sixfold-cpu/src/GShare_Branch_Predictor.sv": {
    "commit": "2af0f4ccd675656a1fa6bfc24acb99c3cb4d2520",
@@ -3713,18 +3753,18 @@
    "sha256": "5e2ed91c3ebe908ebfe756fd011b305d5890d1992a2048e9ed11ab577863b43d"
   },
   "ext/sixfold-cpu/src/Instruction_Cache.sv": {
-   "commit": "0453a48b1cf25b590e2201cddfd700406a3d4cbe",
+   "commit": "6e28a76dcc38d91f45d29c766fa66507ae95bacf",
    "dirty": false,
    "path": "src/Instruction_Cache.sv",
    "repo": "Normansrule/sixfold-cpu",
-   "sha256": "f7ff0c0963cf1cf75157d11c50dfb44a1fd9452c88072c1f4ed1b965c260c912"
+   "sha256": "a81c539d757832ddb6c00bc6656eb02c21e17182e3c5f24fc78cea3d35e9fbf3"
   },
   "ext/sixfold-cpu/src/Iterative_Multiply_Divide_Unit.sv": {
-   "commit": "af741687facb21a3266146ac08af9c2e642d0589",
+   "commit": "6e28a76dcc38d91f45d29c766fa66507ae95bacf",
    "dirty": false,
    "path": "src/Iterative_Multiply_Divide_Unit.sv",
    "repo": "Normansrule/sixfold-cpu",
-   "sha256": "6f01cffdfae0b68ce4de9eb18b45c029543fb8ce0e272e4c05bcc8b68897f323"
+   "sha256": "5f87a17f3d540c51dcec2f17fc6af2dc0199ca0c863e65c627ebfd52df5d174d"
   },
   "ext/sixfold-cpu/src/Leading_Zero_Counter.sv": {
    "commit": "af741687facb21a3266146ac08af9c2e642d0589",
@@ -3734,11 +3774,11 @@
    "sha256": "0164430e61f17698e3f6cca08686696b18aa80f864d0480ebb473304624cf505"
   },
   "ext/sixfold-cpu/src/Load_Control_Unit.sv": {
-   "commit": "11ab01f96a517ab60417c8c99dc41b67837310cc",
+   "commit": "6e28a76dcc38d91f45d29c766fa66507ae95bacf",
    "dirty": false,
    "path": "src/Load_Control_Unit.sv",
    "repo": "Normansrule/sixfold-cpu",
-   "sha256": "6c03162ba1e633bfc7fa5cfd0af73da8235e2159e1cf3523f81951266681a88e"
+   "sha256": "ff8c2b0f7cae4fa8dec4850157da5b8776340856807da15be60b9183df370874"
   },
   "ext/sixfold-cpu/src/Multiply_Divide_Unit.sv": {
    "commit": "11ab01f96a517ab60417c8c99dc41b67837310cc",
@@ -3748,11 +3788,11 @@
    "sha256": "212703e06c9a6322a3962939636f0c625bf78a8e31744903850385b0e849c498"
   },
   "ext/sixfold-cpu/src/Opcode_pkg.sv": {
-   "commit": "a642bd6e3276dc9c2de8708ae09908bff9c94255",
+   "commit": "09acc412f2aec7aa161e054f29585aac28a8412f",
    "dirty": false,
    "path": "src/Opcode_pkg.sv",
    "repo": "Normansrule/sixfold-cpu",
-   "sha256": "be461ad8b066dba4e8ef0891bf3581fd09f0540db8459ed27a3cfa9c26bf92ce"
+   "sha256": "06d61e803e0a704d84df99a02b380aace0f50f62370cf94cc9cb5ade7c5f2009"
   },
   "ext/sixfold-cpu/src/Parallel_Prefix_Adder.sv": {
    "commit": "fc144977309b1da5405c6d4ba89c0a06f48602c3",
@@ -3790,11 +3830,11 @@
    "sha256": "da56cabe708aef11765878fc2210b5fb778b336138f8f5e04cd8d3060626ba68"
   },
   "ext/sixfold-cpu/src/Riscv64.sv": {
-   "commit": "a29ee9de24b0f8cbc3e9a80cbed8739fe1284179",
+   "commit": "6e28a76dcc38d91f45d29c766fa66507ae95bacf",
    "dirty": false,
    "path": "src/Riscv64.sv",
    "repo": "Normansrule/sixfold-cpu",
-   "sha256": "577b2e18d3c90ae52822b9ab32184cbeca6c45722e39da4e774c42a9334fb593"
+   "sha256": "2a22979c94fcddeb11c63a5b778b66d378e093301f6d96611bedf2fcb0636d44"
   },
   "ext/sixfold-cpu/src/Store_Control_Unit.sv": {
    "commit": "11ab01f96a517ab60417c8c99dc41b67837310cc",
@@ -3825,11 +3865,11 @@
    "sha256": "34295fa51d43a75fcbaba57ec9cb024759c6b4fd54545c37acc431e4f131320a"
   },
   "ext/sixfold-cpu/src/const_pkg.sv": {
-   "commit": "a29ee9de24b0f8cbc3e9a80cbed8739fe1284179",
+   "commit": "6e28a76dcc38d91f45d29c766fa66507ae95bacf",
    "dirty": false,
    "path": "src/const_pkg.sv",
    "repo": "Normansrule/sixfold-cpu",
-   "sha256": "c95ea21642c4cac773db3cf5c84a19037f7e2dc3114ebb3c966710b5cdf6f59c"
+   "sha256": "764e55ef85264a2d00c416f33533ee81e2b43b088a678a461e12be5e701464e3"
   },
   "fpga/rtl/hydra_fpga_bridge.sv": {
    "commit": "4351dded5f904a68be951e201a253bc23fbe67ea",
@@ -4057,10 +4097,10 @@
   },
   "sys/rtl/hydra_engine_cpu.sv": {
    "commit": "521c8c14fc18bccb821427376f6471ee48f91187",
-   "dirty": false,
+   "dirty": true,
    "path": "sys/rtl/hydra_engine_cpu.sv",
    "repo": "Normansrule/hydra-skywater130",
-   "sha256": "bc17616faa9dc155f53a4b81b2ba1ef2b26cdb1aaac2aac15f217b6be43c55e9"
+   "sha256": "497a44af355200f8ff96fe6e3ee3bcbc6f8a5be61312f830d2dde969e5b84f5f"
   },
   "sys/rtl/hydra_engine_gpu.sv": {
    "commit": "521c8c14fc18bccb821427376f6471ee48f91187",
@@ -4175,7 +4215,7 @@
   "hydra_engine_cpu": {
    "file": "sys/rtl/hydra_engine_cpu.sv",
    "first": 53,
-   "last": 378
+   "last": 379
   },
   "hydra_engine_gpu": {
    "file": "sys/rtl/hydra_engine_gpu.sv",

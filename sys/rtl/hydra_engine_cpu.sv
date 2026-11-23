@@ -162,6 +162,7 @@ module hydra_engine_cpu #(
   wire        dcache_re;
   wire [31:0] icache_dout;
   wire        icache_hit, dcache_hit;
+  wire        icache_invalidate; // fence.i in EXECUTE: the instruction cache empties at this edge
   wire [63:0] mem_dout;
   wire        is_dev = (dcache_addr[63:8] == MMIO_BASE[63:8]);
   wire        host_we = ld_we && host_owns;
@@ -282,7 +283,7 @@ module hydra_engine_cpu #(
       wire [255:0] irefill_line, drefill_line;
       wire [63:0] cache_data;
       InstructionCache #(.MISS_LATENCY(MISS_LATENCY), .SETS(CACHE_SETS)) u_icache (
-        .clk(clk), .reset(core_reset), .FREEZE(HALTED),
+        .clk(clk), .reset(core_reset || icache_invalidate), .FREEZE(HALTED),
         .FETCH_ADDRESS(icache_addr), .INSTRUCTION(icache_dout), .HIT(icache_hit),
         .REFILL_ADDRESS(irefill_addr), .REFILL_LINE(irefill_line));
       DataCache #(.MISS_LATENCY(MISS_LATENCY), .SETS(CACHE_SETS)) u_dcache (
@@ -324,14 +325,14 @@ module hydra_engine_cpu #(
   /* verilator lint_off PINCONNECTEMPTY */
   Riscv64 #(
     .GSHARE_HISTORY_BITS(6), .BTB_ENABLE(1'b1), .RAS_ENABLE(1'b1), .PRECISE_LOAD_STALL(1'b1),
-    .ITERATIVE_MULTIPLY_DIVIDE(1'b1), .TOURNAMENT_PREDICTOR(1'b1)
+    .ITERATIVE_MULTIPLY_DIVIDE(1'b1), .TOURNAMENT_PREDICTOR(1'b1), .ZIFENCEI(1'b1)
   ) u_core (
     .clk(clk), .reset(core_reset), .BRANCH_PREDICTION_ENABLE(1'b1),
     .RESET_VECTOR({32'd0, entry}),
     .TIMER_INTERRUPT_LINE(mtime >= mtimecmp), .EXTERNAL_INTERRUPT_LINE(1'b0),
     .dcache_addr(dcache_addr), .icache_addr(icache_addr), .dcache_we(dcache_we),
     .dcache_din(dcache_din), .dcache_dout(dcache_dout), .icache_dout(icache_dout),
-    .icache_hit(icache_hit), .dcache_re(dcache_re), .dcache_hit(dcache_hit),
+    .icache_hit(icache_hit), .icache_invalidate(icache_invalidate), .dcache_re(dcache_re), .dcache_hit(dcache_hit),
     .csr(csr_tohost), .HALTED(HALTED),
     .DEBUG_REGISTER_ADDRESS(dbg_reg), .DEBUG_REGISTER_DATA(dbg_data),
     .TRACE_VALID(), .TRACE_FETCH1_PC(), .TRACE_FETCH2_PC(), .TRACE_DECODE_PC(), .TRACE_EXECUTE_PC(),

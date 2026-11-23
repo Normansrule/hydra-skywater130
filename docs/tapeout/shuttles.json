@@ -1,0 +1,124 @@
+{
+ "openframe": {
+  "title": "ChipFoundry / Efabless OpenFrame, SKY130",
+  "checks": [
+   {
+    "check": "wrapper ports match the OpenFrame harness",
+    "status": "PASS",
+    "evidence": "39 ports of openframe_project_wrapper in sky130/rtl/hydra_openframe_top.sv against 39 pin groups (887 pins) in build/ext/caravel/def/openframe_project_wrapper.def; names and widths all equal (the DEF carries no DIRECTION, so directions are not compared)",
+    "command": "python3 tools/shuttle_check.py --target openframe"
+   },
+   {
+    "check": "hardened core block fits the wrapper's user area",
+    "status": "OPEN",
+    "evidence": "block 3200 x 3200 um (run sky130/harden/mcu_core/runs/pnr10, docs/tapeout/facts.json); wrapper die 3166.63 x 4766.63 um (DIEAREA, build/ext/caravel/def/openframe_project_wrapper.def); margin -33.37 x 1566.63 um for the pad-side routing and power rings",
+    "command": "python3 tools/tapeout_facts.py; grep DIEAREA build/ext/caravel/def/openframe_project_wrapper.def"
+   },
+   {
+    "check": "core block sign-off: DRC, LVS, antenna",
+    "status": "PASS",
+    "evidence": "{'Magic DRC': 0, 'LVS errors': 0, 'antenna violating nets': 0} from docs/tapeout/facts.json (run sky130/harden/mcu_core/runs/pnr10)",
+    "command": "python3 tools/tapeout_facts.py"
+   },
+   {
+    "check": "core block electrical warnings",
+    "status": "OPEN",
+    "evidence": "{'max slew violations, all corners': 4063, 'max capacitance violations, all corners': 152, 'max fanout violations, all corners': 4307}; the SRAM macro's own library caps addr0/addr1/wmask0 at 0.04 ns, its characterised range, which no SKY130 driver reaches (docs/tapeout/README.md)",
+    "command": "python3 tools/tapeout_facts.py"
+   },
+   {
+    "check": "wrapper-level harden (core placed in openframe_project_wrapper, power connected, pads wired)",
+    "status": "PLANNED",
+    "evidence": "no run yet: the core is hardened as a block; the wrapper flow takes it as a macro inside the 3.166 x 4.766 mm user area",
+    "command": "planned: sky130/harden/openframe_wrapper/config.json (LibreLane, MACROS: hydra_mcu_core)"
+   },
+   {
+    "check": "mpw-precheck on the wrapper GDS",
+    "status": "PLANNED",
+    "evidence": "needs the wrapper GDS above",
+    "command": "planned: the ChipFoundry/Efabless mpw_precheck container on gds/openframe_project_wrapper.gds"
+   },
+   {
+    "check": "gate-level simulation of the chip",
+    "status": "BLOCKED",
+    "evidence": "the chip is simulated through its pads in RTL (make sky130-mcu); no gate-level netlist of the wrapper exists",
+    "command": "make sky130-mcu"
+   },
+   {
+    "check": "pad modes (dm, input disable) against the pad's own model",
+    "status": "BLOCKED",
+    "evidence": "sky130/rtl/hydra_openframe_top.sv states the Caravel/OpenFrame convention it uses (dm = 3'b110 output) and that it has not been checked against the sky130_fd_io__gpiov2 model",
+    "command": "planned: a testbench with the PDK's gpiov2 Verilog model"
+   }
+  ]
+ },
+ "caravel": {
+  "title": "Caravel user project, SKY130",
+  "checks": [
+   {
+    "check": "user-area I/O count against HYDRA's 44 pad functions",
+    "status": "BLOCKED",
+    "evidence": "build/ext/caravel/def/user_project_wrapper.def not fetched; Caravel's user wrapper DEF sets how many user I/O pads exist",
+    "command": "curl -sSfL -o build/ext/caravel/def/user_project_wrapper.def https://raw.githubusercontent.com/efabless/caravel/27cbe49/def/user_project_wrapper.def"
+   },
+   {
+    "check": "Wishbone or logic-analyzer bridge to the scheduler",
+    "status": "PLANNED",
+    "evidence": "Caravel's management SoC reaches the user area over Wishbone; HYDRA's host paths today are SPI, I2C and UART on pads",
+    "command": "planned: sys/rtl bridge from Wishbone to the job interface"
+   },
+   {
+    "check": "user_project_wrapper harden and mpw-precheck",
+    "status": "PLANNED",
+    "evidence": "after the pin map",
+    "command": ""
+   }
+  ]
+ },
+ "gf180": {
+  "title": "GF180MCU (portability)",
+  "checks": [
+   {
+    "check": "GF180MCU: technology files available",
+    "status": "PASS",
+    "evidence": "~/src/tinytapeout-hydra/tt/tech/gf180mcuD present (Tiny Tapeout tooling in the hardening checkout)",
+    "command": "ls ~/src/tinytapeout-hydra/tt/tech/gf180mcuD"
+   },
+   {
+    "check": "GF180MCU: SRAM",
+    "status": "PLANNED",
+    "evidence": "the CPU's memory is the SKY130 OpenRAM macro behind SRAM=1; SRAM_MODEL=1 is a behavioural stand-in, so a port needs that PDK's SRAM macro or flip-flop memory",
+    "command": "sys/rtl/hydra_cpu_sram.sv"
+   },
+   {
+    "check": "GF180MCU: harden",
+    "status": "PLANNED",
+    "evidence": "no run; the cell exclusions in the harden configs name SKY130 cells",
+    "command": ""
+   }
+  ]
+ },
+ "ihp": {
+  "title": "IHP SG13G2 (portability)",
+  "checks": [
+   {
+    "check": "IHP SG13G2: technology files available",
+    "status": "PASS",
+    "evidence": "~/src/tinytapeout-hydra/tt/tech/ihp-sg13g2 present (Tiny Tapeout tooling in the hardening checkout)",
+    "command": "ls ~/src/tinytapeout-hydra/tt/tech/ihp-sg13g2"
+   },
+   {
+    "check": "IHP SG13G2: SRAM",
+    "status": "PLANNED",
+    "evidence": "the CPU's memory is the SKY130 OpenRAM macro behind SRAM=1; SRAM_MODEL=1 is a behavioural stand-in, so a port needs that PDK's SRAM macro or flip-flop memory",
+    "command": "sys/rtl/hydra_cpu_sram.sv"
+   },
+   {
+    "check": "IHP SG13G2: harden",
+    "status": "PLANNED",
+    "evidence": "no run; the cell exclusions in the harden configs name SKY130 cells",
+    "command": ""
+   }
+  ]
+ }
+}

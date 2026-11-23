@@ -145,8 +145,19 @@ def padframe_pitch(path, cell_re, kind_note):
         dbu = int(re.search(r"UNITS DISTANCE MICRONS (\d+)", t).group(1))
         for m in re.finditer(r"-\s+\S+\s+(" + cell_re + r")\s+\+\s+(?:PLACED|FIXED)\s+\(\s*(-?\d+)\s+(-?\d+)\s*\)\s+(\S+)", t):
             pts.append((float(m.group(2)) / dbu, float(m.group(3)) / dbu, m.group(4)))
+    elif p.suffix == ".mag":
+        # Magic layout: "magscale 1 2" makes one unit 0.005 um (sky130 lambda 0.01 um); each "use <cell> <inst>" is
+        # followed by "transform a b c d e f" and the child's "box"; the placed corner is the transformed box minimum.
+        ms = re.search(r"^magscale (\d+) (\d+)", t, re.M)
+        unit = 0.01 * int(ms.group(1)) / int(ms.group(2)) if ms else 0.01
+        for m in re.finditer(r"^use (" + cell_re + r")\s+\S+\n(?:(?!use ).*\n)*?transform (-?\d+) (-?\d+) (-?\d+) (-?\d+) (-?\d+) (-?\d+)\n"
+                             r"box (-?\d+) (-?\d+) (-?\d+) (-?\d+)", t, re.M):
+            a, b, c, d, e, f_, x0, y0, x1, y1 = map(int, m.groups()[1:])
+            xs = [a * x + b * y + c for x, y in ((x0, y0), (x1, y1))]
+            ys = [d * x + e * y + f_ for x, y in ((x0, y0), (x1, y1))]
+            pts.append((min(xs) * unit, min(ys) * unit, ""))
     else:
-        return missing("I/O pad pitch", f"{rel(p)} is not a DEF; only DEF placements are parsed")
+        return missing("I/O pad pitch", f"{rel(p)} is neither a DEF nor a Magic .mag")
     if len(pts) < 4:
         return missing("I/O pad pitch", f"no pad cells matching {cell_re} found in {rel(p)}")
     pitches = []
@@ -247,8 +258,8 @@ def core_facts(run, pdk):
                   "ChipFoundry harness)", "", "upstream file", ROOT / "docs/pins.md", "sed -n '/## 2. SkyWater 130 OpenFrame chip/,$p' docs/pins.md"))
     f += metal_layers(run, pdk)
     f.append(pad_cell(pdk))
-    f.append(padframe_pitch(ROOT / "build/ext/caravel/def/openframe_project_wrapper.def", r"sky130_ef_io__gpiov2_pad_wrapped",
-                            "the OpenFrame wrapper DEF; if it holds no pad cells the pitch stays not available"))
+    f.append(padframe_pitch(ROOT / "build/ext/caravel/mag/chip_io_openframe.mag", r"sky130_ef_io__gpiov2_pad",
+                            "the OpenFrame padframe layout (chip_io_openframe), GPIO pads only; the wrapper DEF holds no pad cells"))
     f += voltages(pdk)
     f += signoff(run)
     return f

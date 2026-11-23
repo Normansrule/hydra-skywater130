@@ -198,6 +198,11 @@ MUTATIONS = [
      "      if (1'b0) bus_addr <= bus_addr + 16'd1;",
      "i2c-gpio"),
     # v67: the CPU's console UART, LEDs and the GPIO owner
+    # v70: Zifencei -- fence.i must empty the instruction cache
+    ("FENCE-01 fence.i leaves the instruction cache full: the old instructions run", "sys/rtl/hydra_engine_cpu.sv",
+     "        .clk(clk), .reset(core_reset || icache_invalidate), .FREEZE(HALTED),",
+     "        .clk(clk), .reset(core_reset), .FREEZE(HALTED),",
+     "cpu-fence"),
     ("UART-01 bits shifted out MSB first", "sys/rtl/hydra_engine_cpu.sv",
      "        tx_count <= '0; tx_shift <= {1'b1, tx_shift[9:1]}; tx_bits <= tx_bits - 4'd1;",
      "        tx_count <= '0; tx_shift <= {tx_shift[8:0], 1'b1}; tx_bits <= tx_bits - 4'd1;",

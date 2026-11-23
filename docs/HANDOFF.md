@@ -22,7 +22,7 @@ Owner: Aleksander J. Norman. Repositories:
 |---|---|
 | `Normansrule/hydra-skywater130` | parent: all RTL, models, testbenches, proofs, FPGA builds, SkyWater OpenFrame chip, docs, site |
 | `Normansrule/tinytapeout-hydra` | Tiny Tapeout tile, a **submodule** at `tt/tile`; scheduler only |
-| `Normansrule/sixfold-cpu` @ `a642bd6` (submodule `ext/sixfold-cpu`) | 6-stage RV64IM+Zba/Zbb/Zbs CPU; **integrated in simulation**: slot 0 of the system tile behind ABI version 2, on Sixfold's caches (`make cpu`, `make systile-cpu`, `make cpu-cached`), and on SkyWater 130 SRAM macros in the microcontroller build (`make cpu-sram`, `make sky130-mcu`). The chip build needs Sixfold's `cache-size` branch (`CACHE_SETS`), not yet pushed |
+| `Normansrule/sixfold-cpu` (submodule `ext/sixfold-cpu`) | 6-stage RV64IM+Zba/Zbb/Zbs CPU; **integrated in simulation**: slot 0 of the system tile behind ABI version 2, on Sixfold's caches (`make cpu`, `make systile-cpu`, `make cpu-cached`), and on SkyWater 130 SRAM macros in the microcontroller build (`make cpu-sram`, `make sky130-mcu`). `CACHE_SETS` (the `compact` build) is now on Sixfold's main line, and the wrapper turns on Zifencei: `ZIFENCEI = 1`, with `icache_invalidate` into the instruction cache's reset, so `fence.i` empties it as Sixfold's model expects |
 | `Normansrule/pixelstorm-gpu` @ `4801c8c` (submodule `ext/pixelstorm-gpu`) | SIMT GPU, 2 SMs × 4 warps × 8 lanes, 40-instruction CUDA-style ISA; **integrated in simulation**: the system tile's sixth slot (`make gpu`, `make systile-gpu`); not in the microcontroller build |
 
 ## 2. The three deliverables (keep them apart)

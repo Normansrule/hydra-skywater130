@@ -52,6 +52,38 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #     took dlygate4sd3_1 for every fanout buffer instead; slew 3,298, cap 8,
 #     but setup -2.403 ns at max_ss_100C_1v60. Rejected by this ladder.
 RUNGS = [
+    ("m30outbuf",
+     "v3.17 candidate (2026-11-18): v3.16 (margin30) with buffers on the output ports (DESIGN_REPAIR_BUFFER_OUTPUT_PORTS). "
+     "Of v3.16's 59 slew warnings (16 nets, slow corners), uo_out[2] and uio_out[5] are flip-flops (dfrtp_2) driving the "
+     "pad load straight from the register, which design repair leaves alone while output ports are unbuffered. One change",
+     {"DESIGN_REPAIR_MAX_SLEW_PCT": 30, "DESIGN_REPAIR_MAX_CAP_PCT": 20, "MAX_FANOUT_CONSTRAINT": 4, "RSZ_CORNERS": None,
+      "RUN_POST_GRT_DESIGN_REPAIR": None, "DESIGN_REPAIR_BUFFER_OUTPUT_PORTS": True,
+      "EXTRA_EXCLUDED_CELLS": ["sky130_fd_sc_hd__clkdlybuf4s*", "sky130_fd_sc_hd__dlygate4sd*",
+                               "sky130_fd_sc_hd__dlymetal6s*", "sky130_fd_sc_hd__buf_1",
+                               "sky130_fd_sc_hd__clkbuf_1", "sky130_fd_sc_hd__buf_2",
+                               "sky130_fd_sc_hd__clkbuf_2"]}),
+    ("m30wire",
+     "v3.17 alternative (2026-11-18): v3.16 (margin30) with long wires buffered (DESIGN_REPAIR_MAX_WIRE_LENGTH and "
+     "GRT_DESIGN_REPAIR_MAX_WIRE_LENGTH 0 = off -> 150 um). The rest of v3.16's 59 warnings are _2 gates (nor2_2, xnor2_2, "
+     "o21ai_2, a22oi_2) driving 2-5 loads over long routed wires, 10 of the 16 nets also carrying an antenna diode. One change",
+     {"DESIGN_REPAIR_MAX_SLEW_PCT": 30, "DESIGN_REPAIR_MAX_CAP_PCT": 20, "MAX_FANOUT_CONSTRAINT": 4, "RSZ_CORNERS": None,
+      "RUN_POST_GRT_DESIGN_REPAIR": None, "DESIGN_REPAIR_MAX_WIRE_LENGTH": 150, "GRT_DESIGN_REPAIR_MAX_WIRE_LENGTH": 150,
+      "EXTRA_EXCLUDED_CELLS": ["sky130_fd_sc_hd__clkdlybuf4s*", "sky130_fd_sc_hd__dlygate4sd*",
+                               "sky130_fd_sc_hd__dlymetal6s*", "sky130_fd_sc_hd__buf_1",
+                               "sky130_fd_sc_hd__clkbuf_1", "sky130_fd_sc_hd__buf_2",
+                               "sky130_fd_sc_hd__clkbuf_2"]}),
+    ("m30postgrt",
+     "v3.17 candidate (2026-11-18): v3.16 (margin30) with design repair run again after global routing, on routed "
+     "parasitics (RUN_POST_GRT_DESIGN_REPAIR). v3.16 left 59 slew warnings at the slow corners only, on 16 nets, "
+     "_2 logic gates (nor2_2, xnor2_2, o21ai_2, a22oi_2) driving 2-5 loads whose routed wires are longer than the "
+     "placement estimate. Post-route repair alone took v3.14 102 -> 111 at margin 20; this is it on top of margin 30. One change. "
+     "RESULT (2026-11-18): signed off, but no gain: slew 59, setup +8.12 ns, hold +0.099 ns, 24/24. Not adopted",
+     {"DESIGN_REPAIR_MAX_SLEW_PCT": 30, "DESIGN_REPAIR_MAX_CAP_PCT": 20, "MAX_FANOUT_CONSTRAINT": 4, "RSZ_CORNERS": None,
+      "RUN_POST_GRT_DESIGN_REPAIR": True,
+      "EXTRA_EXCLUDED_CELLS": ["sky130_fd_sc_hd__clkdlybuf4s*", "sky130_fd_sc_hd__dlygate4sd*",
+                               "sky130_fd_sc_hd__dlymetal6s*", "sky130_fd_sc_hd__buf_1",
+                               "sky130_fd_sc_hd__clkbuf_1", "sky130_fd_sc_hd__buf_2",
+                               "sky130_fd_sc_hd__clkbuf_2"]}),
     ("margin30",
      "v3.16 candidate (2026-11-16): strongbuf4 with the slew repair margin 20 -> 30% (40% stalled in repair for 159 "
      "minutes, 2026-11-15). v3.14 left 102 slew warnings at the slow corners on 31 nets, nearly all _2 logic gates "

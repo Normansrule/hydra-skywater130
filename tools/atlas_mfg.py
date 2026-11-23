@@ -3,8 +3,9 @@ atlas_mfg.py -- the atlas's Manufacturing tab and the README's manufacturing tab
 
 Every value shown is read from the fact sheet that tools/tapeout_facts.py writes from tool output and the PDK; each
 one carries the exact command that reproduces it and the file it comes from, and both are shown beside it. A fact
-the sheet marks "not available" (the I/O pad pitch, until Caravel's padframe DEF is fetched) is shown as pending,
-never as a number. Nothing here is typed by hand except the words around the facts.
+the sheet marks "not available" (the I/O pad pitch, when Caravel's padframe files are not fetched) is shown as
+pending, never as a number. The pad pitch, the one value read from an upstream file, also gets its source file and
+the fetch command from docs/tapeout/README.md in the README block. Nothing here is typed by hand except the words around the facts.
 
   python3 tools/atlas_mfg.py            rewrite the README block between the manufacturing markers
   python3 tools/atlas_mfg.py --check    fail if that block no longer matches the fact sheet
@@ -29,7 +30,17 @@ def load():
 
 
 def fact(t, name):
-    return next((f for f in t["facts"] if f["name"] == name), None)
+    """A fact by name; a name also matches the sheet's longer form "name (qualifier)"."""
+    return next((f for f in t["facts"] if f["name"] == name or f["name"].startswith(name + " (")), None)
+
+
+def fetch_cmd():
+    """The command that fetches the padframe files, as docs/tapeout/README.md gives it (None if it does not)."""
+    p = ROOT / "docs/tapeout/README.md"
+    if not p.exists():
+        return None
+    m = re.search(r"^(cd .*raw\.githubusercontent\.com/efabless/caravel/\S+.*)$", p.read_text(), re.M)
+    return m.group(1).strip() if m else None
 
 
 def fmt(f):
@@ -119,13 +130,30 @@ def section():
     return "".join(out)
 
 
-INTRO = ('<p>What it takes to manufacture each target, read from the hardened runs and the process design kit. '
-         'The Tiny Tapeout tile is one design on Tiny Tapeout\'s shared chip: Tiny Tapeout supplies the padframe, the '
-         'package and the power. The OpenFrame core is a hardened block for a full SkyWater 130 OpenFrame chip, which '
-         'brings its own padframe; it has not been manufactured. <b>The I/O pad pitch is pending</b>: it is read from '
-         'the padframe\'s own layout (Caravel\'s <code>chip_io.def</code> and <code>openframe_project_wrapper.def</code>), '
-         'which is not fetched yet. Until then the only number shown is the pad cell\'s width, the floor the pitch '
-         'cannot go below.</p>')
+def intro():
+    head = ('<p>What it takes to manufacture each target, read from the hardened runs and the process design kit. '
+            'The Tiny Tapeout tile is one design on Tiny Tapeout\'s shared chip: Tiny Tapeout supplies the padframe, the '
+            'package and the power. The OpenFrame core is a hardened block for a full SkyWater 130 OpenFrame chip, which '
+            'brings its own padframe; it has not been manufactured. ')
+    T = load() or {}
+    got = [(k, fact(t, "I/O pad pitch")) for k, t in T.items()]
+    got = [(k, f) for k, f in got if f and fmt(f)]
+    if not got:
+        return head + ('<b>The I/O pad pitch is pending</b>: it is read from the padframe\'s own layout (Caravel\'s '
+                       '<code>chip_io.def</code> and <code>chip_io_openframe.mag</code>), which is not fetched yet. Until '
+                       'then the only number shown is the pad cell\'s width, the floor the pitch cannot go below.</p>')
+    vals = sorted({fmt(f) for _, f in got})
+    short = {"tt_tile": "Tiny Tapeout chips", "openframe_core": "OpenFrame"}
+    srcs = " and ".join(f'<code>{esc(f["source_file"])}</code> ({esc(short.get(k, k))})' for k, f in got)
+    cmd = fetch_cmd()
+    return head + (f'<b>The I/O pad pitch is {esc(" / ".join(vals))}</b>, the most common centre-to-centre spacing of the '
+                   f'GPIO pads, measured from the padframe\'s own public layout: {srcs}. Wider gaps are where power pads '
+                   f'and corners sit between GPIO pads.</p>'
+                   + (f'<details class="mf-src"><summary>how the padframe files are fetched</summary><pre><code>{esc(cmd)}'
+                      f'</code></pre></details>' if cmd else ""))
+
+
+INTRO = intro()
 
 
 CSS = r"""
@@ -207,6 +235,17 @@ def readme_block():
             v = fmt(f) if f else None
             cells.append("—" if f is None else ("pending (padframe DEF not fetched)" if v is None else v))
         lines.append(f"| {n} | " + " | ".join(c.replace("|", "\\|") for c in cells) + " |")
+    # the pad pitch is the one value read from an upstream file rather than our own runs: show where, and how
+    pit = [(k, fact(T[k], "I/O pad pitch")) for k in keys]
+    pit = [(k, f) for k, f in pit if f and fmt(f)]
+    if pit:
+        lines += ["", "Where the I/O pad pitch comes from:", ""]
+        for k, f in pit:
+            lines.append(f"- {TITLES.get(k, k)}: {fmt(f)} from `{f['source_file']}` ({f.get('note', '')}); "
+                         f"command: `{f['command'].split('#')[0].strip()}`")
+        cmd = fetch_cmd()
+        if cmd:
+            lines += ["", "The padframe files are fetched with:", "", "```bash", cmd, "```"]
     lines += ["", "Every value is generated by `tools/tapeout_facts.py` into `docs/tapeout/facts.json`, with the command "
               "and source file that reproduce it; the site's [Manufacturing tab]"
               "(https://normansrule.github.io/hydra-skywater130/#manufacturing) shows each one.", "", END]

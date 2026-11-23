@@ -29,7 +29,7 @@ provenance:                   ## which board bitstreams were built from the curr
 	@for d in fpga/build/*/; do grep -q '^provenance:' $$d/Makefile 2>/dev/null || continue; \
 	  $(MAKE) -s --no-print-directory -C $$d provenance 2>/dev/null || true; done
 
-verify: check-deps site-check readme-check tt-ready rst-sync-copy tile-shared lint basys3-selftest check-tile cost-mux cost-cal keyvault mailbox sha256 sha256-stream measure pcr selftest xsec jtag jtag-bridge padmux xbar xbar-bound tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-mem systile-two tile diff harness jtag-harness gpu systile-gpu select-proof abi-v2 systile-abi cpu-quick systile-cpu cpu-uart systile-disp secure-boot systile-boot i2c-gpio sky130 sky130-mcu tools boards bind uart-baud isa-check
+verify: check-deps site-check readme-check tt-ready rst-sync-copy tile-shared lint basys3-selftest check-tile cost-mux cost-cal keyvault mailbox sha256 sha256-stream measure pcr selftest xsec jtag jtag-bridge padmux xbar xbar-bound tpu simd ntt ntt-moduli dma dma-simd dma-ntt memboard system systile systile-tpu systile-mem systile-two tile diff harness jtag-harness gpu systile-gpu select-proof abi-v2 systile-abi cpu-quick systile-cpu cpu-uart cpu-fence systile-disp secure-boot systile-boot i2c-gpio sky130 sky130-mcu tools boards bind uart-baud isa-check
 	@echo "=== all checks passed ==="
 
 # All three targets from the one source, in one command. Each depends on the
@@ -268,6 +268,7 @@ readme-check:                 ## lead figures current; every README number match
 	@python3 tools/check_readme_facts.py
 	@python3 tools/atlas_boards.py --check
 	@python3 tools/atlas_mfg.py --check
+	@python3 tools/atlas_ttfit.py --check
 
 site:                         ## regenerate the project page and the architecture diagram
 	python3 tools/gen_site.py
@@ -385,6 +386,23 @@ sram-model:                   ## fetch the SkyWater 130 SRAM macro's Verilog mod
 
 MEM ?= 65536
 CSETS ?= 64
+cpu-fence:                    ## fence.i (Zifencei): Sixfold's tests/fence_i.s rewrites cached code; flat, cached and SRAM builds must run the new words
+	@test -f $(SIXFOLD)/tests/fence_i.s || { echo "FAIL cpu-fence: $(SIXFOLD)/tests/fence_i.s missing (Sixfold before Zifencei)"; exit 1; }
+	@test -n "$(SRAM_V)" || { echo "FAIL cpu-fence: the sky130 SRAM macro model is missing (make sram-model)"; exit 1; }
+	rm -rf $(SIMTMP)/cpuvec_f && node tools/cpu_vectors.mjs $(SIXFOLD) $(SIMTMP)/cpuvec_f $(SIXFOLD)/tests/fence_i.s > /dev/null
+	@test "$$(sed -n 11p $(SIMTMP)/cpuvec_f/fence_i/regs.txt)" = "00000000000010e3" || { echo "FAIL cpu-fence: Sixfold's model does not give a0 = 4323"; exit 1; }
+	iverilog -g2012 -o $(SIMTMP)/hydra_cpu_f $(SIXFOLD_RTL) sys/rtl/hydra_engine_cpu.sv sys/tb/tb_hydra_engine_cpu.sv 2>&1 | \
+	  { grep -v -e 'sorry: constant selects' || true; }
+	$(SIM) --tail 1 --show '^PASS' -- vvp -n $(SIMTMP)/hydra_cpu_f +dir=$(SIMTMP)/cpuvec_f/fence_i
+	iverilog -g2012 -Ptb_hydra_engine_cpu.CACHED=1 -o $(SIMTMP)/hydra_cpu_fc $(SIXFOLD_CACHED_RTL) \
+	  sys/rtl/hydra_engine_cpu.sv sys/tb/tb_hydra_engine_cpu.sv 2>&1 | { grep -v -e 'sorry: constant selects' || true; }
+	$(SIM) --tail 1 --show '^PASS' -- vvp -n $(SIMTMP)/hydra_cpu_fc +dir=$(SIMTMP)/cpuvec_f/fence_i
+	iverilog -g2012 -Ptb_hydra_engine_cpu.CACHED=1 -Ptb_hydra_engine_cpu.SRAM=1 -Ptb_hydra_engine_cpu.MEM_BYTES=$(MEM) -Ptb_hydra_engine_cpu.CACHE_SETS=$(CSETS) \
+	  -o $(SIMTMP)/hydra_cpu_fs $(SIXFOLD_CACHED_RTL) sys/tb/timescale_1ns.v $(SRAM_V) sys/rtl/hydra_cpu_sram.sv \
+	  sys/rtl/hydra_engine_cpu.sv sys/tb/tb_hydra_engine_cpu.sv 2>&1 | { grep -v -e 'sorry: constant selects' || true; }
+	$(SIM) --tail 1 --show '^PASS' -- vvp -n $(SIMTMP)/hydra_cpu_fs +dir=$(SIMTMP)/cpuvec_f/fence_i
+	@echo "PASS cpu-fence: Sixfold's fence_i (cached loop body, the instruction behind fence.i, a learned jump rewritten; a0 = 4323) gives the model's registers on the flat, cached and SkyWater 130 SRAM builds"
+
 cpu-sram:                     ## the CPU on SkyWater 130 SRAM macros (MEM=65536 or 16384): every program vs the cached model
 	@test -f $(SIXFOLD)/src/Riscv64.sv || { echo "FAIL cpu-sram: $(SIXFOLD) missing"; exit 1; }
 	@test -n "$(SRAM_V)" || { echo "FAIL cpu-sram: the sky130 SRAM macro model is not under PDK_ROOT=$(PDK_ROOT)"; exit 1; }
@@ -789,3 +807,9 @@ clean:
 
 check-deps:                   ## every tool and Python package make verify needs, named up front
 	@./scripts/check_deps.sh
+
+# The full chip against shuttles other than Tiny Tapeout (docs/tapeout/shuttles.md). Needs build/ext/caravel/
+# (docs/tapeout/README.md); without it the OpenFrame checks report BLOCKED instead of failing.
+.PHONY: shuttle-check
+shuttle-check:
+	python3 tools/shuttle_check.py
